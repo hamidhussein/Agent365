@@ -1,24 +1,28 @@
 
 
-import React, { useState, useEffect } from 'react';
+import React, { Suspense, useEffect, useState } from 'react';
 import Header from './components/Header';
 import Footer from './components/Footer';
-import HomePage from './components/pages/HomePage';
-import AgentsPage from './components/pages/AgentsPage';
-import AgentDetailPage from './components/pages/AgentDetailPage';
-import CreatorDashboardPage from './components/pages/CreatorDashboardPage';
-import CreateAgentPage from './components/pages/CreateAgentPage';
-import RunAgentPage from './components/pages/RunAgentPage';
-import CreatorProfilePage from './components/pages/CreatorProfilePage';
-import PricingPage from './components/pages/PricingPage';
-import UserDashboardPage from './components/pages/UserDashboardPage';
-import SearchPage from './components/pages/SearchPage';
-import LoginPage from './components/pages/LoginPage';
-import SignupPage from './components/pages/SignupPage';
-import NotFoundPage from './components/pages/NotFoundPage';
-import LoadingSpinner from './components/common/LoadingSpinner';
+import { lazyWithRetry, sanitizeInput } from '@/lib/utils';
+import PageLoadingOverlay from './components/common/LoadingSpinner';
+import { LoadingSpinner as SharedLoadingSpinner } from '@/components/shared/LoadingSpinner';
+import { SkipToContent } from '@/components/shared/SkipToContent';
 import { mockAgents, mockUser } from './constants';
 import { User } from './types';
+
+const HomePage = lazyWithRetry(() => import('./components/pages/HomePage'));
+const AgentsPage = lazyWithRetry(() => import('./components/pages/AgentsPage'));
+const AgentDetailPage = lazyWithRetry(() => import('./components/pages/AgentDetailPage'));
+const CreatorDashboardPage = lazyWithRetry(() => import('./components/pages/CreatorDashboardPage'));
+const CreateAgentPage = lazyWithRetry(() => import('./components/pages/CreateAgentPage'));
+const RunAgentPage = lazyWithRetry(() => import('./components/pages/RunAgentPage'));
+const CreatorProfilePage = lazyWithRetry(() => import('./components/pages/CreatorProfilePage'));
+const PricingPage = lazyWithRetry(() => import('./components/pages/PricingPage'));
+const UserDashboardPage = lazyWithRetry(() => import('./components/pages/UserDashboardPage'));
+const SearchPage = lazyWithRetry(() => import('./components/pages/SearchPage'));
+const LoginPage = lazyWithRetry(() => import('./components/pages/LoginPage'));
+const SignupPage = lazyWithRetry(() => import('./components/pages/SignupPage'));
+const NotFoundPage = lazyWithRetry(() => import('./components/pages/NotFoundPage'));
 
 export type Page = 
   'home' | 
@@ -96,7 +100,7 @@ const App: React.FC = () => {
   }
 
   const handleSearch = (query: string) => {
-    setSearchQuery(query);
+    setSearchQuery(sanitizeInput(query));
     navigateTo('search');
   };
 
@@ -169,15 +173,24 @@ const App: React.FC = () => {
 
   return (
     <div className="min-h-screen bg-gray-900 font-sans flex flex-col relative">
-      {isLoading && <LoadingSpinner />}
+      {isLoading && <PageLoadingOverlay />}
+      <SkipToContent />
       <Header 
         setCurrentPage={navigateTo} 
         currentPage={currentPage} 
         creditBalance={user.creditBalance}
         onSearch={handleSearch}
       />
-      <main className="flex-grow">
-        {renderPage()}
+      <main id="main-content" className="flex-grow">
+        <Suspense
+          fallback={
+            <div className="flex justify-center py-16">
+              <SharedLoadingSpinner size="lg" />
+            </div>
+          }
+        >
+          {renderPage()}
+        </Suspense>
       </main>
       <Footer />
     </div>
