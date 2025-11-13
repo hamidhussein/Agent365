@@ -1,0 +1,38 @@
+[project]
+name = "agentgrid-backend"
+version = "0.1.0"
+requires-python = ">=3.13"
+dependencies = [
+  "fastapi",
+  "uvicorn[standard]",
+  "sqlalchemy",
+  "alembic",
+  "python-dotenv",
+  "pydantic",
+  "pydantic-settings",
+  "psycopg2-binary",
+  "redis",
+  "celery",
+  "stripe",
+  "httpx",
+]
+
+[project.optional-dependencies]
+dev = [
+  "ruff",
+  "black",
+  "pytest",
+  "pytest-asyncio",
+  "pytest-cov",
+]
+
+[tool.black]
+line-length = 100
+
+[tool.ruff]
+line-length = 100
+src = ["app"]
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+pythonpath = ["."]
