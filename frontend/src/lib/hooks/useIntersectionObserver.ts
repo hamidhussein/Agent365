@@ -7,8 +7,8 @@ export interface UseIntersectionObserverOptions {
   freezeOnceVisible?: boolean;
 }
 
-export function useIntersectionObserver(
-  elementRef: RefObject<Element>,
+export function useIntersectionObserver<T extends Element>(
+  elementRef: RefObject<T | null>,
   {
     threshold = 0,
     root = null,

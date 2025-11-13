@@ -173,7 +173,7 @@ export function ConfirmDialog({
         </>
       }
     >
-      {/* Additional body content can be passed via children if needed */}
+      <p className="text-sm text-muted-foreground">{description}</p>
     </Modal>
   );
 }

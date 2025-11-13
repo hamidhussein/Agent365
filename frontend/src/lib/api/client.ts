@@ -7,12 +7,11 @@ import type {
   ApiResponse,
   CreditTransaction,
   Creator,
-  LoginFormData,
   PaginatedResponse,
   Review,
-  SignupFormData,
   User,
 } from '@/lib/types';
+import type { LoginFormData, SignupFormData } from '@/lib/schemas/auth.schema';
 
 const BASE_URL =
   process.env.NEXT_PUBLIC_API_URL ||

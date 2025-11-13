@@ -5,29 +5,41 @@ import {
 } from '@tanstack/react-query';
 import { api } from '@/lib/api/client';
 import { useAgentStore } from '@/lib/store';
-import type { AgentFilters } from '@/lib/types';
+import type { Agent, AgentFilters, PaginatedResponse } from '@/lib/types';
+import { useEffect } from 'react';
 
 export function useAgents(filters?: AgentFilters) {
   const { setAgents, setLoading, setError } = useAgentStore();
 
-  return useQuery({
-    queryKey: ['agents', filters] as const,
+  const query = useQuery<
+    PaginatedResponse<Agent>,
+    Error,
+    PaginatedResponse<Agent>,
+    ['agents', AgentFilters | undefined]
+  >({
+    queryKey: ['agents', filters],
     queryFn: async () => {
       setLoading(true);
       const response = await api.agents.list(filters);
       return response.data;
     },
-    onSuccess: (payload) => {
-      setAgents(payload.data);
-      setLoading(false);
-    },
-    onError: (error: unknown) => {
-      setError(
-        error instanceof Error ? error.message : 'Failed to load agents.'
-      );
-      setLoading(false);
-    },
   });
+
+  useEffect(() => {
+    if (query.data) {
+      setAgents(query.data.data);
+      setLoading(false);
+    }
+  }, [query.data, setAgents, setLoading]);
+
+  useEffect(() => {
+    if (query.error) {
+      setError(query.error.message);
+      setLoading(false);
+    }
+  }, [query.error, setError, setLoading]);
+
+  return query;
 }
 
 export function useAgent(agentId?: string) {

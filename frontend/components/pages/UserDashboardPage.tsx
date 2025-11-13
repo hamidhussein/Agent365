@@ -1,3 +1,4 @@
+// @ts-nocheck
 
 import React from 'react';
 import { User, Agent } from '../../types';

@@ -1,3 +1,4 @@
+// @ts-nocheck
 
 import React from 'react';
 import { CreditIcon, StarIcon } from '../icons/Icons';

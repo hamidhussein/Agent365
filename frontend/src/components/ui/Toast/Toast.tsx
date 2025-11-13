@@ -20,15 +20,17 @@ const colorMap = {
 };
 
 interface ToastProps {
-  id: string;
   type: 'success' | 'error' | 'warning' | 'info';
   message: string;
   duration?: number;
   onClose: () => void;
 }
 
-function Toast({ id, type, message, duration = 5000, onClose }: ToastProps) {
+function Toast({ type, message, duration = 5000, onClose }: ToastProps) {
   useEffect(() => {
+    if (duration === Infinity) {
+      return;
+    }
     const timer = setTimeout(onClose, duration);
     return () => clearTimeout(timer);
   }, [duration, onClose]);

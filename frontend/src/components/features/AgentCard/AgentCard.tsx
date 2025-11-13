@@ -42,7 +42,7 @@ function AgentCardComponent({
   const handleViewDetails = () => {
     onViewDetails?.(agent);
   };
-  const cardRef = useRef<HTMLDivElement>(null);
+  const cardRef = useRef<HTMLDivElement | null>(null);
   const entry = useIntersectionObserver(cardRef, {
     threshold: 0.2,
     freezeOnceVisible: true,

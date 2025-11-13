@@ -6,6 +6,7 @@ import { AgentCategory, AgentFilters } from '@/lib/types';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
 import { cn } from '@/lib/utils';
+import { useDebounce } from '@/lib/hooks';
 
 const ratingOptions = [5, 4, 3, 2];
 const sortOptions: Array<{ value: AgentFilters['sort_by']; label: string }> = [
@@ -45,14 +46,13 @@ export function SearchBar({
     setLocalFilters(filters || {});
   }, [filters]);
 
+  const debouncedQuery = useDebounce(internalQuery, debounceMs);
+
   useEffect(() => {
-    const timer = setTimeout(() => {
-      if (internalQuery !== query) {
-        onQueryChange?.(internalQuery);
-      }
-    }, debounceMs);
-    return () => clearTimeout(timer);
-  }, [internalQuery, debounceMs, onQueryChange, query]);
+    if (debouncedQuery !== query) {
+      onQueryChange?.(debouncedQuery);
+    }
+  }, [debouncedQuery, query, onQueryChange]);
 
   const categories = useMemo(
     () =>

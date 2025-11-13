@@ -17,7 +17,7 @@ export function OptimizedImage({
   alt,
   ...props
 }: OptimizedImageProps) {
-  const wrapperRef = useRef<HTMLDivElement>(null);
+  const wrapperRef = useRef<HTMLDivElement | null>(null);
   const [isLoaded, setIsLoaded] = useState(false);
   const [isVisible, setIsVisible] = useState(false);
   const entry = useIntersectionObserver(wrapperRef, {

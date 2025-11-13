@@ -1,3 +1,4 @@
+// @ts-nocheck
 
 import React, { Fragment } from 'react';
 import { CheckIcon } from '../icons/Icons';

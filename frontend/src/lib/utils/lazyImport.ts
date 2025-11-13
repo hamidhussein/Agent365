@@ -1,6 +1,6 @@
 import { lazy, type ComponentType, type LazyExoticComponent } from 'react';
 
-export function lazyWithRetry<T extends ComponentType<unknown>>(
+export function lazyWithRetry<T extends ComponentType<any>>(
   componentImport: () => Promise<{ default: T }>,
   retries = 3,
   interval = 1000
@@ -17,5 +17,5 @@ export function lazyWithRetry<T extends ComponentType<unknown>>(
       }
     }
     throw new Error('Failed to load component');
-  });
+  }) as LazyExoticComponent<T>;
 }
