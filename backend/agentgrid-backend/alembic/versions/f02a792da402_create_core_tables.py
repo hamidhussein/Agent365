@@ -18,10 +18,10 @@ down_revision: Union[str, Sequence[str], None] = None
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
 
-user_role_enum = sa.Enum("user", "creator", "admin", name="userrole")
-agent_status_enum = sa.Enum("active", "inactive", "pending_review", name="agentstatus")
-execution_status_enum = sa.Enum("pending", "running", "completed", "failed", name="executionstatus")
-transaction_type_enum = sa.Enum("purchase", "usage", "refund", "earning", name="transactiontype")
+user_role_enum = postgresql.ENUM("user", "creator", "admin", name="userrole", create_type=False)
+agent_status_enum = postgresql.ENUM("active", "inactive", "pending_review", name="agentstatus", create_type=False)
+execution_status_enum = postgresql.ENUM("pending", "running", "completed", "failed", name="executionstatus", create_type=False)
+transaction_type_enum = postgresql.ENUM("purchase", "usage", "refund", "earning", name="transactiontype", create_type=False)
 
 
 def upgrade() -> None:
@@ -51,12 +51,18 @@ def upgrade() -> None:
         sa.Column("description", sa.String(length=512), nullable=False),
         sa.Column("long_description", sa.Text()),
         sa.Column("category", sa.String(length=64), nullable=False),
-        sa.Column("tags", postgresql.JSONB(astext_type=sa.Text()), server_default=sa.text("'{}'::jsonb")),
-        sa.Column("price_per_run", sa.Integer(), nullable=False),
+        sa.Column("tags", postgresql.JSONB(astext_type=sa.Text()), server_default=sa.text("'[]'::jsonb"), nullable=False),
+        sa.Column("price_per_run", sa.Float(), nullable=False),
         sa.Column("rating", sa.Float(), nullable=False, server_default="0"),
         sa.Column("total_runs", sa.Integer(), nullable=False, server_default="0"),
+        sa.Column("total_reviews", sa.Integer(), nullable=False, server_default="0"),
         sa.Column("status", agent_status_enum, nullable=False, server_default="pending_review"),
         sa.Column("config", postgresql.JSONB(astext_type=sa.Text()), server_default=sa.text("'{}'::jsonb")),
+        sa.Column("capabilities", postgresql.JSONB(astext_type=sa.Text()), server_default=sa.text("'[]'::jsonb"), nullable=False),
+        sa.Column("limitations", postgresql.JSONB(astext_type=sa.Text()), server_default=sa.text("'[]'::jsonb")),
+        sa.Column("demo_available", sa.Boolean(), nullable=False, server_default=sa.text("false")),
+        sa.Column("version", sa.String(length=32), nullable=False, server_default="1.0.0"),
+        sa.Column("thumbnail_url", sa.String(length=512)),
         sa.Column("creator_id", postgresql.UUID(as_uuid=True), sa.ForeignKey("users.id", ondelete="CASCADE"), nullable=False),
         sa.Column("created_at", sa.DateTime(timezone=True), server_default=sa.text("NOW()")),
         sa.Column("updated_at", sa.DateTime(timezone=True), server_default=sa.text("NOW()")),

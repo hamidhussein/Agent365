@@ -1,32 +1,101 @@
 from datetime import datetime
 from uuid import UUID
+from typing import List, Optional
 
-from pydantic import BaseModel, Field, ConfigDict
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 
-from app.models.enums import AgentStatus
+from app.models.enums import AgentCategory, AgentStatus
+
+
+class AgentConfig(BaseModel):
+    model: str
+    temperature: float = Field(ge=0, le=2)
+    max_tokens: int = Field(ge=100, le=32000)
+    timeout_seconds: int = Field(ge=10, le=300)
+    required_inputs: List[dict] = Field(default_factory=list)
+    output_schema: dict = Field(default_factory=dict)
 
 
 class AgentBase(BaseModel):
-    name: str
-    description: str = Field(max_length=512)
-    long_description: str | None = None
-    category: str
-    tags: dict | None = None
-    price_per_run: int
-    config: dict = Field(default_factory=dict)
+    name: str = Field(..., min_length=3, max_length=100)
+    description: str = Field(..., min_length=10, max_length=500)
+    long_description: Optional[str] = Field(None, max_length=5000)
+    category: AgentCategory
+    tags: List[str] = Field(..., min_length=1, max_length=10)
+    price_per_run: float = Field(..., ge=1, le=10000)
+    config: AgentConfig
+    capabilities: List[str] = Field(..., min_length=1)
+    limitations: Optional[List[str]] = None
+    demo_available: bool = False
+
+    @field_validator("tags", mode="after")
+    @classmethod
+    def validate_tags(cls, value: List[str]) -> List[str]:
+        cleaned = [tag.strip() for tag in value if tag.strip()]
+        if not cleaned:
+            raise ValueError("At least one tag is required")
+        if len(cleaned) > 10:
+            raise ValueError("A maximum of 10 tags are allowed")
+        return list(dict.fromkeys(cleaned))
+
+    @field_validator("capabilities", mode="after")
+    @classmethod
+    def validate_capabilities(cls, value: List[str]) -> List[str]:
+        cleaned = [item.strip() for item in value if item.strip()]
+        if not cleaned:
+            raise ValueError("Capabilities cannot be empty")
+        return cleaned
 
 
 class AgentCreate(AgentBase):
     pass
 
 
-class AgentRead(AgentBase):
+class AgentUpdate(BaseModel):
+    name: Optional[str] = Field(None, min_length=3, max_length=100)
+    description: Optional[str] = Field(None, min_length=10, max_length=500)
+    long_description: Optional[str] = Field(None, max_length=5000)
+    category: Optional[AgentCategory] = None
+    tags: Optional[List[str]] = Field(None, min_length=1, max_length=10)
+    price_per_run: Optional[float] = Field(None, ge=1, le=10000)
+    config: Optional[AgentConfig] = None
+    capabilities: Optional[List[str]] = Field(None, min_length=1)
+    limitations: Optional[List[str]] = None
+    demo_available: Optional[bool] = None
+    status: Optional[AgentStatus] = None
+    thumbnail_url: Optional[str] = Field(None, max_length=512)
+
+    @field_validator("tags", mode="after")
+    @classmethod
+    def validate_optional_tags(cls, value: Optional[List[str]]) -> Optional[List[str]]:
+        if value is None:
+            return value
+        cleaned = [tag.strip() for tag in value if tag.strip()]
+        if not cleaned:
+            raise ValueError("At least one tag is required")
+        if len(cleaned) > 10:
+            raise ValueError("A maximum of 10 tags are allowed")
+        return list(dict.fromkeys(cleaned))
+
+
+class AgentResponse(AgentBase):
     id: UUID
     creator_id: UUID
+    version: str
     rating: float
     total_runs: int
+    total_reviews: int
     status: AgentStatus
+    thumbnail_url: Optional[str]
     created_at: datetime
     updated_at: datetime
 
     model_config = ConfigDict(from_attributes=True)
+
+
+class AgentListResponse(BaseModel):
+    data: List[AgentResponse]
+    total: int
+    page: int
+    per_page: int
+    total_pages: int

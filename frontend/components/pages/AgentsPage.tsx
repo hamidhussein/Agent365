@@ -1,7 +1,7 @@
 
-import React, { useState, useMemo } from 'react';
+import React, { useMemo, useState } from 'react';
 import { Agent } from '../../types';
-import { mockAgents, categories } from '../../constants';
+import { categories } from '../../constants';
 import FilterSidebar from '../FilterSidebar';
 import AgentGrid from '../AgentGrid';
 import Pagination from '../Pagination';
@@ -12,14 +12,20 @@ type SortOption = 'runs' | 'rating' | 'price-asc' | 'price-desc';
 const AGENTS_PER_PAGE = 8;
 
 interface AgentsPageProps {
+  agents: Agent[];
   onSelectAgent: (agentId: string) => void;
   onSelectCreator: (username: string) => void;
   favoriteAgentIds: Set<string>;
   onToggleFavorite: (agentId: string) => void;
 }
 
-const AgentsPage: React.FC<AgentsPageProps> = ({ onSelectAgent, onSelectCreator, favoriteAgentIds, onToggleFavorite }) => {
-  const [allAgents] = useState<Agent[]>(mockAgents);
+const AgentsPage: React.FC<AgentsPageProps> = ({
+  agents,
+  onSelectAgent,
+  onSelectCreator,
+  favoriteAgentIds,
+  onToggleFavorite,
+}) => {
   const [visibleCount, setVisibleCount] = useState(AGENTS_PER_PAGE);
   const [selectedCategories, setSelectedCategories] = useState<Set<string>>(new Set());
   const [sortOption, setSortOption] = useState<SortOption>('runs');
@@ -44,15 +50,15 @@ const AgentsPage: React.FC<AgentsPageProps> = ({ onSelectAgent, onSelectCreator,
   };
 
   const filteredAndSortedAgents = useMemo(() => {
-    let agents = allAgents;
+    let filteredAgents = agents;
 
     if (selectedCategories.size > 0) {
-      agents = agents.filter(agent =>
-        agent.tags.some(tag => selectedCategories.has(tag))
+      filteredAgents = filteredAgents.filter(
+        (agent) => agent.category && selectedCategories.has(agent.category)
       );
     }
 
-    return [...agents].sort((a, b) => {
+    return [...filteredAgents].sort((a, b) => {
       switch (sortOption) {
         case 'rating':
           return b.rating - a.rating;
@@ -65,7 +71,7 @@ const AgentsPage: React.FC<AgentsPageProps> = ({ onSelectAgent, onSelectCreator,
           return b.runs - a.runs;
       }
     });
-  }, [allAgents, selectedCategories, sortOption]);
+  }, [agents, selectedCategories, sortOption]);
 
   const currentAgents = filteredAndSortedAgents.slice(0, visibleCount);
   const hasMore = visibleCount < filteredAndSortedAgents.length;

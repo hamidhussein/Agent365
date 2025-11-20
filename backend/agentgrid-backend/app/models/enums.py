@@ -7,10 +7,18 @@ class UserRole(str, enum.Enum):
     ADMIN = "admin"
 
 
+class AgentCategory(str, enum.Enum):
+    RESEARCH = "research"
+    AUTOMATION = "automation"
+    SUPPORT = "support"
+    ANALYSIS = "analysis"
+    CREATIVE = "creative"
+
+
 class AgentStatus(str, enum.Enum):
     ACTIVE = "active"
     INACTIVE = "inactive"
-    PENDING = "pending_review"
+    PENDING_REVIEW = "pending_review"
 
 
 class ExecutionStatus(str, enum.Enum):

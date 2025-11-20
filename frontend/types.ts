@@ -44,6 +44,7 @@ export interface Agent {
   };
   description: string;
   longDescription: string;
+  category?: string;
   rating: number;
   reviewCount: number;
   runs: number;

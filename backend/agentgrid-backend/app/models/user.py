@@ -1,11 +1,12 @@
 import uuid
 from typing import List, TYPE_CHECKING
 
-from sqlalchemy import Enum, Integer, String
+from sqlalchemy import Integer, String
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.db.base import Base
+from app.db.enum_types import LowercaseEnum
 from app.models.enums import UserRole
 from app.models.mixins import TimestampMixin
 
@@ -25,7 +26,11 @@ class User(TimestampMixin, Base):
     username: Mapped[str] = mapped_column(String(50), unique=True, nullable=False)
     full_name: Mapped[str] = mapped_column(String(255), nullable=True)
     hashed_password: Mapped[str] = mapped_column(String(255), nullable=False)
-    role: Mapped[UserRole] = mapped_column(Enum(UserRole), default=UserRole.USER, nullable=False)
+    role: Mapped[UserRole] = mapped_column(
+        LowercaseEnum(UserRole, name="userrole"),
+        default=UserRole.USER,
+        nullable=False,
+    )
     credits: Mapped[int] = mapped_column(Integer, default=0)
 
     agents: Mapped[List["Agent"]] = relationship(back_populates="creator", cascade="all, delete")

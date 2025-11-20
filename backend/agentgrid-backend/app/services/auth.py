@@ -14,6 +14,7 @@ from app.core.security import (
     is_token_type,
     verify_password,
 )
+from app.models.enums import UserRole
 from app.models.user import User
 from app.schemas.user import UserCreate
 
@@ -27,11 +28,16 @@ def register_user(db: Session, user_in: UserCreate) -> User:
     if existing:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="User already exists")
 
+    if isinstance(user_in.role, UserRole):
+        role_enum = user_in.role
+    else:
+        role_enum = UserRole(str(user_in.role).lower())
+
     user = User(
         email=user_in.email,
         username=user_in.username,
         full_name=user_in.full_name,
-        role=user_in.role,
+        role=role_enum,
         credits=user_in.credits,
         hashed_password=get_password_hash(user_in.password),
     )

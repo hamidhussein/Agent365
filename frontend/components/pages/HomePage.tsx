@@ -3,21 +3,33 @@
 import React from 'react';
 import Hero from '../Hero';
 import FeaturedAgents from '../FeaturedAgents';
+import { Agent } from '../../types';
 
 interface HomePageProps {
-    onSelectAgent: (agentId: string) => void;
-    onSelectCreator: (username: string) => void;
-// @FIX: Add favoriteAgentIds and onToggleFavorite to props
-    favoriteAgentIds: Set<string>;
-    onToggleFavorite: (agentId: string) => void;
+  agents: Agent[];
+  onSelectAgent: (agentId: string) => void;
+  onSelectCreator: (username: string) => void;
+  favoriteAgentIds: Set<string>;
+  onToggleFavorite: (agentId: string) => void;
 }
 
-const HomePage: React.FC<HomePageProps> = ({ onSelectAgent, onSelectCreator, favoriteAgentIds, onToggleFavorite }) => {
+const HomePage: React.FC<HomePageProps> = ({
+  agents,
+  onSelectAgent,
+  onSelectCreator,
+  favoriteAgentIds,
+  onToggleFavorite,
+}) => {
   return (
     <>
       <Hero />
-{/* @FIX: Pass favoriteAgentIds and onToggleFavorite to FeaturedAgents */}
-      <FeaturedAgents onSelectAgent={onSelectAgent} onSelectCreator={onSelectCreator} favoriteAgentIds={favoriteAgentIds} onToggleFavorite={onToggleFavorite} />
+      <FeaturedAgents
+        agents={agents}
+        onSelectAgent={onSelectAgent}
+        onSelectCreator={onSelectCreator}
+        favoriteAgentIds={favoriteAgentIds}
+        onToggleFavorite={onToggleFavorite}
+      />
     </>
   );
 };

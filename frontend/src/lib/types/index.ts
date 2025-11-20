@@ -178,12 +178,10 @@ export interface ApiResponse<T> {
 
 export interface PaginatedResponse<T> {
   data: T[];
-  pagination: {
-    page: number;
-    per_page: number;
-    total: number;
-    total_pages: number;
-  };
+  total: number;
+  page: number;
+  per_page: number;
+  total_pages: number;
 }
 
 export interface ApiError {
