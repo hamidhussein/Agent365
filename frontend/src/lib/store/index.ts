@@ -54,7 +54,19 @@ export const useAuthStore = create<AuthState>()(
             }
           }),
       })),
-      { name: 'auth-storage' }
+      {
+        name: 'auth-storage',
+        onRehydrateStorage: () => (state) => {
+          // After hydration completes, set isLoading to false
+          if (state) {
+            state.isLoading = false;
+            // Ensure favoriteAgentIds is always an array
+            if (state.user && !Array.isArray(state.user.favoriteAgentIds)) {
+              state.user.favoriteAgentIds = [];
+            }
+          }
+        },
+      }
     )
   )
 );

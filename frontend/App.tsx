@@ -8,8 +8,7 @@ import { lazyWithRetry, sanitizeInput } from '@/lib/utils';
 import PageLoadingOverlay from './components/common/LoadingSpinner';
 import { LoadingSpinner as SharedLoadingSpinner } from '@/components/shared/LoadingSpinner';
 import { SkipToContent } from '@/components/shared/SkipToContent';
-import { mockAgents, mockUser } from './constants';
-import { User, Agent } from './types';
+import { mockAgents } from './constants';
 import axiosInstance from '@/lib/api/client';
 
 const HomePage = lazyWithRetry(() => import('./components/pages/HomePage'));
@@ -26,16 +25,16 @@ const LoginPage = lazyWithRetry(() => import('./components/pages/LoginPage'));
 const SignupPage = lazyWithRetry(() => import('./components/pages/SignupPage'));
 const NotFoundPage = lazyWithRetry(() => import('./components/pages/NotFoundPage'));
 
-export type Page = 
-  'home' | 
-  'marketplace' | 
-  'agentDetail' | 
-  'creatorDashboard' | 
-  'createAgent' | 
-  'runAgent' | 
+export type Page =
+  'home' |
+  'marketplace' |
+  'agentDetail' |
+  'creatorDashboard' |
+  'createAgent' |
+  'runAgent' |
   'creatorProfile' |
   'pricing' |
-  'dashboard'|
+  'dashboard' |
   'search' |
   'login' |
   'signup' |
@@ -43,35 +42,7 @@ export type Page =
 
 export type DashboardPage = 'overview' | 'runs' | 'favorites' | 'transactions' | 'settings';
 
-type BackendAgent = {
-  id: string;
-  name: string;
-  description: string;
-  long_description?: string | null;
-  category: string;
-  tags: string[];
-  price_per_run: number;
-  rating: number;
-  total_runs: number;
-  total_reviews: number;
-  status: string;
-  config?: {
-    model?: string;
-    temperature?: number;
-    max_tokens?: number;
-    timeout_seconds?: number;
-    required_inputs?: Array<Record<string, unknown>>;
-    output_schema?: Record<string, unknown>;
-  };
-  capabilities?: string[];
-  limitations?: string[];
-  demo_available?: boolean;
-  version: string;
-  thumbnail_url?: string | null;
-  creator_id: string;
-  created_at: string;
-  updated_at: string;
-};
+import { mapBackendAgent, BackendAgent } from '@/lib/utils/agentMapper';
 
 interface AgentsListResponse {
   data: BackendAgent[];
@@ -88,56 +59,21 @@ const fetchAgents = async (): Promise<AgentsListResponse> => {
   return response.data;
 };
 
-const createPlaceholderCreator = (id: string) => {
-  const shortId = id?.slice(0, 6) ?? 'creator';
-  return {
-    name: `Creator ${shortId}`,
-    username: id ?? shortId,
-    avatarUrl: `https://api.dicebear.com/7.x/initials/svg?seed=${shortId}`,
-    bio: 'Creator profile coming soon.',
-  };
-};
 
-const mapBackendAgent = (agent: BackendAgent): Agent => {
-  const placeholderImage = `https://placehold.co/600x400/111827/FFFFFF/png?text=${encodeURIComponent(agent.name?.[0] ?? 'A')}`;
-  const successRate =
-    agent.total_runs > 0
-      ? Math.min(99, Math.max(70, Math.round((agent.rating ?? 0) * 18)))
-      : 95;
 
-  const statusMap: Record<string, Agent['status']> = {
-    active: 'Live',
-    inactive: 'Paused',
-  };
+import { useAuth } from '@/lib/hooks/useAuth';
+import { useAuthStore } from '@/lib/store';
 
-  return {
-    id: agent.id,
-    name: agent.name,
-    creator: createPlaceholderCreator(agent.creator_id ?? agent.id),
-    description: agent.description,
-    longDescription: agent.long_description ?? agent.description,
-    category: agent.category ?? 'General',
-    rating: agent.rating ?? 0,
-    reviewCount: agent.total_reviews ?? 0,
-    runs: agent.total_runs ?? 0,
-    imageUrl: agent.thumbnail_url ?? placeholderImage,
-    tags: Array.isArray(agent.tags) ? agent.tags : [],
-    price: agent.price_per_run ?? 0,
-    successRate,
-    avgRunTime: agent.config?.timeout_seconds ?? 60,
-    status: statusMap[agent.status] ?? 'Draft',
-    inputSchema: [],
-    mockResult: 'Run results will appear here.',
-    reviews: [],
-  };
-};
+// ... imports
 
 const App: React.FC = () => {
   const [currentPage, setCurrentPage] = useState<Page>('home');
   const [currentDashboardPage, setCurrentDashboardPage] = useState<DashboardPage>('overview');
   const [selectedAgentId, setSelectedAgentId] = useState<string | null>(null);
   const [selectedCreatorUsername, setSelectedCreatorUsername] = useState<string | null>(null);
-  const [user, setUser] = useState<User>(mockUser);
+  const user = useAuthStore((state) => state.user);
+  const isAuthenticated = useAuthStore((state) => state.isAuthenticated);
+  const { fetchUserProfile } = useAuth();
   const [searchQuery, setSearchQuery] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const { data: agentsResponse, isLoading: isAgentsLoading, error: agentsError } = useQuery({
@@ -160,6 +96,27 @@ const App: React.FC = () => {
   }, [agentsError]);
 
   useEffect(() => {
+    if (isAuthenticated) {
+      fetchUserProfile();
+    }
+  }, [isAuthenticated, fetchUserProfile]);
+
+  // Removed aggressive redirect from home to dashboard to allow users to visit landing page
+  // useEffect(() => {
+  //   if (isAuthenticated && user && (currentPage === 'home' || currentPage === 'login' || currentPage === 'signup')) {
+  //     setCurrentPage('dashboard');
+  //   }
+  // }, [isAuthenticated, user, currentPage]);
+
+  // Protected routes - redirect to login if not authenticated
+  useEffect(() => {
+    const protectedPages: Page[] = ['dashboard', 'creatorDashboard', 'createAgent'];
+    if (!isAuthenticated && protectedPages.includes(currentPage)) {
+      setCurrentPage('login');
+    }
+  }, [isAuthenticated, currentPage]);
+
+  useEffect(() => {
     const agentExists = selectedAgentId
       ? agents.some((a) => a.id === selectedAgentId)
       : true;
@@ -168,8 +125,8 @@ const App: React.FC = () => {
       : true;
 
     if ((currentPage === 'agentDetail' && selectedAgentId && !agentExists) ||
-        (currentPage === 'runAgent' && selectedAgentId && !agentExists) ||
-        (currentPage === 'creatorProfile' && selectedCreatorUsername && !creatorExists)) {
+      (currentPage === 'runAgent' && selectedAgentId && !agentExists) ||
+      (currentPage === 'creatorProfile' && selectedCreatorUsername && !creatorExists)) {
       navigateTo('notFound');
     }
   }, [currentPage, selectedAgentId, selectedCreatorUsername, agents]);
@@ -177,29 +134,100 @@ const App: React.FC = () => {
 
   const handleSelectAgent = (agentId: string) => {
     setSelectedAgentId(agentId);
-    navigateTo('agentDetail');
+    navigateTo('agentDetail', undefined, agentId);
   };
 
   const handleRunAgent = (agentId: string) => {
     setSelectedAgentId(agentId);
-    navigateTo('runAgent');
+    navigateTo('runAgent', undefined, agentId);
   };
 
   const handleSelectCreator = (username: string) => {
     setSelectedCreatorUsername(username);
-    navigateTo('creatorProfile');
+    navigateTo('creatorProfile', undefined, undefined, username);
   }
-  
-  const navigateTo = (page: Page, dashboardPage?: DashboardPage) => {
+
+  // URL Mapping
+  const getPathFromPage = (page: Page, agentId?: string | null, username?: string | null, dashboardPage?: DashboardPage): string => {
+    switch (page) {
+      case 'home': return '/';
+      case 'marketplace': return '/agents';
+      case 'agentDetail': return agentId ? `/agents/${agentId}` : '/agents';
+      case 'creatorDashboard': return '/creator/dashboard';
+      case 'createAgent': return '/creator/new';
+      case 'runAgent': return agentId ? `/agents/${agentId}/run` : '/agents';
+      case 'creatorProfile': return username ? `/creator/${username}` : '/agents';
+      case 'pricing': return '/pricing';
+      case 'dashboard': return dashboardPage ? `/dashboard/${dashboardPage}` : '/dashboard';
+      case 'search': return '/search';
+      case 'login': return '/login';
+      case 'signup': return '/signup';
+      case 'notFound': return '/404';
+      default: return '/';
+    }
+  };
+
+  const getPageFromPath = (path: string): { page: Page; agentId?: string; username?: string; dashboardPage?: DashboardPage } => {
+    if (path === '/' || path === '') return { page: 'home' };
+    if (path === '/agents') return { page: 'marketplace' };
+    if (path.startsWith('/agents/') && path.endsWith('/run')) {
+      const parts = path.split('/');
+      return { page: 'runAgent', agentId: parts[2] };
+    }
+    if (path.startsWith('/agents/')) {
+      const parts = path.split('/');
+      return { page: 'agentDetail', agentId: parts[2] };
+    }
+    if (path === '/creator/dashboard') return { page: 'creatorDashboard' };
+    if (path === '/creator/new') return { page: 'createAgent' };
+    if (path.startsWith('/creator/')) {
+      const parts = path.split('/');
+      return { page: 'creatorProfile', username: parts[2] };
+    }
+    if (path === '/pricing') return { page: 'pricing' };
+    if (path.startsWith('/dashboard')) {
+      const parts = path.split('/');
+      const dashboardPage = (parts[2] as DashboardPage) || 'overview';
+      return { page: 'dashboard', dashboardPage };
+    }
+    if (path === '/search') return { page: 'search' };
+    if (path === '/login') return { page: 'login' };
+    if (path === '/signup') return { page: 'signup' };
+    return { page: 'notFound' };
+  };
+
+  // Initialize state from URL
+  useEffect(() => {
+    const handlePopState = () => {
+      const { page, agentId, username, dashboardPage } = getPageFromPath(window.location.pathname);
+      setCurrentPage(page);
+      if (agentId) setSelectedAgentId(agentId);
+      if (username) setSelectedCreatorUsername(username);
+      if (dashboardPage) setCurrentDashboardPage(dashboardPage);
+    };
+
+    // Initial load
+    handlePopState();
+
+    window.addEventListener('popstate', handlePopState);
+    return () => window.removeEventListener('popstate', handlePopState);
+  }, []);
+
+  const navigateTo = (page: Page, dashboardPage?: DashboardPage, agentId?: string, username?: string) => {
     setIsLoading(true);
     window.scrollTo(0, 0);
+
+    // Update URL using overrides if provided, otherwise fall back to state (though state might be stale)
+    // Best practice: Always pass the ID if we are navigating to a detail page.
+    const path = getPathFromPage(page, agentId || selectedAgentId, username || selectedCreatorUsername, dashboardPage);
+    window.history.pushState({}, '', path);
 
     setTimeout(() => {
       if (page !== 'agentDetail' && page !== 'runAgent' && page !== 'creatorProfile') {
         setSelectedAgentId(null);
         setSelectedCreatorUsername(null);
       }
-       if (page !== 'search') {
+      if (page !== 'search') {
         setSearchQuery('');
       }
       if (page === 'dashboard' && dashboardPage) {
@@ -218,20 +246,48 @@ const App: React.FC = () => {
   };
 
   const handleBackToDetail = (agentId: string) => {
-      setSelectedAgentId(agentId);
-      navigateTo('agentDetail');
+    setSelectedAgentId(agentId);
+    navigateTo('agentDetail', undefined, agentId);
   };
 
-  const toggleFavorite = (agentId: string) => {
-    setUser(prevUser => {
-      const newFavorites = new Set(prevUser.favoriteAgentIds);
-      if (newFavorites.has(agentId)) {
-        newFavorites.delete(agentId);
-      } else {
-        newFavorites.add(agentId);
-      }
-      return { ...prevUser, favoriteAgentIds: newFavorites };
-    });
+  const toggleFavorite = async (agentId: string) => {
+    if (!isAuthenticated) {
+      navigateTo('login');
+      return;
+    }
+
+    try {
+      const response = await axiosInstance.post(`/users/me/favorites/${agentId}`);
+      // The backend returns the updated user object directly (UserRead schema)
+      // But axiosInstance interceptor might wrap it or return it as is.
+      // Let's check client.ts. It returns axiosInstance.post<ApiResponse<User>>...
+      // But the backend returns UserRead directly.
+      // If the backend returns UserRead directly, it might not be wrapped in 'data' and 'success'.
+      // However, FastAPI usually returns JSON.
+      // Let's assume standard response for now.
+
+      // Wait, I defined the endpoint to return UserRead.
+      // So response.data will be the UserRead object.
+
+      const updatedUser = response.data;
+
+      // We need to map it to frontend User type
+      const frontendUser: any = {
+        ...updatedUser,
+        name: updatedUser.full_name || updatedUser.username || 'User',
+        credits: updatedUser.credits || 0,
+        favoriteAgentIds: updatedUser.favoriteAgentIds || [],
+      };
+
+      useAuthStore.getState().updateUser(frontendUser);
+
+      // Also update the local user variable if needed, but useAuthStore hook should handle it.
+      // But 'user' here is from useAuthStore((state) => state.user), so it will update.
+
+    } catch (error) {
+      console.error('Failed to toggle favorite:', error);
+      // Optionally show toast error
+    }
   };
 
 
@@ -242,7 +298,7 @@ const App: React.FC = () => {
     const sharedAgentProps = {
       onSelectAgent: handleSelectAgent,
       onSelectCreator: handleSelectCreator,
-      favoriteAgentIds: user.favoriteAgentIds,
+      favoriteAgentIds: new Set(user?.favoriteAgentIds || []),
       onToggleFavorite: toggleFavorite,
     };
     const homePageProps = {
@@ -256,7 +312,7 @@ const App: React.FC = () => {
       case 'marketplace':
         return <AgentsPage agents={agents} {...sharedAgentProps} />;
       case 'agentDetail':
-        return agent ? <AgentDetailPage agent={agent} onRunAgent={handleRunAgent} onSelectCreator={handleSelectCreator} isFavorited={user.favoriteAgentIds.has(agent.id)} onToggleFavorite={toggleFavorite} /> : null;
+        return agent ? <AgentDetailPage agent={agent} onRunAgent={handleRunAgent} onSelectCreator={handleSelectCreator} isFavorited={user?.favoriteAgentIds?.includes(agent.id) || false} onToggleFavorite={toggleFavorite} /> : null;
       case 'creatorDashboard':
         return <CreatorDashboardPage setCurrentPage={navigateTo} onSelectAgent={handleSelectAgent} />;
       case 'createAgent':
@@ -264,17 +320,19 @@ const App: React.FC = () => {
       case 'runAgent':
         return agent ? <RunAgentPage agent={agent} onBackToDetail={handleBackToDetail} /> : null;
       case 'creatorProfile':
-        return (creator && creatorAgents.length > 0) ? <CreatorProfilePage creator={creator} agents={creatorAgents} onSelectAgent={handleSelectAgent} favoriteAgentIds={user.favoriteAgentIds} onToggleFavorite={toggleFavorite} /> : null;
+        return (creator && creatorAgents.length > 0) ? <CreatorProfilePage creator={creator} agents={creatorAgents} onSelectAgent={handleSelectAgent} favoriteAgentIds={new Set(user?.favoriteAgentIds || [])} onToggleFavorite={toggleFavorite} /> : null;
       case 'pricing':
         return <PricingPage />;
       case 'dashboard':
-        return <UserDashboardPage 
-                  user={user}
-                  activePage={currentDashboardPage}
-                  setActivePage={(page: DashboardPage) => navigateTo('dashboard', page)}
-                  onSelectAgent={handleSelectAgent}
-                  onToggleFavorite={toggleFavorite}
-                />;
+        if (!user) return <LoginPage setCurrentPage={navigateTo} />;
+        return <UserDashboardPage
+          user={user}
+          activePage={currentDashboardPage}
+          setActivePage={(page: DashboardPage) => navigateTo('dashboard', page)}
+          onSelectAgent={handleSelectAgent}
+          onToggleFavorite={toggleFavorite}
+          agents={agents}
+        />;
       case 'search':
         return (
           <SearchPage
@@ -298,10 +356,10 @@ const App: React.FC = () => {
     <div className="min-h-screen bg-gray-900 font-sans flex flex-col relative">
       {(isLoading || isAgentsLoading) && <PageLoadingOverlay />}
       <SkipToContent />
-      <Header 
-        setCurrentPage={navigateTo} 
-        currentPage={currentPage} 
-        creditBalance={user.creditBalance}
+      <Header
+        setCurrentPage={navigateTo}
+        currentPage={currentPage}
+        creditBalance={user?.credits || 0}
         onSearch={handleSearch}
       />
       <main id="main-content" className="flex-grow">

@@ -21,10 +21,10 @@ class AgentBase(BaseModel):
     description: str = Field(..., min_length=10, max_length=500)
     long_description: Optional[str] = Field(None, max_length=5000)
     category: AgentCategory
-    tags: List[str] = Field(..., min_length=1, max_length=10)
+    tags: List[str] = Field(default_factory=list, max_length=10)
     price_per_run: float = Field(..., ge=1, le=10000)
     config: AgentConfig
-    capabilities: List[str] = Field(..., min_length=1)
+    capabilities: List[str] = Field(default_factory=list)
     limitations: Optional[List[str]] = None
     demo_available: bool = False
 
@@ -32,8 +32,6 @@ class AgentBase(BaseModel):
     @classmethod
     def validate_tags(cls, value: List[str]) -> List[str]:
         cleaned = [tag.strip() for tag in value if tag.strip()]
-        if not cleaned:
-            raise ValueError("At least one tag is required")
         if len(cleaned) > 10:
             raise ValueError("A maximum of 10 tags are allowed")
         return list(dict.fromkeys(cleaned))
@@ -42,8 +40,6 @@ class AgentBase(BaseModel):
     @classmethod
     def validate_capabilities(cls, value: List[str]) -> List[str]:
         cleaned = [item.strip() for item in value if item.strip()]
-        if not cleaned:
-            raise ValueError("Capabilities cannot be empty")
         return cleaned
 
 

@@ -2,7 +2,7 @@ import uuid
 from typing import Optional, TYPE_CHECKING
 
 from sqlalchemy import ForeignKey, Integer, Text
-from sqlalchemy.dialects.postgresql import JSONB, UUID
+from sqlalchemy.types import JSON, Uuid
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.db.base import Base
@@ -19,21 +19,21 @@ class AgentExecution(TimestampMixin, Base):
     __tablename__ = "agent_executions"
 
     id: Mapped[uuid.UUID] = mapped_column(
-        UUID(as_uuid=True), primary_key=True, default=uuid.uuid4
+        Uuid, primary_key=True, default=uuid.uuid4
     )
     agent_id: Mapped[uuid.UUID] = mapped_column(
-        UUID(as_uuid=True), ForeignKey("agents.id", ondelete="CASCADE"), nullable=False
+        Uuid, ForeignKey("agents.id", ondelete="CASCADE"), nullable=False
     )
     user_id: Mapped[uuid.UUID] = mapped_column(
-        UUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), nullable=False
+        Uuid, ForeignKey("users.id", ondelete="CASCADE"), nullable=False
     )
     status: Mapped[ExecutionStatus] = mapped_column(
         LowercaseEnum(ExecutionStatus, name="executionstatus"),
         default=ExecutionStatus.PENDING,
         nullable=False,
     )
-    inputs: Mapped[dict] = mapped_column(JSONB, default=dict)
-    outputs: Mapped[Optional[dict]] = mapped_column(JSONB, default=dict)
+    inputs: Mapped[dict] = mapped_column(JSON, default=dict)
+    outputs: Mapped[Optional[dict]] = mapped_column(JSON, default=dict)
     error_message: Mapped[Optional[str]] = mapped_column(Text)
     credits_used: Mapped[int] = mapped_column(Integer, default=0)
 

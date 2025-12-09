@@ -21,10 +21,24 @@ def _build_auth_response(user: User) -> AuthResponse:
     return AuthResponse(user=user, **tokens)
 
 
-@router.post("/register", response_model=UserRead, status_code=status.HTTP_201_CREATED)
+@router.post("/test")
+def test_endpoint():
+    print("[DEBUG] Test endpoint called!")
+    return {"message": "Test endpoint works"}
+
+
+@router.post("/register", response_model=AuthResponse, status_code=status.HTTP_201_CREATED)
 def register(user_in: UserCreate, db: Session = Depends(get_db)):
-    user = register_user(db, user_in)
-    return user
+    try:
+        print(f"[DEBUG] Registering user: {user_in.email}")
+        user = register_user(db, user_in)
+        print(f"[DEBUG] User registered successfully: {user.id}")
+        return _build_auth_response(user)
+    except Exception as e:
+        print(f"[ERROR] Registration failed: {e}")
+        import traceback
+        traceback.print_exc()
+        raise
 
 
 @router.post("/login", response_model=AuthResponse)

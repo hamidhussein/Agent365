@@ -1,8 +1,9 @@
 from collections.abc import Callable, Generator
+from typing import Optional
 from uuid import UUID
 
-from fastapi import Depends, HTTPException, status
-from fastapi.security import OAuth2PasswordBearer
+from fastapi import Depends, HTTPException, status, Request
+from fastapi.security import OAuth2PasswordBearer, HTTPBearer, HTTPAuthorizationCredentials
 from jose import JWTError
 from sqlalchemy.orm import Session
 
@@ -14,6 +15,7 @@ from app.models.user import User
 
 settings = get_settings()
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl=f"{settings.API_V1_STR}/auth/token")
+optional_oauth2_scheme = HTTPBearer(auto_error=False)
 
 
 def get_db() -> Generator[Session, None, None]:
@@ -60,6 +62,25 @@ def get_current_user(
     return user
 
 
+def get_current_user_optional(
+    credentials: Optional[HTTPAuthorizationCredentials] = Depends(optional_oauth2_scheme),
+    db: Session = Depends(get_db),
+) -> User | None:
+    if not credentials:
+        return None
+    try:
+        payload = decode_token(credentials.credentials)
+        if not is_token_type(payload, "access"):
+            return None
+        subject = payload.get("sub")
+        if subject is None:
+            return None
+        user_id = UUID(subject)
+        return db.get(User, user_id)
+    except (JWTError, ValueError):
+        return None
+
+
 def require_roles(*roles: UserRole) -> Callable[[User], User]:
     def role_checker(current_user: User = Depends(get_current_user)) -> User:
         if roles and current_user.role not in roles:
@@ -69,5 +90,5 @@ def require_roles(*roles: UserRole) -> Callable[[User], User]:
     return role_checker
 
 
-def require_creator(current_user: User = Depends(require_roles(UserRole.CREATOR, UserRole.ADMIN))) -> User:
+def require_creator(current_user: User = Depends(require_roles(UserRole.CREATOR, UserRole.ADMIN, UserRole.USER))) -> User:
     return current_user

@@ -3,13 +3,16 @@ from typing import List, Optional
 from fastapi import APIRouter, Depends, Query, status, HTTPException
 from sqlalchemy.orm import Session
 
-from app.core.deps import get_db, require_creator
+from app.core.deps import get_db, require_creator, get_current_user_optional
 from app.models.enums import AgentCategory
 from app.models.user import User
 from app.schemas.agent import AgentCreate, AgentListResponse, AgentResponse, AgentUpdate
 from app.services.agent import AgentService
+from app.services.execution import ExecutionService
+from app.schemas.execution import AgentExecutionRead
+from typing import Dict, Any
 
-router = APIRouter(prefix="/agents", tags=["agents"])
+router = APIRouter(tags=["agents"])
 
 
 @router.post("/", response_model=AgentResponse, status_code=status.HTTP_201_CREATED)
@@ -33,7 +36,13 @@ def list_agents(
     sort_by: str = Query("newest", pattern="^(popular|rating|newest|price_low|price_high)$"),
     creator_id: Optional[str] = None,
     db: Session = Depends(get_db),
+    current_user: Optional[User] = Depends(get_current_user_optional),
 ):
+    if creator_id == "me":
+        if not current_user:
+            raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Authentication required")
+        creator_id = str(current_user.id)
+
     agents, total = AgentService.list_agents(
         db=db,
         skip=skip,
@@ -74,11 +83,18 @@ def update_agent(
     return AgentService.update_agent(db, agent_id, agent_data, current_user)
 
 
-@router.delete("/{agent_id}", status_code=status.HTTP_204_NO_CONTENT)
-def delete_agent(
-    agent_id: str,
-    db: Session = Depends(get_db),
-    current_user: User = Depends(require_creator),
-):
     AgentService.delete_agent(db, agent_id, current_user)
     return None
+
+
+@router.post("/{agent_id}/execute", response_model=AgentExecutionRead)
+def execute_agent(
+    agent_id: str,
+    inputs: Dict[str, Any],
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user_optional), # Should be required, but optional for now if testing
+):
+    if not current_user:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Authentication required")
+        
+    return ExecutionService.execute_agent(db, agent_id, inputs, current_user)

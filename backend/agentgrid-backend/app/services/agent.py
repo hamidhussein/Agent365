@@ -23,7 +23,7 @@ class AgentService:
     def create_agent(db: Session, agent_data: AgentCreate, creator: User) -> Agent:
         agent_payload = agent_data.model_dump()
         agent_payload["category"] = agent_payload["category"].value
-        agent_payload["status"] = AgentStatus.PENDING_REVIEW
+        agent_payload["status"] = AgentStatus.ACTIVE  # Changed from PENDING_REVIEW to ACTIVE
         agent = Agent(
             creator_id=creator.id,
             **agent_payload,

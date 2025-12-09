@@ -24,11 +24,20 @@ export function useAuth() {
     async (credentials: LoginFormData): Promise<AuthActionResult> => {
       try {
         const response = await api.auth.login(credentials);
-        const payload = response.data.data;
-        login(payload.user);
-        if (payload.token) {
-          localStorage.setItem('auth_token', payload.token);
+        const payload = response.data;
+        const frontendUser: any = {
+          ...payload.user,
+          name: payload.user.full_name || payload.user.username || 'User',
+          creditBalance: payload.user.credits || 0,
+          favoriteAgentIds: Array.isArray(payload.user.favoriteAgentIds)
+            ? payload.user.favoriteAgentIds
+            : [],
+        };
+        login(frontendUser);
+        if (payload.access_token) {
+          localStorage.setItem('auth_token', payload.access_token);
         }
+        // Auth state will trigger App.tsx useEffect to redirect
         return { success: true };
       } catch (error: any) {
         return {
@@ -43,12 +52,28 @@ export function useAuth() {
   const signUp = useCallback(
     async (data: SignupFormData): Promise<AuthActionResult> => {
       try {
-        const response = await api.auth.signup(data);
-        const payload = response.data.data;
-        login(payload.user);
-        if (payload.token) {
-          localStorage.setItem('auth_token', payload.token);
+        // Explicitly construct payload with only the fields backend expects
+        const signupPayload = {
+          email: data.email,
+          username: data.username,
+          password: data.password,
+        };
+
+        const response = await api.auth.signup(signupPayload as any);
+        const payload = response.data;
+        const frontendUser: any = {
+          ...payload.user,
+          name: payload.user.full_name || payload.user.username || 'User',
+          creditBalance: payload.user.credits || 0,
+          favoriteAgentIds: Array.isArray(payload.user.favoriteAgentIds)
+            ? payload.user.favoriteAgentIds
+            : [],
+        };
+        login(frontendUser);
+        if (payload.access_token) {
+          localStorage.setItem('auth_token', payload.access_token);
         }
+        // Auth state will trigger App.tsx useEffect to redirect
         return { success: true };
       } catch (error: any) {
         return {
@@ -83,6 +108,22 @@ export function useAuth() {
     [isAuthenticated]
   );
 
+  const fetchUserProfile = useCallback(async () => {
+    try {
+      const response = await api.auth.getCurrentUser();
+      const payload = response.data.data; // Response is wrapped in ApiResponse
+      const frontendUser: any = {
+        ...payload,
+        name: payload.full_name || payload.username || 'User',
+        credits: payload.credits || 0,
+        favoriteAgentIds: (payload as any).favoriteAgentIds || [],
+      };
+      login(frontendUser);
+    } catch (error) {
+      console.error('Failed to fetch user profile:', error);
+    }
+  }, [login]);
+
   return {
     user,
     isAuthenticated,
@@ -90,5 +131,6 @@ export function useAuth() {
     signUp,
     signOut,
     requireAuth,
+    fetchUserProfile,
   };
 }

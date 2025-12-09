@@ -1,9 +1,12 @@
-
 import React from 'react';
+import { useQuery } from '@tanstack/react-query';
 import CreatorStats from '../creator/CreatorStats';
 import MyAgentsList from '../creator/MyAgentsList';
-import { mockCreatorStats, mockAgents } from '../../constants';
+import { mockCreatorStats } from '../../constants';
 import { Page } from '../../App';
+import { creatorApi } from '@/lib/api/creator';
+import { useAuthStore } from '@/lib/store';
+import { mapBackendAgent, BackendAgent } from '@/lib/utils/agentMapper';
 
 interface CreatorDashboardPageProps {
     setCurrentPage: (page: Page) => void;
@@ -11,8 +14,24 @@ interface CreatorDashboardPageProps {
 }
 
 const CreatorDashboardPage: React.FC<CreatorDashboardPageProps> = ({ setCurrentPage, onSelectAgent }) => {
-    // For now, we assume all agents belong to the current creator for demonstration.
-    const myAgents = mockAgents; 
+    const user = useAuthStore((state) => state.user);
+
+    const { data: agentsResponse, isLoading } = useQuery({
+        queryKey: ['creatorAgents', user?.id],
+        queryFn: () => creatorApi.getAgents('me'),
+        enabled: !!user,
+    });
+
+    const myAgents = (agentsResponse?.data?.data || []).map((agent: any) => mapBackendAgent(agent as BackendAgent));
+
+    const stats = {
+        totalAgents: myAgents.length,
+        totalRuns: myAgents.reduce((acc: number, agent: any) => acc + agent.runs, 0),
+        totalEarnings: myAgents.reduce((acc: number, agent: any) => acc + (agent.runs * agent.price), 0),
+        avgRating: myAgents.length > 0
+            ? myAgents.reduce((acc: number, agent: any) => acc + agent.rating, 0) / myAgents.length
+            : 0,
+    };
 
     return (
         <div className="container mx-auto max-w-screen-2xl px-4 py-12">
@@ -20,11 +39,15 @@ const CreatorDashboardPage: React.FC<CreatorDashboardPageProps> = ({ setCurrentP
                 <h1 className="text-3xl font-bold tracking-tight text-white sm:text-4xl">Creator Dashboard</h1>
                 <p className="mt-2 text-lg text-gray-400">Manage your agents, view your earnings, and track your performance.</p>
             </div>
-            
-            <CreatorStats stats={mockCreatorStats} />
+
+            <CreatorStats stats={stats} />
 
             <div className="mt-10">
-                <MyAgentsList agents={myAgents} onNavigate={setCurrentPage} onSelectAgent={onSelectAgent} />
+                {isLoading ? (
+                    <div className="text-center py-12 text-gray-400">Loading your agents...</div>
+                ) : (
+                    <MyAgentsList agents={myAgents} onNavigate={setCurrentPage} onSelectAgent={onSelectAgent} />
+                )}
             </div>
         </div>
     );

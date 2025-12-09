@@ -1,0 +1,75 @@
+import { Agent } from '../../../types';
+
+export type BackendAgent = {
+    id: string;
+    name: string;
+    description: string;
+    long_description?: string | null;
+    category: string;
+    tags: string[];
+    price_per_run: number;
+    rating: number;
+    total_runs: number;
+    total_reviews: number;
+    status: string;
+    config?: {
+        model?: string;
+        temperature?: number;
+        max_tokens?: number;
+        timeout_seconds?: number;
+        required_inputs?: Array<Record<string, unknown>>;
+        output_schema?: Record<string, unknown>;
+    };
+    capabilities?: string[];
+    limitations?: string[];
+    demo_available?: boolean;
+    version: string;
+    thumbnail_url?: string | null;
+    creator_id: string;
+    created_at: string;
+    updated_at: string;
+};
+
+const createPlaceholderCreator = (id: string) => {
+    const shortId = id?.slice(0, 6) ?? 'creator';
+    return {
+        name: `Creator ${shortId}`,
+        username: id ?? shortId,
+        avatarUrl: `https://api.dicebear.com/7.x/initials/svg?seed=${shortId}`,
+        bio: 'Creator profile coming soon.',
+    };
+};
+
+export const mapBackendAgent = (agent: BackendAgent): Agent => {
+    const placeholderImage = `https://placehold.co/600x400/111827/FFFFFF/png?text=${encodeURIComponent(agent.name?.[0] ?? 'A')}`;
+    const successRate =
+        agent.total_runs > 0
+            ? Math.min(99, Math.max(70, Math.round((agent.rating ?? 0) * 18)))
+            : 95;
+
+    const statusMap: Record<string, Agent['status']> = {
+        active: 'Live',
+        inactive: 'Paused',
+    };
+
+    return {
+        id: agent.id,
+        name: agent.name,
+        creator: createPlaceholderCreator(agent.creator_id ?? agent.id),
+        description: agent.description,
+        longDescription: agent.long_description ?? agent.description,
+        category: agent.category ?? 'General',
+        rating: agent.rating ?? 0,
+        reviewCount: agent.total_reviews ?? 0,
+        runs: agent.total_runs ?? 0,
+        imageUrl: agent.thumbnail_url ?? placeholderImage,
+        tags: Array.isArray(agent.tags) ? agent.tags : [],
+        price: agent.price_per_run ?? 0,
+        successRate,
+        avgRunTime: agent.config?.timeout_seconds ?? 60,
+        status: statusMap[agent.status] ?? 'Draft',
+        inputSchema: [],
+        mockResult: 'Run results will appear here.',
+        reviews: [],
+    };
+};

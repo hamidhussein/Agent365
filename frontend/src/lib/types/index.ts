@@ -8,6 +8,7 @@ export interface User {
   bio?: string;
   role: UserRole;
   credits: number;
+  favoriteAgentIds: string[];
   created_at: string;
   updated_at: string;
 }

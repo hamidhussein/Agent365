@@ -13,10 +13,18 @@ import type {
 } from '@/lib/types';
 import type { LoginFormData, SignupFormData } from '@/lib/schemas/auth.schema';
 
+export interface AuthResponse {
+  user: User;
+  access_token: string;
+  refresh_token: string;
+  token_type: string;
+  expires_in: number;
+}
+
 const BASE_URL =
   process.env.NEXT_PUBLIC_API_URL ||
   process.env.VITE_API_URL ||
-  'http://localhost:8000/api/v1';
+  'http://localhost:8001/api/v1';
 
 let csrfToken: string | null = null;
 
@@ -50,10 +58,16 @@ axiosInstance.interceptors.request.use(
   (error) => Promise.reject(error)
 );
 
+import { useAuthStore } from '@/lib/store';
+
+// ... (existing code)
+
 axiosInstance.interceptors.response.use(
   (response) => response,
   (error: AxiosError<ApiError>) => {
     if (error.response?.status === 401 && typeof window !== 'undefined') {
+      // Use the store's logout action to ensure state is updated and persistence is handled correctly
+      useAuthStore.getState().logout();
       localStorage.removeItem('auth_token');
       window.location.href = '/login';
     }
@@ -71,13 +85,13 @@ axiosInstance.interceptors.response.use(
 export const api = {
   auth: {
     login: (data: LoginFormData) =>
-      axiosInstance.post<ApiResponse<{ user: User; token: string }>>(
+      axiosInstance.post<AuthResponse>(
         '/auth/login',
         data
       ),
     signup: (data: SignupFormData) =>
-      axiosInstance.post<ApiResponse<{ user: User; token: string }>>(
-        '/auth/signup',
+      axiosInstance.post<AuthResponse>(
+        '/auth/register',
         data
       ),
     logout: () => axiosInstance.post('/auth/logout'),
@@ -150,6 +164,10 @@ export const api = {
       ),
     update: (id: string, data: Partial<Creator>) =>
       axiosInstance.patch<ApiResponse<Creator>>(`/creators/${id}`, data),
+  },
+  users: {
+    toggleFavorite: (agentId: string) =>
+      axiosInstance.post<ApiResponse<User>>(`/users/me/favorites/${agentId}`),
   },
 };
 

@@ -33,5 +33,6 @@ class UserRead(UserBase):
     id: UUID
     created_at: datetime
     updated_at: datetime
+    favoriteAgentIds: list[UUID] = []
 
-    model_config = ConfigDict(from_attributes=True)
+    model_config = ConfigDict(from_attributes=True, populate_by_name=True)

@@ -2,7 +2,7 @@ import uuid
 from typing import TYPE_CHECKING, Optional
 
 from sqlalchemy import ForeignKey, Integer, String
-from sqlalchemy.dialects.postgresql import UUID
+from sqlalchemy.types import Uuid
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.db.base import Base
@@ -18,10 +18,10 @@ class CreditTransaction(TimestampMixin, Base):
     __tablename__ = "credit_transactions"
 
     id: Mapped[uuid.UUID] = mapped_column(
-        UUID(as_uuid=True), primary_key=True, default=uuid.uuid4
+        Uuid, primary_key=True, default=uuid.uuid4
     )
     user_id: Mapped[uuid.UUID] = mapped_column(
-        UUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), nullable=False
+        Uuid, ForeignKey("users.id", ondelete="CASCADE"), nullable=False
     )
     amount: Mapped[int] = mapped_column(Integer, nullable=False)
     transaction_type: Mapped[TransactionType] = mapped_column(

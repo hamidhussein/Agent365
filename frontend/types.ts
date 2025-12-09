@@ -1,17 +1,40 @@
 
+
+
 export interface User {
+    id?: string;
+    email?: string;
+    username?: string;
+    full_name?: string;
+    role?: string;
+    // Frontend specific or mapped fields
     name: string;
     creditBalance: number;
-    favoriteAgentIds: Set<string>;
+    favoriteAgentIds: string[];
 }
 
 export interface Transaction {
     id: string;
-    date: string;
+    user_id: string;
+    amount: number;
+    transaction_type: 'purchase' | 'spend' | 'refund' | 'bonus';
     description: string;
-    type: 'purchase' | 'spend';
-    amount: number; // in credits
-    status: 'Completed' | 'Pending' | 'Failed';
+    reference_id?: string;
+    created_at: string;
+    updated_at: string;
+}
+
+export interface Execution {
+    id: string;
+    agent_id: string;
+    user_id: string;
+    status: 'pending' | 'running' | 'completed' | 'failed';
+    inputs: Record<string, any>;
+    outputs?: Record<string, any>;
+    error_message?: string;
+    credits_used: number;
+    created_at: string;
+    updated_at: string;
 }
 
 export interface CreditPackage {
@@ -23,7 +46,7 @@ export interface CreditPackage {
 }
 
 export interface Review {
-    id:string;
+    id: string;
     user: {
         name: string;
         avatarUrl: string;
@@ -34,29 +57,29 @@ export interface Review {
 }
 
 export interface Agent {
-  id: string;
-  name: string;
-  creator: {
+    id: string;
     name: string;
-    username: string;
-    avatarUrl: string;
-    bio: string;
-  };
-  description: string;
-  longDescription: string;
-  category?: string;
-  rating: number;
-  reviewCount: number;
-  runs: number;
-  imageUrl: string;
-  tags: string[];
-  price: number; // in credits
-  successRate: number; // percentage
-  avgRunTime: number; // in seconds
-  status: 'Live' | 'Draft' | 'Paused';
-  inputSchema: InputField[];
-  mockResult: string;
-  reviews: Review[];
+    creator: {
+        name: string;
+        username: string;
+        avatarUrl: string;
+        bio: string;
+    };
+    description: string;
+    longDescription: string;
+    category?: string;
+    rating: number;
+    reviewCount: number;
+    runs: number;
+    imageUrl: string;
+    tags: string[];
+    price: number; // in credits
+    successRate: number; // percentage
+    avgRunTime: number; // in seconds
+    status: 'Live' | 'Draft' | 'Paused';
+    inputSchema: InputField[];
+    mockResult: string;
+    reviews: Review[];
 }
 
 export type Category = string;
@@ -66,18 +89,18 @@ export type Category = string;
 export type InputFieldType = 'text' | 'textarea' | 'number' | 'select';
 
 export interface InputFieldOption {
-  value: string;
-  label: string;
+    value: string;
+    label: string;
 }
 
 export interface InputField {
-  id: string;
-  name: string;
-  label: string;
-  type: InputFieldType;
-  placeholder?: string;
-  required: boolean;
-  options?: InputFieldOption[];
+    id: string;
+    name: string;
+    label: string;
+    type: InputFieldType;
+    placeholder?: string;
+    required: boolean;
+    options?: InputFieldOption[];
 }
 
 export type LLMProvider = 'google' | 'openai' | 'anthropic';

@@ -12,6 +12,7 @@ import SuccessModal from '../creator/SuccessModal';
 import { NewAgentData } from '../../types';
 import { mockLLMModels } from '../../constants';
 import { LoadingSpinnerIcon } from '../icons/Icons';
+import { creatorApi } from '@/lib/api/creator';
 
 interface CreateAgentPageProps {
     setCurrentPage: (page: Page) => void;
@@ -43,16 +44,45 @@ const CreateAgentPage: React.FC<CreateAgentPageProps> = ({ setCurrentPage }) => 
         }
     });
 
-    const handleNext = () => {
+    const handleNext = async () => {
         if (currentStep < 5) {
             setCurrentStep(prev => prev + 1);
         } else {
-            // This is where the publish logic would go
             setIsPublishing(true);
-            setTimeout(() => {
+            try {
+                // Map frontend data to backend schema
+                const backendData: any = {
+                    name: agentData.name,
+                    description: agentData.description,
+                    long_description: agentData.description, // Use description as long_description for now if not separate
+                    category: agentData.category.toLowerCase(),
+                    tags: agentData.tags,
+                    price_per_run: agentData.pricingConfig.pricePerRun,
+                    demo_available: agentData.pricingConfig.demoEnabled,
+                    config: {
+                        model: agentData.llmConfig.model,
+                        temperature: 0.7, // Default or add to form
+                        max_tokens: 1000, // Default or add to form
+                        timeout_seconds: 60,
+                        required_inputs: agentData.inputSchema.map(input => ({
+                            name: input.name,
+                            type: input.type,
+                            required: input.required,
+                            description: input.description,
+                        })),
+                        output_schema: {}, // Add if needed
+                    },
+                    capabilities: [], // Add if needed
+                };
+
+                await creatorApi.createAgent(backendData);
                 setSuccessModalOpen(true);
+            } catch (error) {
+                console.error('Failed to create agent:', error);
+                alert('Failed to create agent. Please try again.');
+            } finally {
                 setIsPublishing(false);
-            }, 1500);
+            }
         }
     };
 
@@ -69,14 +99,14 @@ const CreateAgentPage: React.FC<CreateAgentPageProps> = ({ setCurrentPage }) => 
     const updateAgentData = (data: Partial<NewAgentData>) => {
         setAgentData(prev => ({ ...prev, ...data }));
     };
-    
+
     const handleGoToDashboard = () => {
         setSuccessModalOpen(false);
         setCurrentPage('creatorDashboard');
     };
 
     const renderStep = () => {
-        switch(currentStep) {
+        switch (currentStep) {
             case 1:
                 return <Step1_Basics data={agentData} updateData={updateAgentData} />;
             case 2:
@@ -101,13 +131,13 @@ const CreateAgentPage: React.FC<CreateAgentPageProps> = ({ setCurrentPage }) => 
                 </div>
 
                 <AgentCreationStepper currentStep={currentStep} onStepClick={goToStep} />
-                
+
                 <div className="mt-12">
                     {renderStep()}
                 </div>
 
                 <div className="mt-10 flex justify-between gap-4 border-t border-gray-700 pt-6">
-                    <button 
+                    <button
                         onClick={() => {
                             if (confirm('Are you sure you want to exit? Any unsaved changes will be lost.')) {
                                 setCurrentPage('creatorDashboard');
@@ -120,19 +150,19 @@ const CreateAgentPage: React.FC<CreateAgentPageProps> = ({ setCurrentPage }) => 
 
                     <div className="flex justify-end gap-4">
                         {currentStep > 1 && (
-                            <button 
+                            <button
                                 onClick={handleBack}
                                 className="h-10 items-center justify-center rounded-md border border-gray-700 bg-transparent px-4 py-2 text-sm font-medium transition-colors hover:bg-gray-800 focus:outline-none focus:ring-2 focus:ring-brand-primary"
                             >
                                 Back
                             </button>
                         )}
-                        <button 
+                        <button
                             onClick={handleNext}
                             disabled={isPublishing}
                             className="inline-flex h-10 w-36 items-center justify-center rounded-md bg-brand-primary px-6 text-sm font-medium text-white shadow transition-colors hover:bg-brand-primary/90 focus:outline-none focus:ring-2 focus:ring-brand-primary focus:ring-offset-2 focus:ring-offset-gray-900 disabled:opacity-70 disabled:cursor-not-allowed"
                         >
-                        {isPublishing ? <LoadingSpinnerIcon className="h-5 w-5" /> : (currentStep === 5 ? 'Confirm & Publish' : 'Next')}
+                            {isPublishing ? <LoadingSpinnerIcon className="h-5 w-5" /> : (currentStep === 5 ? 'Confirm & Publish' : 'Next')}
                         </button>
                     </div>
                 </div>
