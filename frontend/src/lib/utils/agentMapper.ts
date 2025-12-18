@@ -52,6 +52,16 @@ export const mapBackendAgent = (agent: BackendAgent): Agent => {
         inactive: 'Paused',
     };
 
+    const inputSchema = (agent.config?.required_inputs || []).map((input: any) => ({
+        id: input.name,
+        name: input.name,
+        label: input.description || input.name,
+        type: input.type === 'string' ? 'text' : input.type,
+        placeholder: input.description,
+        required: input.required !== false,
+        options: input.options?.map((opt: string) => ({ value: opt, label: opt })),
+    }));
+
     return {
         id: agent.id,
         name: agent.name,
@@ -68,7 +78,7 @@ export const mapBackendAgent = (agent: BackendAgent): Agent => {
         successRate,
         avgRunTime: agent.config?.timeout_seconds ?? 60,
         status: statusMap[agent.status] ?? 'Draft',
-        inputSchema: [],
+        inputSchema,
         mockResult: 'Run results will appear here.',
         reviews: [],
     };
