@@ -1,4 +1,5 @@
 from typing import List, Optional
+from uuid import UUID
 
 from fastapi import APIRouter, Depends, Query, status, HTTPException
 from sqlalchemy.orm import Session
@@ -89,7 +90,7 @@ def update_agent(
 
 @router.post("/{agent_id}/execute", response_model=AgentExecutionRead)
 def execute_agent(
-    agent_id: str,
+    agent_id: UUID,
     inputs: Dict[str, Any],
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user_optional), # Should be required, but optional for now if testing
@@ -97,4 +98,9 @@ def execute_agent(
     if not current_user:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Authentication required")
         
-    return ExecutionService.execute_agent(db, agent_id, inputs, current_user)
+    # Unwrap inputs if wrapped (frontend sends { inputs: { ... } })
+    execution_inputs = inputs.get("inputs", inputs)
+    if not isinstance(execution_inputs, dict):
+        execution_inputs = inputs
+
+    return ExecutionService.execute_agent(db, agent_id, execution_inputs, current_user)

@@ -167,7 +167,8 @@ const App: React.FC = () => {
     }
   };
 
-  const getPageFromPath = (path: string): { page: Page; agentId?: string; username?: string; dashboardPage?: DashboardPage } => {
+  const getPageFromPath = (rawPath: string): { page: Page; agentId?: string; username?: string; dashboardPage?: DashboardPage } => {
+    const path = rawPath.endsWith('/') && rawPath.length > 1 ? rawPath.slice(0, -1) : rawPath;
     if (path === '/' || path === '') return { page: 'home' };
     if (path === '/agents') return { page: 'marketplace' };
     if (path.startsWith('/agents/') && path.endsWith('/run')) {

@@ -29,8 +29,10 @@ const RunAgentPage: React.FC<RunAgentPageProps> = ({ agent, onBackToDetail }) =>
             const response = await api.agents.execute(agent.id, data);
 
             // The response.data is ApiResponse<AgentExecution>
-            // The actual execution object is in response.data.data
-            const execution = response.data.data;
+            // But the backend returns the execution object directly (unwrapped).
+            // We handle both cases here.
+            const responseData = response.data as any;
+            const execution = responseData.data || responseData;
             const outputs = execution.outputs;
 
             // Format the output for display
