@@ -33,6 +33,11 @@ const RunAgentPage: React.FC<RunAgentPageProps> = ({ agent, onBackToDetail }) =>
             // We handle both cases here.
             const responseData = response.data as any;
             const execution = responseData.data || responseData;
+
+            if (!execution) {
+                throw new Error("Received empty response from server.");
+            }
+
             const outputs = execution.outputs;
 
             // Format the output for display
@@ -47,14 +52,15 @@ const RunAgentPage: React.FC<RunAgentPageProps> = ({ agent, onBackToDetail }) =>
                     setResult(JSON.stringify(outputs, null, 2));
                 }
             } else {
-                setResult(String(outputs));
+                setResult(outputs !== undefined && outputs !== null ? String(outputs) : '');
             }
 
             setStatus('completed');
         } catch (e: any) {
-            setError(e.message || 'Failed to run the agent.');
-            console.error(e);
-            setStatus('idle'); // Allow retry
+            const errorMessage = e.response?.data?.detail || e.message || 'Failed to run the agent.';
+            setError(errorMessage);
+            console.error("Agent Execution Error:", e);
+            setStatus('completed'); // Show error state in ResultsDisplay
         }
     };
 
