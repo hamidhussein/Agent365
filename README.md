@@ -113,3 +113,47 @@ The application will be available at `http://localhost:3000` (or the port shown 
 *   **Backend 500 Errors:** Check the terminal running `uvicorn` for tracebacks.
 *   **Database Issues:** If you encounter DB errors, try deleting `agentgrid.db` and re-running `alembic upgrade head` and `seed_agents.py`.
 *   **Frontend Connection Refused:** Ensure the backend is running on port 8001. Check `VITE_API_URL` in `.env`.
+
+## 5. How to Add New Agents
+
+To add a new agent to the platform (like the SEO Audit Agent), follow these steps:
+
+### Step 1: Create the Agent File
+Create a new Python file in `backend/agentgrid-backend/app/agents/` (e.g., `my_new_agent.py`).
+Implement your agent class inheriting from `BaseAgent` and decorate it with `@register_agent`.
+
+```python
+from app.agents.base import BaseAgent, AgentInput, AgentOutput
+from app.agents.registry import register_agent
+import uuid
+
+MY_AGENT_ID = "your-uuid-here"
+
+@register_agent(MY_AGENT_ID)
+class MyNewAgent(BaseAgent):
+    # Implement name, description, inputs, outputs, and run() method
+    ...
+```
+
+### Step 2: Register the Agent
+Open `backend/agentgrid-backend/app/agents/__init__.py` and import your new agent class. This ensures it gets registered when the app starts.
+
+```python
+from app.agents.my_new_agent import MyNewAgent
+```
+
+### Step 3: Seed the Agent
+Open `backend/agentgrid-backend/seed_agents.py`.
+1.  Import your agent ID.
+2.  Create a `seed_my_agent()` function that checks if the agent exists and adds it to the DB if not.
+3.  Call this function in the `if __name__ == "__main__":` block.
+
+### Step 4: Install Dependencies
+If your agent requires new Python packages:
+1.  Install them: `pip install <package_name>`
+2.  Add them to `requirements.txt`: `pip freeze > requirements.txt`
+
+### Step 5: Verify
+1.  Restart the backend server.
+2.  Run the seed script: `python seed_agents.py`
+3.  Check the Marketplace in the frontend to see your new agent!
