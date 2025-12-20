@@ -87,7 +87,7 @@ const App: React.FC = () => {
     () => (agentsResponse?.data ?? []).map(mapBackendAgent),
     [agentsResponse]
   );
-  const agents = fetchedAgents.length ? fetchedAgents : mockAgents;
+  const agents = fetchedAgents;
 
   useEffect(() => {
     if (agentsError) {

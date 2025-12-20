@@ -1,3 +1,4 @@
+import os
 import uuid
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
@@ -8,19 +9,33 @@ from app.agents.examples import ECHO_AGENT_ID
 from app.agents.seo_agent import SEO_AGENT_ID
 
 # Database URL
-DATABASE_URL = "sqlite:///./agentgrid.db"
+DATABASE_URL = os.getenv("DATABASE_URL", "sqlite:///./agentgrid.db")
 
-engine = create_engine(DATABASE_URL, connect_args={"check_same_thread": False})
+connect_args = {"check_same_thread": False} if "sqlite" in DATABASE_URL else {}
+engine = create_engine(DATABASE_URL, pool_pre_ping=True, connect_args=connect_args)
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 
 def seed_echo_agent():
     db = SessionLocal()
     try:
         # 1. Get a creator (or create one)
-        creator = db.query(User).first()
+        creator = db.query(User).filter(User.email == "admin@agentgrid.ai").first()
         if not creator:
-            print("No users found. Please register a user first.")
-            return
+            print("Creating default admin user...")
+            from app.core.security import get_password_hash
+            from app.models.enums import UserRole
+            creator = User(
+                id=uuid.uuid4(),
+                email="admin@agentgrid.ai",
+                username="admin",
+                full_name="Admin User",
+                hashed_password=get_password_hash("admin123"),
+                role=UserRole.ADMIN.value if hasattr(UserRole.ADMIN, 'value') else UserRole.ADMIN,
+                credits=100
+            )
+            db.add(creator)
+            db.commit()
+            db.refresh(creator)
 
         # 2. Check if agent exists
         existing_agent = db.query(Agent).filter(Agent.id == uuid.UUID(ECHO_AGENT_ID)).first()
@@ -74,9 +89,12 @@ def seed_seo_agent():
     db = SessionLocal()
     try:
         # 1. Get a creator (or create one)
-        creator = db.query(User).first()
+        creator = db.query(User).filter(User.email == "admin@agentgrid.ai").first()
         if not creator:
-            print("No users found. Please register a user first.")
+            creator = db.query(User).first()
+        
+        if not creator:
+            print("No users found. Please runs echo agent seed first or register a user.")
             return
 
         # 2. Check if agent exists
@@ -97,6 +115,8 @@ def seed_seo_agent():
             status=AgentStatus.ACTIVE,
             config={
                 "model": "gpt-4o-mini",
+                "temperature": 0.3,
+                "max_tokens": 2000,
                 "timeout_seconds": 300,
                 "required_inputs": [
                     {
@@ -125,6 +145,9 @@ def seed_seo_agent():
                     }
                 ]
             },
+            capabilities=["SEO Audit", "Site Crawling", "Content Analysis"],
+            limitations=["Requires publicly accessible URLs", "Max 20 pages"],
+            demo_available=True,
             creator_id=creator.id,
             version="1.0.0"
         )
