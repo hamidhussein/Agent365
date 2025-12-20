@@ -1,11 +1,12 @@
 FROM python:3.10-slim
 
-WORKDIR /app
+WORKDIR /code
 
-# Install system dependencies required for some python packages
+# Install system dependencies
 RUN apt-get update && apt-get install -y \
     build-essential \
     netcat-openbsd \
+    dos2unix \
     && rm -rf /var/lib/apt/lists/*
 
 COPY requirements.txt .
@@ -13,12 +14,13 @@ RUN pip install --no-cache-dir -r requirements.txt
 
 COPY . .
 
-# Copy and set permissions for start script
+# Fix line endings and permissions for start.sh
 COPY start.sh .
-RUN chmod +x start.sh
+RUN dos2unix start.sh && chmod +x start.sh
 
-# Expose the port
+# Expose port
+# Expose port
 EXPOSE 8001
 
-# Run the application
-CMD ["./start.sh"]
+# Debug: List files and run with absolute path
+CMD ["bash", "start.sh"]

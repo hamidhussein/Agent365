@@ -22,8 +22,7 @@ export interface AuthResponse {
 }
 
 const BASE_URL =
-  process.env.NEXT_PUBLIC_API_URL ||
-  process.env.VITE_API_URL ||
+  import.meta.env.VITE_API_URL ||
   'http://localhost:8001/api/v1';
 
 let csrfToken: string | null = null;
