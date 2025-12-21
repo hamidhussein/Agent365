@@ -26,7 +26,7 @@ const LoginPage: React.FC<LoginPageProps> = ({ setCurrentPage }) => {
 
             <div className="mt-8 sm:mx-auto sm:w-full sm:max-w-md">
                 <div className="rounded-lg border border-gray-700 bg-gray-800/50 px-4 py-8 shadow sm:px-10">
-                    <LoginForm />
+                    <LoginForm onSuccess={() => setCurrentPage('marketplace')} />
                 </div>
             </div>
         </div>

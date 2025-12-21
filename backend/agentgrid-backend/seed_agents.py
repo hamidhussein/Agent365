@@ -9,13 +9,34 @@ from app.agents.examples import ECHO_AGENT_ID
 from app.agents.seo_agent import SEO_AGENT_ID
 
 # Database URL
+# Database URL
 DATABASE_URL = os.getenv("DATABASE_URL", "sqlite:///./agentgrid.db")
 
 connect_args = {"check_same_thread": False} if "sqlite" in DATABASE_URL else {}
 engine = create_engine(DATABASE_URL, pool_pre_ping=True, connect_args=connect_args)
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 
+def wait_for_db(max_retries=30, delay=3):
+    """Wait for the database to be ready before seeding."""
+    import time
+    from sqlalchemy.exc import OperationalError
+    
+    print("Checking database connection...")
+    for i in range(max_retries):
+        try:
+            # Try to connect
+            with engine.connect() as connection:
+                print("Database connection established!")
+                return
+        except OperationalError as e:
+            print(f"Database not ready yet (Attempt {i+1}/{max_retries}). Retrying in {delay}s...")
+            time.sleep(delay)
+    
+    print("Could not connect to database after multiple retries. Seeding may fail.")
+
 def seed_echo_agent():
+    # Wait for DB first
+    # (We call this once in main)
     db = SessionLocal()
     try:
         # 1. Get a creator (or create one)
@@ -162,6 +183,87 @@ def seed_seo_agent():
     finally:
         db.close()
 
+# New Agent UUID
+YOUTUBE_AGENT_ID = "11111111-1111-1111-1111-111111111111"
+
+def seed_youtube_agent():
+    db = SessionLocal()
+    try:
+        # 1. Get creator
+        creator = db.query(User).filter(User.email == "admin@agentgrid.ai").first()
+        if not creator:
+            creator = db.query(User).first()
+        
+        if not creator:
+            print("No users found.")
+            return
+
+        # 2. Check existence
+        existing_agent = db.query(Agent).filter(Agent.id == uuid.UUID(YOUTUBE_AGENT_ID)).first()
+        if existing_agent:
+            print(f"YouTube Agent {YOUTUBE_AGENT_ID} already exists. Updating config...")
+            existing_agent.config = {
+                "model": "gpt-4",
+                "temperature": 0.5,
+                "max_tokens": 4000,
+                "timeout_seconds": 120,
+                "required_inputs": [
+                    {
+                        "name": "video_url",
+                        "type": "string",
+                        "description": "YouTube Video URL (e.g. https://www.youtube.com/watch?v=...)",
+                        "required": True
+                    }
+                ]
+            }
+            db.add(existing_agent)
+            db.commit()
+            print(f"Updated config for YouTube Agent: {YOUTUBE_AGENT_ID}")
+            return
+
+        # 3. Create Agent
+        agent = Agent(
+            id=uuid.UUID(YOUTUBE_AGENT_ID),
+            name="YouTube Summarizer",
+            description="Transform any YouTube video into a concise summary with key takeaways.",
+            long_description="Stop wasting time watching long videos. This agent extracts the transcript from any YouTube URL and uses GPT-4 to generate a structured summary, including a TL;DR, key takeaways, and a detailed breakdown of the content.",
+            category=AgentCategory.RESEARCH.value,
+            tags=["youtube", "summary", "research", "video"],
+            price_per_run=2.0,
+            status=AgentStatus.ACTIVE,
+            config={
+                "model": "gpt-4",
+                "temperature": 0.5,
+                "max_tokens": 4000,
+                "timeout_seconds": 120,
+                "required_inputs": [
+                    {
+                        "name": "video_url",
+                        "type": "string",
+                        "description": "YouTube Video URL (e.g. https://www.youtube.com/watch?v=...)",
+                        "required": True
+                    }
+                ]
+            },
+            capabilities=["Transcript Extraction", "Content Summarization"],
+            limitations=["Videos with disabled captions specifically may fail", "Very long videos > 1 hour may be truncated"],
+            demo_available=True,
+            creator_id=creator.id,
+            version="1.0.0"
+        )
+        
+        db.add(agent)
+        db.commit()
+        print(f"Successfully seeded YouTube Agent: {YOUTUBE_AGENT_ID}")
+
+    except Exception as e:
+        print(f"Error seeding YouTube agent: {e}")
+        db.rollback()
+    finally:
+        db.close()
+
 if __name__ == "__main__":
+    wait_for_db()
     seed_echo_agent()
     seed_seo_agent()
+    seed_youtube_agent()

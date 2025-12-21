@@ -26,7 +26,7 @@ const SignupPage: React.FC<SignupPageProps> = ({ setCurrentPage }) => {
 
             <div className="mt-8 sm:mx-auto sm:w-full sm:max-w-md">
                 <div className="rounded-lg border border-gray-700 bg-gray-800/50 px-4 py-8 shadow sm:px-10">
-                    <SignupForm />
+                    <SignupForm onSuccess={() => setCurrentPage('marketplace')} />
                 </div>
             </div>
         </div>

@@ -13,7 +13,11 @@ import { useAuth } from '@/lib/hooks/useAuth';
 import { useToast } from '@/lib/hooks/useToast';
 import { rateLimiter } from '@/lib/utils';
 
-export function LoginForm() {
+interface LoginFormProps {
+  onSuccess?: () => void;
+}
+
+export function LoginForm({ onSuccess }: LoginFormProps) {
   const { signIn } = useAuth();
   const { success, error } = useToast();
   const [isLoading, setIsLoading] = useState(false);
@@ -43,6 +47,7 @@ export function LoginForm() {
       const result = await signIn(data);
       if (result.success) {
         success('Welcome back!');
+        if (onSuccess) onSuccess();
       } else {
         error(result.error || 'Login failed');
       }

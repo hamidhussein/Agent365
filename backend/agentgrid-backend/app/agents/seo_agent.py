@@ -7,6 +7,7 @@ import re
 import json
 import base64
 import time
+import os
 import hashlib
 import pandas as pd
 from typing import Dict, Any, List
@@ -78,7 +79,7 @@ class SEOAuditAgent(BaseAgent):
         return [
             AgentInput(name="url", type="string", description="Website URL to audit"),
             AgentInput(name="max_pages", type="number", description="Maximum pages to crawl"),
-            AgentInput(name="openai_api_key", type="string", description="LLM API key"),
+            # AgentInput(name="openai_api_key", type="string", description="LLM API key"), # Removed: Using Env Var
             AgentInput(name="generate_pdf", type="boolean", description="Whether to return PDF report")
         ]
 
@@ -102,7 +103,11 @@ class SEOAuditAgent(BaseAgent):
 
         url = inputs["url"]
         max_pages = int(inputs.get("max_pages", 20))
-        openai_api_key = inputs["openai_api_key"]
+        # Use Server-Side Env Var
+        openai_api_key = os.getenv("OPENAI_API_KEY") 
+        if not openai_api_key:
+            raise ValueError("Server-side OPENAI_API_KEY is not configured.")
+            
         generate_pdf = inputs.get("generate_pdf", False)
 
         results = self.crawl_website(url, max_pages)

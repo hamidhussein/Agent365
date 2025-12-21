@@ -12,7 +12,11 @@ echo "Skipping netcat check for Railway"
 alembic upgrade head
 
 # Seed data (optional, but good for first run)
+# Seed data (optional, but good for first run)
 python seed_agents.py
+
+# Upgrade SEO Agent inputs (remove API key)
+python upgrade_seo_agent.py
 
 # Start the server
 uvicorn app.main:app --host 0.0.0.0 --port ${PORT:-8001} --proxy-headers --forwarded-allow-ips '*'

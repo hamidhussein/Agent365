@@ -11,7 +11,11 @@ import { useAuth } from '@/lib/hooks/useAuth';
 import { useToast } from '@/lib/hooks/useToast';
 import { rateLimiter } from '@/lib/utils';
 
-export function SignupForm() {
+interface SignupFormProps {
+    onSuccess?: () => void;
+}
+
+export function SignupForm({ onSuccess }: SignupFormProps) {
     const { signUp } = useAuth();
     const { success, error } = useToast();
     const [isLoading, setIsLoading] = useState(false);
@@ -39,6 +43,7 @@ export function SignupForm() {
             const result = await signUp(data);
             if (result.success) {
                 success('Account created! You are now logged in.');
+                if (onSuccess) onSuccess();
             } else {
                 error(result.error || 'Signup failed');
             }

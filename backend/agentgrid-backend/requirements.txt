@@ -73,3 +73,6 @@ lxml
 reportlab
 langchain_openai
 psycopg2-binary
+youtube-transcript-api==0.6.3
+langchain-openai
+tiktoken

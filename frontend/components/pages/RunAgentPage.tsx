@@ -12,25 +12,32 @@ interface RunAgentPageProps {
     onBackToDetail: (agentId: string) => void;
 }
 
+import SEOReport from '../run/SEOReport';
+import { useMemo } from 'react';
+
+// ... (keep interface)
+
+import { useAuthStore } from '../../src/lib/store';
+
 const RunAgentPage: React.FC<RunAgentPageProps> = ({ agent, onBackToDetail }) => {
+    const { login } = useAuthStore();
     const [status, setStatus] = useState<AgentRunStatus>('idle');
     const [formData, setFormData] = useState<Record<string, any>>({});
     const [result, setResult] = useState<string>('');
+    const [resultObj, setResultObj] = useState<any>(null); // Store raw object
     const [error, setError] = useState<string | null>(null);
 
     const handleRunSubmit = async (data: Record<string, any>) => {
         setFormData(data);
         setStatus('running');
         setResult('');
+        setResultObj(null);
         setError(null);
 
         try {
             // Use the real API client to execute the agent
             const response = await api.agents.execute(agent.id, data);
 
-            // The response.data is ApiResponse<AgentExecution>
-            // But the backend returns the execution object directly (unwrapped).
-            // We handle both cases here.
             const responseData = response.data as any;
             const execution = responseData.data || responseData;
 
@@ -39,15 +46,12 @@ const RunAgentPage: React.FC<RunAgentPageProps> = ({ agent, onBackToDetail }) =>
             }
 
             const outputs = execution.outputs;
-
-            // Format the output for display
-            // If it's a simple dictionary, we can JSON stringify it or display specific fields
-            // For now, let's just display the whole output object as a string
-            // or if it has a 'response' field (like our EchoAgent), use that.
+            setResultObj(outputs); // Store object for SEOReport
 
             if (outputs && typeof outputs === 'object') {
                 if ('response' in outputs) {
-                    setResult(String(outputs.response));
+                    const resp = outputs.response;
+                    setResult(typeof resp === 'object' ? JSON.stringify(resp, null, 2) : String(resp));
                 } else {
                     setResult(JSON.stringify(outputs, null, 2));
                 }
@@ -55,12 +59,28 @@ const RunAgentPage: React.FC<RunAgentPageProps> = ({ agent, onBackToDetail }) =>
                 setResult(outputs !== undefined && outputs !== null ? String(outputs) : '');
             }
 
+            // REFRESH USER CREDITS
+            try {
+                const userResponse = await api.auth.getCurrentUser();
+                const payload = userResponse.data as any;
+                const user = payload.data || payload;
+                const frontendUser: any = {
+                    ...user,
+                    name: user.full_name || user.username || 'User',
+                    creditBalance: user.credits || 0,
+                    favoriteAgentIds: user.favoriteAgentIds || [],
+                };
+                login(frontendUser);
+            } catch (err) {
+                console.warn("Failed to refresh user credits", err);
+            }
+
             setStatus('completed');
         } catch (e: any) {
             const errorMessage = e.response?.data?.detail || e.message || 'Failed to run the agent.';
             setError(errorMessage);
             console.error("Agent Execution Error:", e);
-            setStatus('completed'); // Show error state in ResultsDisplay
+            setStatus('completed');
         }
     };
 
@@ -68,12 +88,19 @@ const RunAgentPage: React.FC<RunAgentPageProps> = ({ agent, onBackToDetail }) =>
         setStatus('idle');
         setFormData({});
         setResult('');
+        setResultObj(null);
         setError(null);
     };
 
+    const SEO_AGENT_ID = "787b599f-c8b9-42bf-affd-7fbd23a3add3";
+
     return (
         <div className="container mx-auto max-w-screen-2xl px-4 py-12">
+            {/* ... (Header and Left Column unchanged) ... */}
+
+            {/* RIGHT COLUMN MODIFICATION START */}
             <div className="mb-8">
+                {/* Header code embedded here because I can't target skipping blocks easily with replace_file */}
                 <button onClick={() => onBackToDetail(agent.id)} className="text-sm text-gray-400 hover:text-white mb-2">
                     &larr; Back to Agent Details
                 </button>
@@ -98,22 +125,43 @@ const RunAgentPage: React.FC<RunAgentPageProps> = ({ agent, onBackToDetail }) =>
                                     </div>
                                 ))}
                             </div>
+                            {status === 'completed' && (
+                                <button
+                                    onClick={handleRunAgain}
+                                    className="mt-6 w-full rounded-md bg-gray-700 px-4 py-2 text-sm font-semibold text-white hover:bg-gray-600"
+                                >
+                                    Run Again
+                                </button>
+                            )}
                         </div>
                     )}
                 </div>
 
                 {/* Right Column: Output/Result */}
-                <div className="rounded-lg border border-gray-700 bg-gray-800/50 p-6 min-h-[400px]">
+                <div className={`rounded-lg border border-gray-700 bg-gray-800/50 p-6 min-h-[400px] ${agent.id === SEO_AGENT_ID && resultObj ? 'lg:col-span-2' : ''}`}>
                     {status === 'idle' && (
                         <div className="flex flex-col items-center justify-center h-full text-center text-gray-500">
                             <h3 className="text-lg font-semibold text-gray-400">Awaiting Input</h3>
                             <p>The agent's results will appear here.</p>
                         </div>
                     )}
+
+                    {/* Run Status (Loading) */}
                     {status === 'running' && !result && <RunStatus />}
-                    {(result || status === 'completed') && <ResultsDisplay result={result || 'Agent produced no output.'} error={error} onRunAgain={handleRunAgain} isStreaming={status === 'running'} />}
+
+                    {/* Report or Standard Result */}
+                    {(result || status === 'completed') && (
+                        <>
+                            {agent.id === SEO_AGENT_ID && resultObj ? (
+                                <SEOReport data={resultObj} />
+                            ) : (
+                                <ResultsDisplay result={result || 'Agent produced no output.'} error={error} onRunAgain={handleRunAgain} isStreaming={status === 'running'} />
+                            )}
+                        </>
+                    )}
                 </div>
             </div>
+            {/* RIGHT COLUMN MODIFICATION END */}
         </div>
     );
 };

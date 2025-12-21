@@ -72,7 +72,8 @@ axiosInstance.interceptors.response.use(
     }
 
     const apiError: ApiError = {
-      message: error.response?.data?.message ?? error.message,
+      // FastAPI returns 'detail', custom errors might return 'message'
+      message: error.response?.data?.message ?? error.response?.data?.detail ?? error.message,
       code: error.response?.data?.code ?? 'UNKNOWN_ERROR',
       details: error.response?.data?.details,
     };
@@ -97,13 +98,23 @@ export const api = {
     getCurrentUser: () =>
       axiosInstance.get<ApiResponse<User>>('/auth/me'),
   },
+
   agents: {
-    list: (filters?: AgentFilters) =>
-      axiosInstance.get<PaginatedResponse<Agent>>('/agents', {
-        params: filters,
-      }),
-    get: (id: string) =>
-      axiosInstance.get<ApiResponse<Agent>>(`/agents/${id}`),
+    list: (params?: AgentFilters) => {
+      // Clean undefined params
+      const cleanParams: Record<string, any> = {};
+      if (params) {
+        Object.entries(params).forEach(([key, value]) => {
+          if (value !== undefined && value !== null && value !== '') {
+            cleanParams[key] = value;
+          }
+        });
+      }
+      return axiosInstance.get<PaginatedResponse<Agent>>('/agents/', {
+        params: cleanParams,
+      });
+    },
+    get: (id: string) => axiosInstance.get<Agent>(`/agents/${id}`),
     create: (data: Partial<Agent>) =>
       axiosInstance.post<ApiResponse<Agent>>('/agents', data),
     update: (id: string, data: Partial<Agent>) =>
@@ -140,15 +151,8 @@ export const api = {
     delete: (id: string) => axiosInstance.delete(`/reviews/${id}`),
   },
   credits: {
-    getBalance: () =>
-      axiosInstance.get<ApiResponse<{ balance: number }>>(
-        '/credits/balance'
-      ),
-    purchasePackage: (packageId: string, paymentMethodId: string) =>
-      axiosInstance.post<ApiResponse<CreditTransaction>>(
-        '/credits/purchase',
-        { package_id: packageId, payment_method_id: paymentMethodId }
-      ),
+    purchase: (amount: number) =>
+      axiosInstance.post<{ status: string; new_balance: number }>('/credits/purchase', { amount }),
     getTransactions: () =>
       axiosInstance.get<PaginatedResponse<CreditTransaction>>(
         '/credits/transactions'
