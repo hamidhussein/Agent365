@@ -13,6 +13,11 @@ class AgentCategory(str, enum.Enum):
     SUPPORT = "support"
     ANALYSIS = "analysis"
     CREATIVE = "creative"
+    WRITING = "writing"
+    BUSINESS = "business"
+    DEVELOPMENT = "development"
+    DATA = "data"
+    PRODUCTIVITY = "productivity"
 
 
 class AgentStatus(str, enum.Enum):

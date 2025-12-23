@@ -28,7 +28,7 @@ export interface Agent {
   category: AgentCategory;
   tags: string[];
   creator_id: string;
-  creator: Creator;
+  creator: User;
   version: string;
   price_per_run: number;
   rating: number;

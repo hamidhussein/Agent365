@@ -7,6 +7,8 @@ export interface User {
     username?: string;
     full_name?: string;
     role?: string;
+    avatar_url?: string;
+    bio?: string;
     // Frontend specific or mapped fields
     name: string;
     creditBalance: number;
@@ -59,23 +61,22 @@ export interface Review {
 export interface Agent {
     id: string;
     name: string;
-    creator: {
-        name: string;
-        username: string;
-        avatarUrl: string;
-        bio: string;
-    };
     description: string;
-    longDescription: string;
-    category?: string;
+    longDescription?: string;
+    imageUrl?: string;
+    thumbnail_url?: string; // Add support for backend field
+    category: string;
+    tags: string[];
     rating: number;
     reviewCount: number;
     runs: number;
-    imageUrl: string;
-    tags: string[];
-    price: number; // in credits
-    successRate: number; // percentage
-    avgRunTime: number; // in seconds
+    price: number;
+    price_per_run?: number; // Add support for backend field
+    creator: User; // Changed from Creator to User
+    isNew?: boolean;
+    isFeatured?: boolean;
+    successRate?: number;
+    avgRunTime?: number;
     status: 'Live' | 'Draft' | 'Paused';
     inputSchema: InputField[];
     mockResult: string;

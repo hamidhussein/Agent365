@@ -4,7 +4,7 @@ import React, { useState } from 'react';
 import { Agent, AgentRunStatus } from '../../types';
 import DynamicForm from '../run/DynamicForm';
 import RunStatus from '../run/RunStatus';
-import ResultsDisplay from '../run/ResultsDisplay';
+import RichResultDisplay from '../run/RichResultDisplay';
 import { api } from '../../src/lib/api/client';
 
 interface RunAgentPageProps {
@@ -13,7 +13,6 @@ interface RunAgentPageProps {
 }
 
 import SEOReport from '../run/SEOReport';
-import { useMemo } from 'react';
 
 // ... (keep interface)
 
@@ -155,8 +154,14 @@ const RunAgentPage: React.FC<RunAgentPageProps> = ({ agent, onBackToDetail }) =>
                             {agent.id === SEO_AGENT_ID && resultObj ? (
                                 <SEOReport data={resultObj} />
                             ) : (
-                                <ResultsDisplay result={result || 'Agent produced no output.'} error={error} onRunAgain={handleRunAgain} isStreaming={status === 'running'} />
+                                <RichResultDisplay
+                                    result={resultObj || result} // Pass whole object if available, else string
+                                    error={error}
+                                    isStreaming={status === 'running'}
+                                    onRunAgain={handleRunAgain}
+                                />
                             )}
+
                         </>
                     )}
                 </div>

@@ -70,11 +70,11 @@ const AgentDetailPage: React.FC<AgentDetailPageProps> = ({ agent, onRunAgent, on
                         <h2 className="text-xl font-bold text-white">About the Creator</h2>
                         <div className="mt-4 flex items-start space-x-4">
                             <div className="flex h-12 w-12 items-center justify-center rounded-full bg-brand-primary text-lg font-bold text-white">
-                                {agent.creator.name.charAt(0)}
+                                {(agent.creator.full_name || agent.creator.username).charAt(0)}
                             </div>
                             <div>
-                                <button onClick={() => onSelectCreator(agent.creator.username)} className="text-lg font-semibold text-white hover:underline">{agent.creator.name}</button>
-                                <p className="mt-1 text-gray-400">{agent.creator.bio}</p>
+                                <button onClick={() => onSelectCreator(agent.creator.username || '')} className="text-lg font-semibold text-white hover:underline">{agent.creator.full_name || agent.creator.username}</button>
+                                <p className="mt-1 text-gray-400">{agent.creator.bio || ''}</p>
                             </div>
                         </div>
                     </div>

@@ -1,4 +1,4 @@
-import { Agent } from '../../../types';
+import { Agent, User } from '../../../types';
 
 export type BackendAgent = {
     id: string;
@@ -26,17 +26,33 @@ export type BackendAgent = {
     version: string;
     thumbnail_url?: string | null;
     creator_id: string;
+    creator?: {
+        id: string;
+        username: string;
+        full_name?: string;
+        avatar_url?: string;
+        bio?: string;
+        email?: string;
+    };
     created_at: string;
     updated_at: string;
 };
 
-const createPlaceholderCreator = (id: string) => {
+const createPlaceholderCreator = (id: string): User => {
     const shortId = id?.slice(0, 6) ?? 'creator';
     return {
+        id: id,
+        email: '',
+        role: 'user',
         name: `Creator ${shortId}`,
         username: id ?? shortId,
-        avatarUrl: `https://api.dicebear.com/7.x/initials/svg?seed=${shortId}`,
+        full_name: `Creator ${shortId}`,
+        avatar_url: `https://api.dicebear.com/7.x/initials/svg?seed=${shortId}`,
         bio: 'Creator profile coming soon.',
+        creditBalance: 0,
+        favoriteAgentIds: [],
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString()
     };
 };
 
@@ -59,13 +75,33 @@ export const mapBackendAgent = (agent: BackendAgent): Agent => {
         type: input.type === 'string' ? 'text' : input.type,
         placeholder: input.description,
         required: input.required !== false,
-        options: input.options?.map((opt: string) => ({ value: opt, label: opt })),
+        options: input.options?.map((opt: any) =>
+            typeof opt === 'string'
+                ? { value: opt, label: opt }
+                : opt
+        ),
     }));
+
+    // Map backend creator to frontend User if available
+    const creatorUser: User = agent.creator ? {
+        id: agent.creator.id,
+        email: agent.creator.email || '',
+        username: agent.creator.username,
+        full_name: agent.creator.full_name || agent.creator.username,
+        name: agent.creator.full_name || agent.creator.username, // Frontend required field
+        avatar_url: agent.creator.avatar_url || `https://api.dicebear.com/7.x/initials/svg?seed=${encodeURIComponent(agent.creator.username)}`,
+        bio: agent.creator.bio,
+        role: 'user',
+        creditBalance: 0,
+        favoriteAgentIds: [],
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString()
+    } : createPlaceholderCreator(agent.creator_id ?? agent.id);
 
     return {
         id: agent.id,
         name: agent.name,
-        creator: createPlaceholderCreator(agent.creator_id ?? agent.id),
+        creator: creatorUser,
         description: agent.description,
         longDescription: agent.long_description ?? agent.description,
         category: agent.category ?? 'General',

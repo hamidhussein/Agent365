@@ -1,10 +1,13 @@
 from datetime import datetime
 from uuid import UUID
-from typing import List, Optional
+from typing import List, Optional, TYPE_CHECKING
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 from app.models.enums import AgentCategory, AgentStatus
+if TYPE_CHECKING:
+    from app.schemas.user import UserRead
+from app.schemas.user import UserRead
 
 
 class AgentConfig(BaseModel):
@@ -83,6 +86,7 @@ class AgentResponse(AgentBase):
     total_reviews: int
     status: AgentStatus
     thumbnail_url: Optional[str]
+    creator: Optional[UserRead] = None
     created_at: datetime
     updated_at: datetime
 

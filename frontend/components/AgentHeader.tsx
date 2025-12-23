@@ -22,19 +22,19 @@ const AgentHeader: React.FC<AgentHeaderProps> = ({ agent, onSelectCreator, isFav
                 <div>
                     <h1 className="text-3xl font-extrabold tracking-tight text-white sm:text-4xl">{agent.name}</h1>
                     <div className="mt-2 flex items-center space-x-2 text-sm text-gray-400">
-                        <img src={agent.creator.avatarUrl} alt={agent.creator.name} className="h-6 w-6 rounded-full" />
-                        <span>Created by <button onClick={() => onSelectCreator(agent.creator.username)} className="font-medium text-white hover:underline">{agent.creator.name}</button></span>
+                        <img src={agent.creator.avatar_url || ''} alt={agent.creator.full_name || agent.creator.username} className="h-6 w-6 rounded-full" />
+                        <span>Created by <button onClick={() => onSelectCreator(agent.creator.username || '')} className="font-medium text-white hover:underline">{agent.creator.full_name || agent.creator.username}</button></span>
                     </div>
                 </div>
                 <div className="flex flex-shrink-0 items-center space-x-2">
-                     <button 
+                    <button
                         onClick={() => onToggleFavorite(agent.id)}
                         className={`flex h-10 items-center justify-center rounded-md border border-gray-700 bg-gray-800 px-3 py-2 text-sm font-medium transition-colors hover:bg-gray-700 ${isFavorited ? 'text-red-500' : 'text-white'}`}
-                     >
-                        <HeartIcon className={`h-4 w-4 mr-2 ${isFavorited ? 'fill-current' : ''}`}/> Favorite
+                    >
+                        <HeartIcon className={`h-4 w-4 mr-2 ${isFavorited ? 'fill-current' : ''}`} /> Favorite
                     </button>
                     <button className="flex h-10 items-center justify-center rounded-md border border-gray-700 bg-gray-800 px-3 py-2 text-sm font-medium transition-colors hover:bg-gray-700">
-                        <ShareIcon className="h-4 w-4 mr-2"/> Share
+                        <ShareIcon className="h-4 w-4 mr-2" /> Share
                     </button>
                 </div>
             </div>
@@ -46,9 +46,9 @@ const AgentHeader: React.FC<AgentHeaderProps> = ({ agent, onSelectCreator, isFav
                     <span className="ml-1.5 text-gray-400">({agent.reviewCount} reviews)</span>
                 </div>
                 <div className="flex items-center space-x-2">
-                {agent.tags.map(tag => (
-                    <span key={tag} className="rounded-full bg-brand-secondary/20 px-2.5 py-1 text-xs font-medium text-brand-secondary">{tag}</span>
-                ))}
+                    {agent.tags.map(tag => (
+                        <span key={tag} className="rounded-full bg-brand-secondary/20 px-2.5 py-1 text-xs font-medium text-brand-secondary">{tag}</span>
+                    ))}
                 </div>
             </div>
         </div>

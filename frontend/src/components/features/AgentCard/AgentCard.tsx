@@ -72,6 +72,12 @@ function AgentCardComponent({
           <div>
             <CardTitle className="text-xl">{agent.name}</CardTitle>
             <CardDescription>{agent.description}</CardDescription>
+            <div className="flex items-center gap-1 mt-2 text-xs text-muted-foreground">
+              <span>By</span>
+              <span className="font-medium text-primary">
+                {agent.creator?.full_name || agent.creator?.username || 'Axeecom'}
+              </span>
+            </div>
           </div>
           {showDemoBadge && (
             <span className="text-xs font-semibold text-success bg-success/10 px-2 py-1 rounded-full">

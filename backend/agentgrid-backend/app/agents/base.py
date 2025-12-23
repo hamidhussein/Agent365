@@ -7,6 +7,7 @@ class AgentInput(BaseModel):
     type: str  # "string", "number", "boolean", "select"
     description: str
     required: bool = True
+    placeholder: Optional[str] = None
     options: Optional[List[str]] = None  # For select type
 
 class AgentOutput(BaseModel):

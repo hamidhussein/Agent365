@@ -12,22 +12,22 @@ interface AgentCardProps {
 }
 
 const AgentCard: React.FC<AgentCardProps> = ({ agent, onSelect, onSelectCreator, isFavorited, onToggleFavorite }) => {
-    
+
     const handleCreatorClick = (e: React.MouseEvent) => {
         e.stopPropagation();
-        onSelectCreator(agent.creator.username);
+        onSelectCreator(agent.creator.username || '');
     }
 
     const handleFavoriteClick = (e: React.MouseEvent) => {
         e.stopPropagation();
         onToggleFavorite(agent.id);
     }
-    
+
     return (
         <div onClick={() => onSelect(agent.id)} className="group relative overflow-hidden rounded-lg border border-gray-700 bg-gray-800 transition-all duration-300 hover:-translate-y-1 hover:border-brand-primary hover:shadow-lg hover:shadow-brand-primary/20 text-left cursor-pointer">
             <div className="relative">
                 <img src={agent.imageUrl} alt={agent.name} className="h-48 w-full object-cover" />
-                <button 
+                <button
                     onClick={handleFavoriteClick}
                     className={`absolute top-3 right-3 z-10 flex h-8 w-8 items-center justify-center rounded-full bg-gray-900/50 backdrop-blur-sm transition-colors duration-200 ${isFavorited ? 'text-red-500' : 'text-white'} hover:bg-gray-900/70`}
                     aria-label={isFavorited ? 'Remove from favorites' : 'Add to favorites'}
@@ -43,8 +43,8 @@ const AgentCard: React.FC<AgentCardProps> = ({ agent, onSelect, onSelectCreator,
                 </div>
                 <h3 className="mt-3 text-lg font-semibold text-white">{agent.name}</h3>
                 <div className="mt-1 flex items-center space-x-2 text-sm text-gray-400">
-                    <img src={agent.creator.avatarUrl} alt={agent.creator.name} className="h-5 w-5 rounded-full" />
-                    <span>by <button onClick={handleCreatorClick} className="font-medium text-gray-300 hover:text-white hover:underline z-10 relative">{agent.creator.name}</button></span>
+                    <img src={agent.creator.avatar_url || ''} alt={agent.creator.full_name || agent.creator.username} className="h-5 w-5 rounded-full" />
+                    <span>by <button onClick={handleCreatorClick} className="font-medium text-gray-300 hover:text-white hover:underline z-10 relative">{agent.creator.full_name || agent.creator.username}</button></span>
                 </div>
                 <p className="mt-2 text-sm text-gray-300 line-clamp-2">{agent.description}</p>
             </div>
