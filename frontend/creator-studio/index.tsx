@@ -112,6 +112,7 @@ const CreatorStudioApp = ({ initialView }: { initialView?: string }) => {
 
 
   const handleCreateAgent = async (payload: AgentPayload, newFiles: File[], removedFileIds: string[] = []) => {
+
     void removedFileIds;
     try {
       const created = await agentsApi.create(payload);

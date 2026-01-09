@@ -183,3 +183,241 @@ INFO:     127.0.0.1:53204 - "GET /creator-studio/api/admin/llm-configs HTTP/1.1"
 INFO:     127.0.0.1:53204 - "GET /creator-studio/api/admin/assist-model HTTP/1.1" 200 OK
 INFO:     127.0.0.1:53538 - "GET /api/v1/agents?limit=50&include_creator_studio_public=true HTTP/1.1" 307 Temporary Redirect
 INFO:     127.0.0.1:53538 - "GET /api/v1/agents/?limit=50&include_creator_studio_public=true HTTP/1.1" 200 OK
+INFO:     127.0.0.1:49673 - "GET /api/v1/agents?limit=50&include_creator_studio_public=true HTTP/1.1" 307 Temporary Redirect
+INFO:     127.0.0.1:49673 - "GET /api/v1/agents/?limit=50&include_creator_studio_public=true HTTP/1.1" 200 OK
+INFO:     127.0.0.1:65031 - "GET /creator-studio/api/health HTTP/1.1" 200 OK
+INFO:     127.0.0.1:58904 - "GET /api/v1/agents?limit=50&include_creator_studio_public=true HTTP/1.1" 307 Temporary Redirect
+INFO:     127.0.0.1:58904 - "GET /api/v1/agents/?limit=50&include_creator_studio_public=true HTTP/1.1" 200 OK
+INFO:     127.0.0.1:58507 - "GET /api/v1/agents?limit=50&include_creator_studio_public=true HTTP/1.1" 307 Temporary Redirect
+INFO:     127.0.0.1:58507 - "GET /api/v1/auth/me HTTP/1.1" 200 OK
+INFO:     127.0.0.1:58507 - "GET /api/v1/auth/me HTTP/1.1" 200 OK
+INFO:     127.0.0.1:58507 - "GET /api/v1/agents/?limit=50&include_creator_studio_public=true HTTP/1.1" 200 OK
+INFO:     127.0.0.1:58507 - "GET /creator-studio/api/agents HTTP/1.1" 200 OK
+INFO:     127.0.0.1:58507 - "GET /creator-studio/api/agents HTTP/1.1" 200 OK
+INFO:     127.0.0.1:58507 - "GET /creator-studio/api/admin/llm-configs HTTP/1.1" 200 OK
+INFO:     127.0.0.1:58507 - "GET /creator-studio/api/admin/llm-configs HTTP/1.1" 200 OK
+INFO:     127.0.0.1:58507 - "GET /creator-studio/api/admin/assist-model HTTP/1.1" 200 OK
+INFO:     127.0.0.1:58507 - "GET /creator-studio/api/admin/assist-model HTTP/1.1" 200 OK
+INFO:     127.0.0.1:58507 - "OPTIONS /creator-studio/api/chat/stream HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50661 - "POST /creator-studio/api/chat/stream HTTP/1.1" 200 OK
+INFO:     127.0.0.1:60703 - "GET /api/v1/executions?skip=0&limit=100 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51130 - "GET /api/v1/credits/transactions?skip=0&limit=5 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51130 - "GET /api/v1/executions?skip=0&limit=100 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51130 - "OPTIONS /api/v1/credits/transactions?skip=0&limit=100 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51130 - "GET /api/v1/credits/transactions?skip=0&limit=100 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:64888 - "GET /api/v1/credits/transactions?skip=0&limit=5 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51130 - "GET /api/v1/executions?skip=0&limit=100 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:61932 - "GET /creator-studio/api/agents HTTP/1.1" 200 OK
+INFO:     127.0.0.1:61932 - "GET /creator-studio/api/agents HTTP/1.1" 200 OK
+INFO:     127.0.0.1:61932 - "GET /creator-studio/api/admin/llm-configs HTTP/1.1" 200 OK
+INFO:     127.0.0.1:61932 - "GET /creator-studio/api/admin/llm-configs HTTP/1.1" 200 OK
+INFO:     127.0.0.1:61932 - "GET /creator-studio/api/admin/assist-model HTTP/1.1" 200 OK
+INFO:     127.0.0.1:61932 - "GET /creator-studio/api/admin/assist-model HTTP/1.1" 200 OK
+INFO:     127.0.0.1:61932 - "GET /creator-studio/api/admin/llm-configs HTTP/1.1" 200 OK
+INFO:     127.0.0.1:61932 - "GET /creator-studio/api/admin/assist-model HTTP/1.1" 200 OK
+INFO:     127.0.0.1:54537 - "OPTIONS /api/v1/reviews?agent_id=787b599f-c8b9-42bf-affd-7fbd23a3add3 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:54537 - "GET /api/v1/reviews?agent_id=787b599f-c8b9-42bf-affd-7fbd23a3add3 HTTP/1.1" 307 Temporary Redirect
+INFO:     127.0.0.1:54537 - "OPTIONS /api/v1/reviews/?agent_id=787b599f-c8b9-42bf-affd-7fbd23a3add3 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:54537 - "GET /api/v1/reviews/?agent_id=787b599f-c8b9-42bf-affd-7fbd23a3add3 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50631 - "OPTIONS /api/v1/agents/787b599f-c8b9-42bf-affd-7fbd23a3add3/execute HTTP/1.1" 200 OK
+DEBUG: execute_agent started for 787b599f-c8b9-42bf-affd-7fbd23a3add3
+DEBUG: Getting agent class
+DEBUG: Agent Class not found for ID 787b599f-c8b9-42bf-affd-7fbd23a3add3
+DEBUG: HTTPException: Agent implementation not found
+INFO:     127.0.0.1:50631 - "POST /api/v1/agents/787b599f-c8b9-42bf-affd-7fbd23a3add3/execute HTTP/1.1" 501 Not Implemented
+INFO:     127.0.0.1:49373 - "OPTIONS /api/v1/agents?limit=50&include_creator_studio_public=true HTTP/1.1" 200 OK
+INFO:     127.0.0.1:49373 - "GET /api/v1/agents?limit=50&include_creator_studio_public=true HTTP/1.1" 307 Temporary Redirect
+INFO:     127.0.0.1:49373 - "OPTIONS /api/v1/agents/?limit=50&include_creator_studio_public=true HTTP/1.1" 200 OK
+INFO:     127.0.0.1:49373 - "GET /api/v1/agents/?limit=50&include_creator_studio_public=true HTTP/1.1" 200 OK
+INFO:     127.0.0.1:49373 - "OPTIONS /creator-studio/api/agents HTTP/1.1" 200 OK
+INFO:     127.0.0.1:49373 - "OPTIONS /creator-studio/api/agents HTTP/1.1" 200 OK
+INFO:     127.0.0.1:49373 - "GET /creator-studio/api/agents HTTP/1.1" 200 OK
+INFO:     127.0.0.1:49373 - "GET /creator-studio/api/agents HTTP/1.1" 200 OK
+INFO:     127.0.0.1:49373 - "OPTIONS /creator-studio/api/admin/llm-configs HTTP/1.1" 200 OK
+INFO:     127.0.0.1:49373 - "GET /creator-studio/api/admin/llm-configs HTTP/1.1" 200 OK
+INFO:     127.0.0.1:49373 - "GET /creator-studio/api/admin/llm-configs HTTP/1.1" 200 OK
+INFO:     127.0.0.1:49373 - "OPTIONS /creator-studio/api/admin/assist-model HTTP/1.1" 200 OK
+INFO:     127.0.0.1:49373 - "GET /creator-studio/api/admin/assist-model HTTP/1.1" 200 OK
+INFO:     127.0.0.1:49373 - "GET /creator-studio/api/admin/assist-model HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51334 - "OPTIONS /api/v1/auth/me HTTP/1.1" 200 OK
+INFO:     127.0.0.1:53317 - "OPTIONS /api/v1/auth/me HTTP/1.1" 200 OK
+INFO:     127.0.0.1:53377 - "GET /api/v1/agents?limit=50&include_creator_studio_public=true HTTP/1.1" 307 Temporary Redirect
+INFO:     127.0.0.1:53317 - "GET /api/v1/auth/me HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51334 - "GET /creator-studio/api/agents HTTP/1.1" 200 OK
+INFO:     127.0.0.1:53317 - "GET /api/v1/auth/me HTTP/1.1" 200 OK
+INFO:     127.0.0.1:53377 - "GET /api/v1/agents/?limit=50&include_creator_studio_public=true HTTP/1.1" 200 OK
+INFO:     127.0.0.1:53317 - "GET /creator-studio/api/admin/llm-configs HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51334 - "GET /creator-studio/api/agents HTTP/1.1" 200 OK
+INFO:     127.0.0.1:53317 - "GET /creator-studio/api/admin/llm-configs HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51334 - "GET /creator-studio/api/admin/assist-model HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51334 - "GET /creator-studio/api/admin/assist-model HTTP/1.1" 200 OK
+INFO:     127.0.0.1:55333 - "GET /api/v1/agents?limit=50&include_creator_studio_public=true HTTP/1.1" 307 Temporary Redirect
+INFO:     127.0.0.1:55333 - "GET /api/v1/agents/?limit=50&include_creator_studio_public=true HTTP/1.1" 200 OK
+INFO:     127.0.0.1:55333 - "GET /api/v1/agents?limit=50&include_creator_studio_public=true HTTP/1.1" 307 Temporary Redirect
+INFO:     127.0.0.1:53026 - "GET /api/v1/auth/me HTTP/1.1" 200 OK
+INFO:     127.0.0.1:53026 - "GET /api/v1/auth/me HTTP/1.1" 200 OK
+INFO:     127.0.0.1:53026 - "GET /api/v1/agents/?limit=50&include_creator_studio_public=true HTTP/1.1" 200 OK
+INFO:     127.0.0.1:53026 - "GET /creator-studio/api/agents HTTP/1.1" 200 OK
+INFO:     127.0.0.1:53026 - "GET /creator-studio/api/agents HTTP/1.1" 200 OK
+INFO:     127.0.0.1:53026 - "GET /creator-studio/api/admin/llm-configs HTTP/1.1" 200 OK
+INFO:     127.0.0.1:53026 - "GET /creator-studio/api/admin/llm-configs HTTP/1.1" 200 OK
+INFO:     127.0.0.1:53026 - "GET /creator-studio/api/admin/assist-model HTTP/1.1" 200 OK
+INFO:     127.0.0.1:53026 - "GET /creator-studio/api/admin/assist-model HTTP/1.1" 200 OK
+INFO:     127.0.0.1:57386 - "POST /creator-studio/api/chat/stream HTTP/1.1" 200 OK
+INFO:     127.0.0.1:56808 - "GET /api/v1/auth/me HTTP/1.1" 200 OK
+INFO:     127.0.0.1:56808 - "GET /creator-studio/api/agents HTTP/1.1" 200 OK
+INFO:     127.0.0.1:56808 - "GET /creator-studio/api/admin/llm-configs HTTP/1.1" 200 OK
+INFO:     127.0.0.1:56808 - "GET /creator-studio/api/admin/assist-model HTTP/1.1" 200 OK
+INFO:     127.0.0.1:63906 - "GET /api/v1/agents?limit=50&include_creator_studio_public=true HTTP/1.1" 307 Temporary Redirect
+INFO:     127.0.0.1:63906 - "GET /api/v1/agents/?limit=50&include_creator_studio_public=true HTTP/1.1" 200 OK
+INFO:     127.0.0.1:58006 - "GET /api/v1/agents?limit=50&include_creator_studio_public=true HTTP/1.1" 307 Temporary Redirect
+INFO:     127.0.0.1:58006 - "GET /api/v1/agents/?limit=50&include_creator_studio_public=true HTTP/1.1" 200 OK
+INFO:     127.0.0.1:58006 - "GET /api/v1/agents?limit=50&include_creator_studio_public=true HTTP/1.1" 307 Temporary Redirect
+INFO:     127.0.0.1:57078 - "GET /api/v1/auth/me HTTP/1.1" 200 OK
+INFO:     127.0.0.1:57078 - "GET /api/v1/auth/me HTTP/1.1" 200 OK
+INFO:     127.0.0.1:57078 - "GET /api/v1/agents/?limit=50&include_creator_studio_public=true HTTP/1.1" 200 OK
+INFO:     127.0.0.1:57078 - "GET /creator-studio/api/agents HTTP/1.1" 200 OK
+INFO:     127.0.0.1:57078 - "GET /creator-studio/api/agents HTTP/1.1" 200 OK
+INFO:     127.0.0.1:57078 - "GET /creator-studio/api/admin/llm-configs HTTP/1.1" 200 OK
+INFO:     127.0.0.1:57078 - "GET /creator-studio/api/admin/llm-configs HTTP/1.1" 200 OK
+INFO:     127.0.0.1:57078 - "GET /creator-studio/api/admin/assist-model HTTP/1.1" 200 OK
+INFO:     127.0.0.1:57078 - "GET /creator-studio/api/admin/assist-model HTTP/1.1" 200 OK
+INFO:     127.0.0.1:65311 - "OPTIONS /api/v1/auth/logout HTTP/1.1" 200 OK
+INFO:     127.0.0.1:65311 - "POST /api/v1/auth/logout HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:65311 - "GET /api/v1/agents?limit=50&include_creator_studio_public=true HTTP/1.1" 307 Temporary Redirect
+INFO:     127.0.0.1:65311 - "GET /api/v1/agents/?limit=50&include_creator_studio_public=true HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50735 - "OPTIONS /api/v1/auth/register HTTP/1.1" 200 OK
+[DEBUG] Registering user: test3@agentgrid.com
+[DEBUG] User registered successfully: 91a85e84-9ebd-4be4-ba0a-f1b95262f5fc
+INFO:     127.0.0.1:58576 - "POST /api/v1/auth/register HTTP/1.1" 201 Created
+INFO:     127.0.0.1:58576 - "GET /api/v1/auth/me HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50148 - "OPTIONS /api/v1/reviews?agent_id=293607ae-59db-45ca-aa20-7290755032f8 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50148 - "GET /api/v1/reviews?agent_id=293607ae-59db-45ca-aa20-7290755032f8 HTTP/1.1" 307 Temporary Redirect
+INFO:     127.0.0.1:50148 - "OPTIONS /api/v1/reviews/?agent_id=293607ae-59db-45ca-aa20-7290755032f8 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50148 - "GET /api/v1/reviews/?agent_id=293607ae-59db-45ca-aa20-7290755032f8 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:55282 - "GET /creator-studio/api/agents HTTP/1.1" 200 OK
+INFO:     127.0.0.1:55282 - "GET /creator-studio/api/agents HTTP/1.1" 200 OK
+INFO:     127.0.0.1:65308 - "OPTIONS /api/v1/agents?limit=50&include_creator_studio_public=true HTTP/1.1" 200 OK
+INFO:     127.0.0.1:65046 - "GET /api/v1/reviews?agent_id=293607ae-59db-45ca-aa20-7290755032f8 HTTP/1.1" 307 Temporary Redirect
+INFO:     127.0.0.1:65308 - "GET /api/v1/agents?limit=50&include_creator_studio_public=true HTTP/1.1" 307 Temporary Redirect
+INFO:     127.0.0.1:65046 - "OPTIONS /api/v1/agents/?limit=50&include_creator_studio_public=true HTTP/1.1" 200 OK
+INFO:     127.0.0.1:65308 - "GET /api/v1/reviews/?agent_id=293607ae-59db-45ca-aa20-7290755032f8 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:65046 - "GET /api/v1/agents/?limit=50&include_creator_studio_public=true HTTP/1.1" 200 OK
+INFO:     127.0.0.1:57842 - "GET /api/v1/agents?limit=50&include_creator_studio_public=true HTTP/1.1" 307 Temporary Redirect
+INFO:     127.0.0.1:63970 - "GET /api/v1/reviews?agent_id=293607ae-59db-45ca-aa20-7290755032f8 HTTP/1.1" 307 Temporary Redirect
+INFO:     127.0.0.1:57842 - "GET /api/v1/reviews/?agent_id=293607ae-59db-45ca-aa20-7290755032f8 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:63970 - "GET /api/v1/agents/?limit=50&include_creator_studio_public=true HTTP/1.1" 200 OK
+INFO:     127.0.0.1:63970 - "GET /api/v1/agents?limit=50&include_creator_studio_public=true HTTP/1.1" 307 Temporary Redirect
+INFO:     127.0.0.1:63970 - "GET /api/v1/agents/?limit=50&include_creator_studio_public=true HTTP/1.1" 200 OK
+INFO:     127.0.0.1:63970 - "OPTIONS /api/v1/auth/me HTTP/1.1" 200 OK
+INFO:     127.0.0.1:57842 - "OPTIONS /api/v1/auth/me HTTP/1.1" 200 OK
+INFO:     127.0.0.1:49672 - "GET /api/v1/agents?limit=50&include_creator_studio_public=true HTTP/1.1" 307 Temporary Redirect
+INFO:     127.0.0.1:63970 - "GET /api/v1/auth/me HTTP/1.1" 200 OK
+INFO:     127.0.0.1:63970 - "GET /api/v1/auth/me HTTP/1.1" 200 OK
+INFO:     127.0.0.1:49672 - "GET /api/v1/agents/?limit=50&include_creator_studio_public=true HTTP/1.1" 200 OK
+INFO:     127.0.0.1:49672 - "GET /api/v1/agents?limit=50&include_creator_studio_public=true HTTP/1.1" 307 Temporary Redirect
+INFO:     127.0.0.1:49672 - "GET /api/v1/agents/?limit=50&include_creator_studio_public=true HTTP/1.1" 200 OK
+INFO:     127.0.0.1:49672 - "GET /api/v1/agents?limit=50&include_creator_studio_public=true HTTP/1.1" 307 Temporary Redirect
+INFO:     127.0.0.1:63970 - "GET /api/v1/auth/me HTTP/1.1" 200 OK
+INFO:     127.0.0.1:63970 - "GET /api/v1/auth/me HTTP/1.1" 200 OK
+INFO:     127.0.0.1:49672 - "GET /api/v1/agents/?limit=50&include_creator_studio_public=true HTTP/1.1" 200 OK
+INFO:     127.0.0.1:52921 - "GET /api/v1/reviews?agent_id=293607ae-59db-45ca-aa20-7290755032f8 HTTP/1.1" 307 Temporary Redirect
+INFO:     127.0.0.1:52921 - "GET /api/v1/reviews/?agent_id=293607ae-59db-45ca-aa20-7290755032f8 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62409 - "OPTIONS /creator-studio/api/agents HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62409 - "OPTIONS /creator-studio/api/agents HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62409 - "GET /creator-studio/api/agents HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62409 - "GET /creator-studio/api/agents HTTP/1.1" 200 OK
+INFO:     127.0.0.1:61460 - "GET /api/v1/auth/me HTTP/1.1" 200 OK
+INFO:     127.0.0.1:61460 - "GET /api/v1/auth/me HTTP/1.1" 200 OK
+INFO:     127.0.0.1:61460 - "GET /api/v1/auth/me HTTP/1.1" 200 OK
+INFO:     127.0.0.1:65328 - "GET /api/v1/agents?limit=50&include_creator_studio_public=true HTTP/1.1" 307 Temporary Redirect
+INFO:     127.0.0.1:65328 - "GET /api/v1/agents/?limit=50&include_creator_studio_public=true HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62872 - "OPTIONS /api/v1/reviews?agent_id=293607ae-59db-45ca-aa20-7290755032f8 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62872 - "GET /api/v1/reviews?agent_id=293607ae-59db-45ca-aa20-7290755032f8 HTTP/1.1" 307 Temporary Redirect
+INFO:     127.0.0.1:62872 - "OPTIONS /api/v1/reviews/?agent_id=293607ae-59db-45ca-aa20-7290755032f8 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62872 - "GET /api/v1/reviews/?agent_id=293607ae-59db-45ca-aa20-7290755032f8 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50660 - "GET /api/v1/agents?limit=50&include_creator_studio_public=true HTTP/1.1" 307 Temporary Redirect
+INFO:     127.0.0.1:50660 - "GET /api/v1/agents/?limit=50&include_creator_studio_public=true HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50660 - "GET /api/v1/reviews?agent_id=293607ae-59db-45ca-aa20-7290755032f8 HTTP/1.1" 307 Temporary Redirect
+INFO:     127.0.0.1:50660 - "GET /api/v1/reviews/?agent_id=293607ae-59db-45ca-aa20-7290755032f8 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:55724 - "GET /api/v1/agents?limit=50&include_creator_studio_public=true HTTP/1.1" 307 Temporary Redirect
+INFO:     127.0.0.1:55724 - "GET /api/v1/auth/me HTTP/1.1" 200 OK
+INFO:     127.0.0.1:55724 - "GET /api/v1/auth/me HTTP/1.1" 200 OK
+INFO:     127.0.0.1:55724 - "GET /api/v1/agents/?limit=50&include_creator_studio_public=true HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50324 - "GET /api/v1/reviews?agent_id=293607ae-59db-45ca-aa20-7290755032f8 HTTP/1.1" 307 Temporary Redirect
+INFO:     127.0.0.1:50324 - "GET /api/v1/reviews/?agent_id=293607ae-59db-45ca-aa20-7290755032f8 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50324 - "OPTIONS /api/v1/credits/purchase HTTP/1.1" 200 OK
+INFO:     127.0.0.1:59613 - "POST /api/v1/credits/purchase HTTP/1.1" 200 OK
+INFO:     127.0.0.1:59613 - "GET /api/v1/auth/me HTTP/1.1" 200 OK
+INFO:     127.0.0.1:59157 - "GET /api/v1/agents?limit=50&include_creator_studio_public=true HTTP/1.1" 307 Temporary Redirect
+INFO:     127.0.0.1:63401 - "GET /api/v1/auth/me HTTP/1.1" 200 OK
+INFO:     127.0.0.1:63401 - "GET /api/v1/auth/me HTTP/1.1" 200 OK
+INFO:     127.0.0.1:59157 - "GET /api/v1/agents/?limit=50&include_creator_studio_public=true HTTP/1.1" 200 OK
+INFO:     127.0.0.1:59097 - "GET /api/v1/agents?limit=50&include_creator_studio_public=true HTTP/1.1" 307 Temporary Redirect
+INFO:     127.0.0.1:59097 - "GET /api/v1/auth/me HTTP/1.1" 200 OK
+INFO:     127.0.0.1:59097 - "GET /api/v1/auth/me HTTP/1.1" 200 OK
+INFO:     127.0.0.1:59097 - "GET /api/v1/agents/?limit=50&include_creator_studio_public=true HTTP/1.1" 200 OK
+INFO:     127.0.0.1:59097 - "GET /api/v1/agents?limit=50&include_creator_studio_public=true HTTP/1.1" 307 Temporary Redirect
+INFO:     127.0.0.1:51145 - "GET /api/v1/auth/me HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51145 - "GET /api/v1/auth/me HTTP/1.1" 200 OK
+INFO:     127.0.0.1:59097 - "GET /api/v1/agents/?limit=50&include_creator_studio_public=true HTTP/1.1" 200 OK
+INFO:     127.0.0.1:59097 - "GET /api/v1/reviews?agent_id=293607ae-59db-45ca-aa20-7290755032f8 HTTP/1.1" 307 Temporary Redirect
+INFO:     127.0.0.1:59097 - "GET /api/v1/reviews/?agent_id=293607ae-59db-45ca-aa20-7290755032f8 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:54421 - "OPTIONS /api/v1/agents/293607ae-59db-45ca-aa20-7290755032f8/execute HTTP/1.1" 200 OK
+DEBUG: execute_agent started for 293607ae-59db-45ca-aa20-7290755032f8
+DEBUG: HTTPException: Creator Studio agents run inside Creator Studio
+INFO:     127.0.0.1:54421 - "POST /api/v1/agents/293607ae-59db-45ca-aa20-7290755032f8/execute HTTP/1.1" 400 Bad Request
+INFO:     127.0.0.1:60878 - "GET /api/v1/reviews?agent_id=293607ae-59db-45ca-aa20-7290755032f8 HTTP/1.1" 307 Temporary Redirect
+INFO:     127.0.0.1:60878 - "GET /api/v1/reviews/?agent_id=293607ae-59db-45ca-aa20-7290755032f8 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:60495 - "GET /creator-studio/api/agents HTTP/1.1" 200 OK
+INFO:     127.0.0.1:60495 - "GET /creator-studio/api/agents HTTP/1.1" 200 OK
+INFO:     127.0.0.1:55929 - "OPTIONS /creator-studio/api/agents/suggest HTTP/1.1" 200 OK
+INFO:     127.0.0.1:55929 - "POST /creator-studio/api/agents/suggest HTTP/1.1" 200 OK
+INFO:     127.0.0.1:55929 - "POST /creator-studio/api/agents HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51637 - "OPTIONS /creator-studio/api/chat/stream HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51637 - "POST /creator-studio/api/chat/stream HTTP/1.1" 200 OK
+INFO:     127.0.0.1:58874 - "GET /creator-studio/api/agents HTTP/1.1" 200 OK
+INFO:     127.0.0.1:58874 - "GET /creator-studio/api/agents HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51770 - "OPTIONS /creator-studio/api/agents/765315c4-d6e5-48ae-99c8-510159f4f21f HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51770 - "PUT /creator-studio/api/agents/765315c4-d6e5-48ae-99c8-510159f4f21f HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51770 - "GET /creator-studio/api/agents HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51770 - "OPTIONS /api/v1/agents?limit=50&include_creator_studio_public=true HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51770 - "GET /api/v1/agents?limit=50&include_creator_studio_public=true HTTP/1.1" 307 Temporary Redirect
+INFO:     127.0.0.1:53867 - "GET /api/v1/auth/me HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51770 - "OPTIONS /api/v1/agents/?limit=50&include_creator_studio_public=true HTTP/1.1" 200 OK
+INFO:     127.0.0.1:53867 - "GET /api/v1/auth/me HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51770 - "GET /api/v1/agents/?limit=50&include_creator_studio_public=true HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51770 - "OPTIONS /api/v1/reviews?agent_id=765315c4-d6e5-48ae-99c8-510159f4f21f HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51770 - "GET /api/v1/reviews?agent_id=765315c4-d6e5-48ae-99c8-510159f4f21f HTTP/1.1" 307 Temporary Redirect
+INFO:     127.0.0.1:51770 - "OPTIONS /api/v1/reviews/?agent_id=765315c4-d6e5-48ae-99c8-510159f4f21f HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51770 - "GET /api/v1/reviews/?agent_id=765315c4-d6e5-48ae-99c8-510159f4f21f HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51770 - "GET /creator-studio/api/agents HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51770 - "GET /creator-studio/api/agents HTTP/1.1" 200 OK
+INFO:     127.0.0.1:49745 - "OPTIONS /api/v1/agents?limit=50&include_creator_studio_public=true HTTP/1.1" 200 OK
+INFO:     127.0.0.1:56356 - "OPTIONS /api/v1/auth/me HTTP/1.1" 200 OK
+INFO:     127.0.0.1:54950 - "OPTIONS /api/v1/auth/me HTTP/1.1" 200 OK
+INFO:     127.0.0.1:56356 - "GET /api/v1/agents?limit=50&include_creator_studio_public=true HTTP/1.1" 307 Temporary Redirect
+INFO:     127.0.0.1:56356 - "OPTIONS /api/v1/agents/?limit=50&include_creator_studio_public=true HTTP/1.1" 200 OK
+INFO:     127.0.0.1:49745 - "GET /api/v1/auth/me HTTP/1.1" 401 Unauthorized
+INFO:     127.0.0.1:49745 - "GET /api/v1/auth/me HTTP/1.1" 401 Unauthorized
+INFO:     127.0.0.1:56356 - "GET /api/v1/agents/?limit=50&include_creator_studio_public=true HTTP/1.1" 200 OK
+INFO:     127.0.0.1:56356 - "GET /api/v1/agents?limit=50&include_creator_studio_public=true HTTP/1.1" 307 Temporary Redirect
+INFO:     127.0.0.1:56356 - "GET /api/v1/agents/?limit=50&include_creator_studio_public=true HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51256 - "GET /api/v1/agents?limit=50&include_creator_studio_public=true HTTP/1.1" 307 Temporary Redirect
+INFO:     127.0.0.1:51256 - "GET /api/v1/agents/?limit=50&include_creator_studio_public=true HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50709 - "GET /api/v1/agents?limit=50&include_creator_studio_public=true HTTP/1.1" 307 Temporary Redirect
+INFO:     127.0.0.1:50709 - "GET /api/v1/agents/?limit=50&include_creator_studio_public=true HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50709 - "GET /api/v1/agents?limit=50&include_creator_studio_public=true HTTP/1.1" 307 Temporary Redirect
+INFO:     127.0.0.1:50709 - "GET /api/v1/agents/?limit=50&include_creator_studio_public=true HTTP/1.1" 200 OK
+INFO:     127.0.0.1:53223 - "GET /api/v1/agents?limit=50&include_creator_studio_public=true HTTP/1.1" 307 Temporary Redirect
+INFO:     127.0.0.1:53223 - "GET /api/v1/agents/?limit=50&include_creator_studio_public=true HTTP/1.1" 200 OK
+INFO:     127.0.0.1:61885 - "GET /api/v1/agents?limit=50&include_creator_studio_public=true HTTP/1.1" 307 Temporary Redirect
+INFO:     127.0.0.1:61885 - "GET /api/v1/agents/?limit=50&include_creator_studio_public=true HTTP/1.1" 200 OK
+INFO:     127.0.0.1:61517 - "GET /api/v1/agents?limit=50&include_creator_studio_public=true HTTP/1.1" 307 Temporary Redirect
+INFO:     127.0.0.1:61517 - "GET /api/v1/agents/?limit=50&include_creator_studio_public=true HTTP/1.1" 200 OK
+INFO:     127.0.0.1:61517 - "GET /api/v1/agents?limit=50&include_creator_studio_public=true HTTP/1.1" 307 Temporary Redirect
+INFO:     127.0.0.1:61517 - "GET /api/v1/agents/?limit=50&include_creator_studio_public=true HTTP/1.1" 200 OK
+INFO:     127.0.0.1:59074 - "GET /api/v1/agents?limit=50&include_creator_studio_public=true HTTP/1.1" 307 Temporary Redirect
+INFO:     127.0.0.1:59074 - "GET /api/v1/agents/?limit=50&include_creator_studio_public=true HTTP/1.1" 200 OK
+INFO:     127.0.0.1:59074 - "GET /api/v1/agents?limit=50&include_creator_studio_public=true HTTP/1.1" 307 Temporary Redirect
+INFO:     127.0.0.1:59074 - "GET /api/v1/agents/?limit=50&include_creator_studio_public=true HTTP/1.1" 200 OK
