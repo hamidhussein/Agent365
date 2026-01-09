@@ -35,7 +35,10 @@ export interface Agent {
   total_runs: number;
   total_reviews: number;
   status: AgentStatus;
-  config: AgentConfig;
+  source?: string;
+  is_public?: boolean;
+  isPublic?: boolean;
+  config: AgentConfig | Record<string, any>;
   capabilities: string[];
   limitations?: string[];
   thumbnail_url?: string;

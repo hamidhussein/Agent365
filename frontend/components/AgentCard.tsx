@@ -13,6 +13,8 @@ interface AgentCardProps {
 
 const AgentCard: React.FC<AgentCardProps> = ({ agent, onSelect, onSelectCreator, isFavorited, onToggleFavorite }) => {
 
+    const isCreatorStudio = agent.source === "creator_studio";
+
     const handleCreatorClick = (e: React.MouseEvent) => {
         e.stopPropagation();
         onSelectCreator(agent.creator.username || '');
@@ -37,6 +39,7 @@ const AgentCard: React.FC<AgentCardProps> = ({ agent, onSelect, onSelectCreator,
             </div>
             <div className="p-4">
                 <div className="flex items-center space-x-2">
+                    {isCreatorStudio && (<span className="rounded-full bg-indigo-500/20 px-2 py-0.5 text-xs font-medium text-indigo-200">Creator Studio</span>)}
                     {agent.tags.slice(0, 2).map(tag => (
                         <span key={tag} className="rounded-full bg-brand-primary/20 px-2 py-0.5 text-xs font-medium text-brand-primary">{tag}</span>
                     ))}

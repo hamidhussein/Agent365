@@ -14,6 +14,7 @@ if TYPE_CHECKING:
     from app.models.user import User
     from app.models.execution import AgentExecution
     from app.models.review import Review
+    from app.models.creator_studio import CreatorStudioKnowledgeFile, CreatorStudioKnowledgeChunk
 
 
 class Agent(TimestampMixin, Base):
@@ -40,6 +41,8 @@ class Agent(TimestampMixin, Base):
     capabilities: Mapped[List[str]] = mapped_column(JSON, default=list)
     limitations: Mapped[List[str]] = mapped_column(JSON, default=list)
     demo_available: Mapped[bool] = mapped_column(Boolean, default=False)
+    is_public: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    source: Mapped[str] = mapped_column(String(32), default="manual", nullable=False)
     version: Mapped[str] = mapped_column(String(32), default="1.0.0")
     thumbnail_url: Mapped[Optional[str]] = mapped_column(String(512), nullable=True)
 
@@ -58,4 +61,11 @@ class Agent(TimestampMixin, Base):
         secondary="user_favorites",
         back_populates="favorite_agents",
         lazy="selectin"
+    )
+
+    creator_studio_files: Mapped[List["CreatorStudioKnowledgeFile"]] = relationship(
+        back_populates="agent", cascade="all, delete"
+    )
+    creator_studio_chunks: Mapped[List["CreatorStudioKnowledgeChunk"]] = relationship(
+        back_populates="agent", cascade="all, delete"
     )

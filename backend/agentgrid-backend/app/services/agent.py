@@ -2,7 +2,7 @@ from typing import List, Optional, Tuple
 from uuid import UUID
 
 from fastapi import HTTPException, status
-from sqlalchemy import or_
+from sqlalchemy import and_, or_
 from sqlalchemy.orm import Session
 
 from app.models.agent import Agent
@@ -34,9 +34,17 @@ class AgentService:
         return agent
 
     @staticmethod
-    def get_agent(db: Session, agent_id: str) -> Optional[Agent]:
+    def get_agent(
+        db: Session,
+        agent_id: str,
+        include_creator_studio_public: bool = False,
+    ) -> Optional[Agent]:
         agent_uuid = _coerce_uuid(agent_id)
-        return db.query(Agent).filter(Agent.id == agent_uuid).first()
+        agent = db.query(Agent).filter(Agent.id == agent_uuid).first()
+        if agent and agent.source == "creator_studio":
+            if not include_creator_studio_public or not agent.is_public:
+                return None
+        return agent
 
     @staticmethod
     def list_agents(
@@ -50,8 +58,27 @@ class AgentService:
         tags: Optional[List[str]] = None,
         sort_by: str = "newest",
         creator_id: Optional[str] = None,
+        source: Optional[str] = "manual",
+        include_creator_studio_public: bool = False,
     ) -> Tuple[List[Agent], int]:
         query = db.query(Agent).filter(Agent.status == AgentStatus.ACTIVE)
+        creator_public_filter = and_(Agent.source == "creator_studio", Agent.is_public.is_(True))
+
+        if source == "manual" or source is None:
+            if include_creator_studio_public:
+                query = query.filter(or_(Agent.source == "manual", creator_public_filter))
+            else:
+                query = query.filter(Agent.source == "manual")
+        elif source == "creator_studio":
+            if include_creator_studio_public:
+                query = query.filter(creator_public_filter)
+            else:
+                query = query.filter(Agent.id.is_(None))
+        elif source == "all":
+            if include_creator_studio_public:
+                query = query.filter(or_(Agent.source == "manual", creator_public_filter))
+            else:
+                query = query.filter(Agent.source != "creator_studio")
         bind = db.get_bind()
 
         if category:

@@ -1,12 +1,13 @@
 from functools import lru_cache
+from pathlib import Path
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
+env_path = Path(__file__).parent.parent.parent / ".env"
 
 class Settings(BaseSettings):
     API_V1_STR: str = "/api/v1"
     PROJECT_NAME: str = "AgentGrid API"
     VERSION: str = "0.1.0"
-
     DATABASE_URL: str = "postgresql+psycopg2://postgres:postgres@localhost:5432/agentgrid"
     REDIS_URL: str = "redis://localhost:6379/0"
     CELERY_BROKER_URL: str = "redis://localhost:6379/1"
@@ -14,11 +15,15 @@ class Settings(BaseSettings):
     STRIPE_API_KEY: str = "sk_test_placeholder"
     JWT_SECRET_KEY: str = "super-secret-change-me"
     JWT_ALGORITHM: str = "HS256"
+    OPENAI_API_KEY: str = "your_openai_api_key_here"
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 30
     REFRESH_TOKEN_EXPIRE_DAYS: int = 7
 
-    model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8")
-
+    model_config = SettingsConfigDict(
+        env_file=env_path, 
+        env_file_encoding="utf-8",
+        extra="ignore"
+    )
 
 @lru_cache
 def get_settings() -> Settings:

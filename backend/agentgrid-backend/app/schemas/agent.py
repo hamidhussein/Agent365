@@ -78,6 +78,7 @@ class AgentUpdate(BaseModel):
 
 
 class AgentResponse(AgentBase):
+    config: dict
     id: UUID
     creator_id: UUID
     version: str
@@ -85,6 +86,8 @@ class AgentResponse(AgentBase):
     total_runs: int
     total_reviews: int
     status: AgentStatus
+    is_public: bool
+    source: str
     thumbnail_url: Optional[str]
     creator: Optional[UserRead] = None
     created_at: datetime

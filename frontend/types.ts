@@ -78,6 +78,8 @@ export interface Agent {
     successRate?: number;
     avgRunTime?: number;
     status: 'Live' | 'Draft' | 'Paused';
+    source?: string;
+    isPublic?: boolean;
     inputSchema: InputField[];
     mockResult: string;
     reviews: Review[];

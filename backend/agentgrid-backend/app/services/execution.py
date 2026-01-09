@@ -24,6 +24,8 @@ class ExecutionService:
             if not db_agent:
                 print("DEBUG: Agent not found in DB", flush=True)
                 raise HTTPException(status_code=404, detail="Agent not found")
+            if db_agent.source == "creator_studio":
+                raise HTTPException(status_code=400, detail="Creator Studio agents run inside Creator Studio")
             
             # 2. Get Agent Class
             print("DEBUG: Getting agent class", flush=True)

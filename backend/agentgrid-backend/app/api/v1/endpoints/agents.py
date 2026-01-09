@@ -36,6 +36,8 @@ def list_agents(
     tags: Optional[List[str]] = Query(None),
     sort_by: str = Query("newest", pattern="^(popular|rating|newest|price_low|price_high)$"),
     creator_id: Optional[str] = None,
+    source: str = Query("manual", pattern="^(manual|creator_studio|all)$"),
+    include_creator_studio_public: bool = Query(False),
     db: Session = Depends(get_db),
     current_user: Optional[User] = Depends(get_current_user_optional),
 ):
@@ -55,6 +57,8 @@ def list_agents(
         tags=tags,
         sort_by=sort_by,
         creator_id=creator_id,
+        source=source,
+        include_creator_studio_public=include_creator_studio_public,
     )
 
     return {
@@ -67,8 +71,8 @@ def list_agents(
 
 
 @router.get("/{agent_id}", response_model=AgentResponse)
-def get_agent(agent_id: str, db: Session = Depends(get_db)):
-    agent = AgentService.get_agent(db, agent_id)
+def get_agent(agent_id: str, include_creator_studio_public: bool = Query(False), db: Session = Depends(get_db)):
+    agent = AgentService.get_agent(db, agent_id, include_creator_studio_public=include_creator_studio_public)
     if not agent:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Agent not found")
     return agent

@@ -111,10 +111,14 @@ export function useAuth() {
   const fetchUserProfile = useCallback(async () => {
     try {
       const response = await api.auth.getCurrentUser();
-      const payload = response.data.data; // Response is wrapped in ApiResponse
+      const raw = (response.data as any) ?? {};
+      const payload = raw.data ?? raw; // handle both wrapped and unwrapped responses
+      if (!payload) {
+        throw new Error('Empty user profile payload');
+      }
       const frontendUser: any = {
         ...payload,
-        name: payload.full_name || payload.username || 'User',
+        name: payload.full_name || payload.username || payload.email || 'User',
         credits: payload.credits || 0,
         favoriteAgentIds: (payload as any).favoriteAgentIds || [],
       };

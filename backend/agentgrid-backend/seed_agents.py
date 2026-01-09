@@ -6,7 +6,7 @@ from app.models.agent import Agent
 from app.models.user import User
 from app.models.enums import AgentStatus, AgentCategory
 from app.agents.examples import ECHO_AGENT_ID
-from app.agents.seo_agent import SEO_AGENT_ID
+# from app.agents.seo_agent import SEO_AGENT_ID
 
 # Database URL
 DATABASE_URL = os.getenv("DATABASE_URL", "sqlite:///./agentgrid.db")
@@ -111,7 +111,7 @@ def seed_echo_agent():
     finally:
         db.close()
 
-from app.agents.seo_agent import SEO_AGENT_ID
+# from app.agents.seo_agent import SEO_AGENT_ID
 
 # ... (existing imports)
 
@@ -701,11 +701,11 @@ if __name__ == "__main__":
     wait_for_db()
     seed_echo_agent()
     # seed_seo_agent()
-    seed_youtube_agent()
-    seed_cold_email_agent()
-    seed_swot_agent()
-    seed_regex_agent()
-    seed_brand_agent()
-    seed_meeting_agent()
-    seed_sql_agent()
-    seed_data_cleanser_agent()
+    # seed_youtube_agent()
+    # seed_cold_email_agent()
+    # seed_swot_agent()
+    # seed_regex_agent()
+    # seed_brand_agent()
+    # seed_meeting_agent()
+    # seed_sql_agent()
+    # seed_data_cleanser_agent()

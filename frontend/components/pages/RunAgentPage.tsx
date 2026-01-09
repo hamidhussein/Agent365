@@ -19,12 +19,31 @@ import SEOReport from '../run/SEOReport';
 import { useAuthStore } from '../../src/lib/store';
 
 const RunAgentPage: React.FC<RunAgentPageProps> = ({ agent, onBackToDetail }) => {
-    const { login } = useAuthStore();
+    const login = useAuthStore((state) => state.login);
+    const user = useAuthStore((state) => state.user);
     const [status, setStatus] = useState<AgentRunStatus>('idle');
     const [formData, setFormData] = useState<Record<string, any>>({});
     const [result, setResult] = useState<string>('');
     const [resultObj, setResultObj] = useState<any>(null); // Store raw object
     const [error, setError] = useState<string | null>(null);
+
+    const isCreatorStudioOwner = agent.source === 'creator_studio' && user?.id && agent.creator?.id === user.id;
+
+    if (isCreatorStudioOwner) {
+        return (
+            <div className="container mx-auto max-w-screen-2xl px-4 py-12">
+                <button onClick={() => onBackToDetail(agent.id)} className="text-sm text-gray-400 hover:text-white mb-4">&larr; Back to Agent Details</button>
+                <div className="rounded-lg border border-blue-700 bg-blue-900/30 p-6 text-blue-100">
+                    <h2 className="text-2xl font-bold text-white">Open in Creator Studio</h2>
+                    <p className="mt-2 text-sm">You own this Creator Studio agent. Open the Creator Studio workspace to chat or edit it.</p>
+                    <div className="mt-4 flex gap-3">
+                        <button className="rounded-md bg-brand-primary px-4 py-2 text-sm font-semibold text-white" onClick={() => window.location.assign('/creator-studio')}>Open Creator Studio</button>
+                        <button className="rounded-md border border-gray-600 px-4 py-2 text-sm font-semibold text-white" onClick={() => onBackToDetail(agent.id)}>Back to details</button>
+                    </div>
+                </div>
+            </div>
+        );
+    }
 
     const handleRunSubmit = async (data: Record<string, any>) => {
         setFormData(data);

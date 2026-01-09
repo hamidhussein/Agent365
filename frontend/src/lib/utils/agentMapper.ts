@@ -12,6 +12,8 @@ export type BackendAgent = {
     total_runs: number;
     total_reviews: number;
     status: string;
+    is_public?: boolean;
+    source?: string;
     config?: {
         model?: string;
         temperature?: number;
@@ -114,6 +116,8 @@ export const mapBackendAgent = (agent: BackendAgent): Agent => {
         successRate,
         avgRunTime: agent.config?.timeout_seconds ?? 60,
         status: statusMap[agent.status] ?? 'Draft',
+        source: agent.source || 'manual',
+        isPublic: agent.is_public ?? false,
         inputSchema,
         mockResult: 'Run results will appear here.',
         reviews: [],

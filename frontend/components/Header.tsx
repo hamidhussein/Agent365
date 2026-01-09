@@ -20,6 +20,11 @@ const Header: React.FC<HeaderProps> = ({ setCurrentPage, currentPage, creditBala
 
   const handleNavigation = (page: Page) => {
     setMobileMenuOpen(false);
+    const requiresAuth = page === 'dashboard' || page === 'creatorStudio';
+    if (requiresAuth && !isAuthenticated) {
+      setCurrentPage('login');
+      return;
+    }
     if (currentPage === 'createAgent' && page !== 'createAgent') {
       if (confirm('Are you sure you want to exit? Any unsaved changes will be lost.')) {
         setCurrentPage(page);
@@ -41,7 +46,8 @@ const Header: React.FC<HeaderProps> = ({ setCurrentPage, currentPage, creditBala
   const navLinks = [
     { page: 'marketplace', label: 'Marketplace' },
     { page: 'dashboard', label: 'Dashboard' },
-    { page: 'creatorDashboard', label: 'Creator Studio' },
+    { page: 'creatorStudio', label: 'Creator Studio' },
+    ...(user?.role === 'admin' ? [{ page: 'adminSettings', label: 'Settings' }] : []),
     { page: 'pricing', label: 'Pricing' },
   ] as const;
 
@@ -57,7 +63,15 @@ const Header: React.FC<HeaderProps> = ({ setCurrentPage, currentPage, creditBala
         {/* Desktop Nav */}
         <nav className="hidden items-center space-x-6 text-sm font-medium text-gray-300 md:flex">
           {navLinks.map(link => (
-            <button key={link.page} onClick={() => handleNavigation(link.page)} className="transition-colors hover:text-white">{link.label}</button>
+            <button
+              key={link.page}
+              onClick={() => handleNavigation(link.page as Page)}
+              className={`transition-colors hover:text-white ${
+                currentPage === link.page ? 'text-brand-primary' : ''
+              }`}
+            >
+              {link.label}
+            </button>
           ))}
         </nav>
 
@@ -125,7 +139,7 @@ const Header: React.FC<HeaderProps> = ({ setCurrentPage, currentPage, creditBala
               />
             </form>
             {navLinks.map(link => (
-              <button key={link.page} onClick={() => handleNavigation(link.page)} className="text-left rounded-md px-3 py-2 text-base font-medium text-gray-300 hover:bg-gray-800 hover:text-white">{link.label}</button>
+              <button key={link.page} onClick={() => handleNavigation(link.page as Page)} className="text-left rounded-md px-3 py-2 text-base font-medium text-gray-300 hover:bg-gray-800 hover:text-white">{link.label}</button>
             ))}
             <div className="border-t border-gray-700 pt-4 mt-4 flex flex-col space-y-3">
               {/* Mobile Auth Buttons - Conditional */}

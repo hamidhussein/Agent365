@@ -8,6 +8,7 @@ import ReviewForm from '../reviews/ReviewForm';
 import { ClockIcon, TrendingUpIcon, ZapIcon } from '../icons/Icons';
 import { useQuery } from '@tanstack/react-query';
 import { fetchAgentReviews } from '@/lib/api/reviews';
+import { useAuthStore } from '@/lib/store';
 
 interface AgentDetailPageProps {
     agent: Agent;
@@ -31,6 +32,8 @@ const StatCard: React.FC<{ icon: React.ReactNode; label: string; value: string }
 
 
 const AgentDetailPage: React.FC<AgentDetailPageProps> = ({ agent, onRunAgent, onSelectCreator, isFavorited, onToggleFavorite }) => {
+    const currentUserId = useAuthStore((state) => state.user?.id);
+    const isOwner = Boolean(currentUserId && agent.creator?.id === currentUserId);
     // Fetch real reviews from API
     const { data: reviews = [], isLoading: reviewsLoading } = useQuery({
         queryKey: ['reviews', agent.id],
@@ -49,6 +52,12 @@ const AgentDetailPage: React.FC<AgentDetailPageProps> = ({ agent, onRunAgent, on
                         isFavorited={isFavorited}
                         onToggleFavorite={onToggleFavorite}
                     />
+
+                    {agent.source === 'creator_studio' && isOwner && (
+                        <div className="mt-6 rounded-md border border-blue-700 bg-blue-900/30 p-4 text-sm text-blue-100">
+                            You own this Creator Studio agent. Open the studio to edit or chat; clients run it directly from the marketplace.
+                        </div>
+                    )}
 
                     <div className="mt-8">
                         <h2 className="text-xl font-bold text-white">Description</h2>
