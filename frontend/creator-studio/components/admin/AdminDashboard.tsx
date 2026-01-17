@@ -1,8 +1,8 @@
 
 import { useState } from 'react';
-import { Shield, Users, Activity, Server, Zap, Key, Save, Lock, Eye, EyeOff, Globe } from 'lucide-react';
+import { Shield, Users, Activity, Server, Zap, Key, Save, Lock, Eye, EyeOff, Globe, Search } from 'lucide-react';
 import { Button } from '../ui/Button';
-import { LLMProviderConfig } from '../../types';
+import { LLMProviderConfig, PlatformSettings } from '../../types';
 import { MODEL_OPTIONS } from '../../constants';
 
 export const AdminDashboard = ({ 
@@ -10,15 +10,20 @@ export const AdminDashboard = ({
   onUpdateConfig,
   onSave,
   assistModel,
-  onUpdateAssistModel
+  onUpdateAssistModel,
+  platformSettings,
+  onUpdatePlatformSettings
 }: { 
   llmConfigs: LLMProviderConfig[], 
   onUpdateConfig: (id: string, updates: Partial<LLMProviderConfig>) => void,
   onSave: () => void,
   assistModel: string | null,
-  onUpdateAssistModel: (model: string) => void
+  onUpdateAssistModel: (model: string) => void,
+  platformSettings: PlatformSettings,
+  onUpdatePlatformSettings: (updates: Partial<PlatformSettings>) => void
 }) => {
   const [showKeys, setShowKeys] = useState<Record<string, boolean>>({});
+  const [showPlatformKeys, setShowPlatformKeys] = useState<Record<string, boolean>>({});
   const enabledProviders = new Set(
     llmConfigs
       .filter((config) => config.enabled && config.apiKey)
@@ -230,6 +235,113 @@ export const AdminDashboard = ({
                </select>
              </div>
            )}
+        </div>
+
+        {/* Platform Search & Connectivity */}
+        <div className="bg-slate-800 border border-slate-700 rounded-xl overflow-hidden mt-8 shadow-inner">
+          <div className="px-6 py-4 border-b border-slate-700 flex items-center justify-between bg-slate-800/80">
+            <div>
+              <h2 className="text-lg font-bold text-white flex items-center gap-2">
+                <Search size={18} className="text-emerald-400" /> Platform Search & Connectivity
+              </h2>
+              <p className="text-sm text-slate-400">Configure professional search APIs for real-time agent capabilities.</p>
+            </div>
+          </div>
+
+          <div className="p-6 space-y-6">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+              {/* SerpApi Section */}
+              <div className="space-y-4">
+                <div className="flex items-start gap-4">
+                  <div className="w-10 h-10 rounded-lg bg-emerald-900/30 border border-emerald-800/50 flex items-center justify-center text-emerald-400 shrink-0">
+                    <Globe size={20} />
+                  </div>
+                  <div className="flex-1">
+                    <h3 className="text-white font-semibold">SerpApi (Google Search)</h3>
+                    <p className="text-xs text-slate-500 mt-0.5">Recommended for high-quality organic search results.</p>
+                    
+                    <div className="mt-4">
+                      <label className="block text-xs font-medium text-slate-400 mb-1.5 flex justify-between">
+                        <span>API Key</span>
+                        <button 
+                          onClick={() => setShowPlatformKeys(prev => ({ ...prev, serp: !prev.serp }))}
+                          className="text-slate-500 hover:text-white transition-colors"
+                        >
+                          {showPlatformKeys['serp'] ? <EyeOff size={12} /> : <Eye size={12} />}
+                        </button>
+                      </label>
+                      <input 
+                        type={showPlatformKeys['serp'] ? "text" : "password"}
+                        value={platformSettings.SERPAPI_KEY || ''}
+                        onChange={(e) => onUpdatePlatformSettings({ SERPAPI_KEY: e.target.value })}
+                        className="w-full bg-slate-900 border border-slate-600 rounded-lg px-3 py-2 text-sm text-slate-200 focus:border-emerald-500 outline-none font-mono"
+                        placeholder="sk-..."
+                      />
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Google Custom Search Section */}
+              <div className="space-y-4">
+                <div className="flex items-start gap-4">
+                  <div className="w-10 h-10 rounded-lg bg-blue-900/30 border border-blue-800/50 flex items-center justify-center text-blue-400 shrink-0">
+                    <Search size={20} />
+                  </div>
+                  <div className="flex-1">
+                    <h3 className="text-white font-semibold">Google Custom Search (JSON API)</h3>
+                    <p className="text-xs text-slate-500 mt-0.5">Direct integration via Google Cloud Project.</p>
+                    
+                    <div className="mt-4 grid grid-cols-1 gap-3">
+                      <div>
+                        <label className="block text-xs font-medium text-slate-400 mb-1.5 flex justify-between">
+                          <span>API Key</span>
+                          <button 
+                            onClick={() => setShowPlatformKeys(prev => ({ ...prev, google: !prev.google }))}
+                            className="text-slate-500 hover:text-white transition-colors"
+                          >
+                            {showPlatformKeys['google'] ? <EyeOff size={12} /> : <Eye size={12} />}
+                          </button>
+                        </label>
+                        <input 
+                          type={showPlatformKeys['google'] ? "text" : "password"}
+                          value={platformSettings.GOOGLE_SEARCH_API_KEY || ''}
+                          onChange={(e) => onUpdatePlatformSettings({ GOOGLE_SEARCH_API_KEY: e.target.value })}
+                          className="w-full bg-slate-900 border border-slate-600 rounded-lg px-3 py-2 text-sm text-slate-200 focus:border-blue-500 outline-none font-mono"
+                          placeholder="AIza..."
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-xs font-medium text-slate-400 mb-1.5">Search Engine ID (CX)</label>
+                        <input 
+                          type="text"
+                          value={platformSettings.GOOGLE_SEARCH_CX || ''}
+                          onChange={(e) => onUpdatePlatformSettings({ GOOGLE_SEARCH_CX: e.target.value })}
+                          className="w-full bg-slate-900 border border-slate-600 rounded-lg px-3 py-2 text-sm text-slate-200 focus:border-blue-500 outline-none font-mono"
+                          placeholder="0123...:abcd"
+                        />
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div className="pt-4 border-t border-slate-700/50">
+              <div className={`p-3 rounded-lg border flex items-center gap-3 ${
+                platformSettings.SERPAPI_KEY || (platformSettings.GOOGLE_SEARCH_API_KEY && platformSettings.GOOGLE_SEARCH_CX)
+                ? 'bg-emerald-900/20 border-emerald-800/30 text-emerald-400/90'
+                : 'bg-amber-900/20 border-amber-800/30 text-amber-400/90'
+              }`}>
+                <Activity size={16} />
+                <span className="text-xs">
+                  {platformSettings.SERPAPI_KEY || (platformSettings.GOOGLE_SEARCH_API_KEY && platformSettings.GOOGLE_SEARCH_CX)
+                    ? 'Professional search providers are configured and active. DuckDuckGo will be used as fallback.'
+                    : 'No professional search keys found. DuckDuckGo (Basic) will be used by all agents.'}
+                </span>
+              </div>
+            </div>
+          </div>
         </div>
 
         {/* Global Settings Placeholder */}

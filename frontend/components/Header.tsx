@@ -47,6 +47,7 @@ const Header: React.FC<HeaderProps> = ({ setCurrentPage, currentPage, creditBala
     { page: 'marketplace', label: 'Marketplace' },
     { page: 'dashboard', label: 'Dashboard' },
     { page: 'creatorStudio', label: 'Creator Studio' },
+    // Reviews moved to Dashboard
     ...(user?.role === 'admin' ? [{ page: 'adminSettings', label: 'Settings' }] : []),
     { page: 'pricing', label: 'Pricing' },
   ] as const;

@@ -2,18 +2,23 @@ import io
 import json
 import math
 import os
+import re
 import uuid
 from datetime import datetime
-from typing import Any, Iterable
+from typing import Any, Iterable, List
 
 from anthropic import Anthropic
+from bs4 import BeautifulSoup
+from docx import Document
 from fastapi import HTTPException
+import requests
 from google import genai
 from google.genai import types
 from openai import OpenAI
 from pypdf import PdfReader
 from sqlalchemy.orm import Session
 
+from app.core.config import get_settings
 from app.models.creator_studio import (
     CreatorStudioAppSetting,
     CreatorStudioGuestCredit,
@@ -21,105 +26,333 @@ from app.models.creator_studio import (
     CreatorStudioLLMConfig,
 )
 
+# Optional dependencies for vector storage
 try:
-    import faiss
-    import numpy as np
-except Exception:
-    faiss = None
-    np = None
+    import lancedb
+    import pyarrow as pa
+except ImportError:
+    lancedb = None
+    pa = None
+
+def get_app_setting(db: Session, key: str) -> str | None:
+    setting = db.query(CreatorStudioAppSetting).filter(CreatorStudioAppSetting.key == key).first()
+    return setting.value if setting else None
+
+def set_app_setting(db: Session, key: str, value: str):
+    setting = db.query(CreatorStudioAppSetting).filter(CreatorStudioAppSetting.key == key).first()
+    if setting:
+        setting.value = value
+    else:
+        setting = CreatorStudioAppSetting(key=key, value=value)
+        db.add(setting)
+    db.commit()
+
+def perform_web_search(query: str, db: Session | None = None) -> str:
+    print(f"Executing web search for: {query}")
+    settings = get_settings()
+    
+    # Priority 1: Check Database if session is provided
+    serpapi_key = None
+    google_key = None
+    google_cx = None
+    
+    if db:
+        serpapi_key = get_app_setting(db, "SERPAPI_KEY")
+        google_key = get_app_setting(db, "GOOGLE_SEARCH_API_KEY")
+        google_cx = get_app_setting(db, "GOOGLE_SEARCH_CX")
+    
+    # Priority 2: Fallback to get_settings()
+    serpapi_key = serpapi_key or settings.SERPAPI_KEY
+    google_key = google_key or settings.GOOGLE_SEARCH_API_KEY
+    google_cx = google_cx or settings.GOOGLE_SEARCH_CX
+
+    # 1. Try SerpApi (Professional Google search)
+    if serpapi_key:
+        try:
+            print("Using SerpApi for search...")
+            params = {
+                "q": query,
+                "api_key": serpapi_key,
+                "engine": "google",
+                "num": 4
+            }
+            response = requests.get("https://serpapi.com/search", params=params, timeout=10)
+            response.raise_for_status()
+            data = response.json()
+            
+            results = []
+            # Organic results
+            for result in data.get("organic_results", []):
+                title = result.get("title", "No Title")
+                link = result.get("link", "#")
+                snippet = result.get("snippet", "")
+                results.append(f"Title: {title}\nURL: {link}\nSnippet: {snippet}")
+                if len(results) >= 4:
+                    break
+            
+            if results:
+                return "\n\n".join(results)
+        except Exception as e:
+            print(f"SerpApi error: {e}")
+
+    # 2. Try Google Custom Search
+    if google_key and google_cx:
+        try:
+            print("Using Google Custom Search...")
+            params = {
+                "q": query,
+                "key": google_key,
+                "cx": google_cx,
+                "num": 4
+            }
+            response = requests.get("https://www.googleapis.com/customsearch/v1", params=params, timeout=10)
+            response.raise_for_status()
+            data = response.json()
+            
+            results = []
+            for item in data.get("items", []):
+                title = item.get("title", "No Title")
+                link = item.get("link", "#")
+                snippet = item.get("snippet", "")
+                results.append(f"Title: {title}\nURL: {link}\nSnippet: {snippet}")
+            
+            if results:
+                return "\n\n".join(results)
+        except Exception as e:
+            print(f"Google Search error: {e}")
+
+    # 3. Fallback to DuckDuckGo (Robust Library)
+    try:
+        from duckduckgo_search import DDGS
+        with DDGS() as ddgs:
+            results = list(ddgs.text(query, max_results=4))
+            if results:
+                formatted = []
+                for r in results:
+                    title = r.get('title', 'No Title')
+                    href = r.get('href', '#')
+                    snippet = r.get('body', '')
+                    formatted.append(f"Title: {title}\nURL: {href}\nSnippet: {snippet}")
+                return "\n\n".join(formatted)
+    except Exception as e:
+        print(f"DDGS error: {e}")
+
+    # 4. Final Fallback (Scraping)
+    url = "https://html.duckduckgo.com/html/"
+    payload = {'q': query}
+    headers = {
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36"
+    }
+    try:
+        resp = requests.post(url, data=payload, headers=headers, timeout=10)
+        resp.raise_for_status()
+        
+        soup = BeautifulSoup(resp.text, "html.parser")
+        results = []
+        for res in soup.find_all("div", class_="result"):
+            title_tag = res.find("a", class_="result__a")
+            if not title_tag:
+                continue
+            title = title_tag.get_text(strip=True)
+            href = title_tag['href']
+            
+            snippet_tag = res.find("a", class_="result__snippet")
+            snippet = snippet_tag.get_text(strip=True) if snippet_tag else ""
+            
+            results.append(f"Title: {title}\nURL: {href}\nSnippet: {snippet}")
+            if len(results) >= 3:
+                break
+        
+        if not results:
+            return "No results found."
+            
+        return "\n\n".join(results)
+    except Exception as e:
+        print(f"Final search fail: {e}")
+        return f"Search failed: {str(e)}"
 
 
+# Global storage for generated files (execution_id -> list of file paths)
+GENERATED_FILES = {}
+
+def execute_python_code(code: str, execution_id: str) -> str:
+    """
+    Executes Python code in a temporary directory and captures stdout + generated files.
+    Returns a formatted string with output and download links.
+    """
+    import tempfile
+    import subprocess
+    import sys
+    
+    print(f"Executing Python code for execution {execution_id}...")
+    
+    # Create temp directory
+    with tempfile.TemporaryDirectory() as tmpdir:
+        code_file = os.path.join(tmpdir, "script.py")
+        
+        # Write code to file
+        with open(code_file, "w", encoding="utf-8") as f:
+            f.write(code)
+        
+        try:
+            # Run code with subprocess for safety
+            result = subprocess.run(
+                [sys.executable, code_file],
+                cwd=tmpdir,
+                capture_output=True,
+                text=True,
+                timeout=30,  # 30 second timeout
+            )
+            
+            stdout = result.stdout
+            stderr = result.stderr
+            
+            # Check for generated files
+            files_before = set()
+            files_after = set(os.listdir(tmpdir))
+            generated = files_after - files_before - {"script.py"}
+            
+            # Actually, we need to list files after execution
+            all_files = [f for f in os.listdir(tmpdir) if f != "script.py" and os.path.isfile(os.path.join(tmpdir, f))]
+            
+            # Copy generated files to a persistent location
+            output_dir = os.path.join(os.getcwd(), ".generated_files", execution_id)
+            os.makedirs(output_dir, exist_ok=True)
+            
+            file_links = []
+            for filename in all_files:
+                src = os.path.join(tmpdir, filename)
+                dst = os.path.join(output_dir, filename)
+                import shutil
+                shutil.copy(src, dst)
+                # Store reference
+                file_links.append(f"[Download {filename}](/api/creator-studio/files/{execution_id}/{filename})")
+            
+            # Store in global dict
+            GENERATED_FILES[execution_id] = [os.path.join(output_dir, f) for f in all_files]
+            
+            # Format output
+            output_parts = []
+            if stdout:
+                output_parts.append(f"**Output:**\n```\n{stdout}\n```")
+            if stderr:
+                output_parts.append(f"**Errors:**\n```\n{stderr}\n```")
+            if file_links:
+                output_parts.append(f"**Generated Files:**\n" + "\n".join(file_links))
+            
+            if not output_parts:
+                return "Code executed successfully (no output)."
+            
+            return "\n\n".join(output_parts)
+            
+        except subprocess.TimeoutExpired:
+            return "Error: Code execution timed out (30s limit)."
+        except Exception as e:
+            print(f"Code execution error: {e}")
+            return f"Error executing code: {str(e)}"
+
+
+LANCE_DB_PATH = os.path.join(os.getcwd(), ".lancedb")
 LLAMA_BASE_URL = os.environ.get("LLAMA_BASE_URL", "http://localhost:11434/v1")
 GROQ_BASE_URL = os.environ.get("GROQ_BASE_URL", "https://api.groq.com/openai/v1")
+DEEPSEEK_BASE_URL = os.environ.get("DEEPSEEK_BASE_URL", "https://api.deepseek.com")
 DEFAULT_GUEST_CREDITS = int(os.environ.get("CREATOR_STUDIO_GUEST_CREDITS", "5"))
 
 
 class VectorIndex:
     def __init__(self) -> None:
-        self.indexes: dict[str, dict[str, object]] = {}
+        self.db = None
+        self.table = None
+        if lancedb is not None:
+            try:
+                if not os.path.exists(LANCE_DB_PATH):
+                    os.makedirs(LANCE_DB_PATH)
+                self.db = lancedb.connect(LANCE_DB_PATH)
+                self._ensure_table()
+            except Exception as e:
+                print(f"Failed to initialize LanceDB: {e}")
 
-    def _vector_id(self, chunk_id: str) -> int:
-        return uuid.UUID(chunk_id).int & 0x7FFFFFFFFFFFFFFF
-
-    def _normalize(self, vectors: Any) -> Any:
-        norms = np.linalg.norm(vectors, axis=1, keepdims=True)
-        norms[norms == 0] = 1.0
-        return vectors / norms
-
-    def _ensure_index(self, agent_id: str, dim: int) -> dict[str, object] | None:
-        store = self.indexes.get(agent_id)
-        if store:
-            if store["dim"] != dim:
-                return None
-            return store
-        base = faiss.IndexFlatIP(dim)
-        index = faiss.IndexIDMap2(base)
-        store = {"index": index, "dim": dim, "texts": {}}
-        self.indexes[agent_id] = store
-        return store
+    def _ensure_table(self):
+        if self.db is None:
+            return
+        table_name = "knowledge_chunks"
+        if table_name not in self.db.table_names():
+            # Define schema: vector, id (chunk_id), agent_id, text
+            schema = pa.schema([
+                pa.field("vector", pa.list_(pa.float32())),
+                pa.field("id", pa.string()),
+                pa.field("agent_id", pa.string()),
+                pa.field("text", pa.string()),
+            ])
+            self.table = self.db.create_table(table_name, schema=schema)
+        else:
+            self.table = self.db.open_table(table_name)
 
     def add(self, agent_id: str, chunk_id: str, embedding: list[float], text: str) -> None:
-        if faiss is None or np is None:
+        if self.table is None:
             return
-        vec = np.array(embedding, dtype="float32")
-        if vec.ndim != 1 or vec.size == 0:
-            return
-        store = self._ensure_index(agent_id, vec.size)
-        if store is None:
-            return
-        vec = self._normalize(vec.reshape(1, -1))
-        vec_id = self._vector_id(chunk_id)
-        store["index"].add_with_ids(vec, np.array([vec_id], dtype="int64"))
-        store["texts"][vec_id] = text
+        try:
+            self.table.add([{
+                "vector": embedding,
+                "id": str(chunk_id),
+                "agent_id": str(agent_id),
+                "text": text
+            }])
+        except Exception as e:
+            print(f"Error adding to VectorIndex: {e}")
 
     def remove(self, agent_id: str, chunk_ids: list[str]) -> None:
-        if faiss is None or np is None or not chunk_ids:
+        if self.table is None:
             return
-        store = self.indexes.get(agent_id)
-        if not store:
-            return
-        ids = np.array([self._vector_id(chunk_id) for chunk_id in chunk_ids], dtype="int64")
-        store["index"].remove_ids(ids)
-        texts = store["texts"]
-        for vec_id in ids.tolist():
-            texts.pop(vec_id, None)
+        try:
+            # Filter by IDs and Agent ID
+            ids_str = ", ".join([f"'{cid}'" for cid in chunk_ids])
+            self.table.delete(f"id IN ({ids_str}) AND agent_id = '{agent_id}'")
+        except Exception as e:
+            print(f"Error removing from VectorIndex: {e}")
 
     def drop_agent(self, agent_id: str) -> None:
-        self.indexes.pop(agent_id, None)
+        if self.table is None:
+            return
+        try:
+            self.table.delete(f"agent_id = '{agent_id}'")
+        except Exception as e:
+            print(f"Error dropping agent from VectorIndex: {e}")
 
     def search(self, agent_id: str, embedding: list[float], top_k: int = 4) -> list[str]:
-        if faiss is None or np is None:
+        if self.table is None or not embedding:
             return []
-        store = self.indexes.get(agent_id)
-        if not store:
+        try:
+            results = (
+                self.table.search(embedding)
+                .where(f"agent_id = '{agent_id}'")
+                .limit(top_k)
+                .to_list()
+            )
+            return [r["text"] for r in results]
+        except Exception as e:
+            print(f"Error searching VectorIndex: {e}")
             return []
-        vec = np.array(embedding, dtype="float32")
-        if vec.ndim != 1 or vec.size == 0:
-            return []
-        if vec.size != store["dim"]:
-            return []
-        vec = self._normalize(vec.reshape(1, -1))
-        _, ids = store["index"].search(vec, top_k)
-        texts = store["texts"]
-        results: list[str] = []
-        for vec_id in ids[0]:
-            if vec_id == -1:
-                continue
-            text = texts.get(int(vec_id))
-            if text:
-                results.append(text)
-        return results
 
     def has_index(self, agent_id: str, dim: int) -> bool:
-        store = self.indexes.get(agent_id)
-        if not store:
+        if self.table is None:
             return False
-        if store["dim"] != dim:
+        try:
+            count = len(self.table.search().where(f"agent_id = '{agent_id}'").limit(1).to_list())
+            return count > 0
+        except Exception:
             return False
-        return store["index"].ntotal > 0
+
+    def is_empty(self) -> bool:
+        if self.table is None:
+            return True
+        try:
+            return self.table.count_rows() == 0
+        except Exception:
+            return True
 
 
-VECTOR_INDEX = VectorIndex() if faiss is not None and np is not None else None
+VECTOR_INDEX = VectorIndex() if lancedb is not None else None
 
 
 def _coerce_uuid(value: str | uuid.UUID) -> uuid.UUID:
@@ -157,6 +390,15 @@ def get_groq_client(api_key: str) -> OpenAI:
     return OpenAI(api_key=api_key, base_url=base_url)
 
 
+def get_deepseek_client(api_key: str) -> OpenAI:
+    base_url = (DEEPSEEK_BASE_URL or "").strip()
+    if not base_url:
+        raise HTTPException(status_code=500, detail="DEEPSEEK_BASE_URL is not set.")
+    if not api_key:
+        raise HTTPException(status_code=500, detail="DeepSeek API key is not set.")
+    return OpenAI(api_key=api_key, base_url=base_url)
+
+
 def get_anthropic_client(api_key: str) -> Anthropic:
     if not api_key:
         raise HTTPException(status_code=500, detail="Anthropic API key is not set.")
@@ -175,13 +417,15 @@ def infer_provider(model: str) -> str:
         return "google"
     if lower.startswith(("llama", "meta-llama")):
         return "llama"
+    if lower.startswith("deepseek"):
+        return "deepseek"
     return "google"
 
 
 def normalize_model(provider: str, model: str) -> str:
     if "/" in model:
         prefix, name = model.split("/", 1)
-        if prefix == provider:
+        if prefix in (provider, "deepseek"):
             return name
     return model
 
@@ -215,12 +459,58 @@ def get_provider_for_model(db: Session, model: str) -> str:
     return provider
 
 
+def get_default_enabled_model(db: Session) -> str:
+    """
+    Returns the module ID for the first enabled provider's default model.
+    Prioritizes OpenAI -> Google -> Anthropic -> etc.
+    """
+    # Check providers in order of preference
+    preferred_order = ["openai", "google", "anthropic", "groq", "llama"]
+    default_models = {
+        "openai": "gpt-4o",
+        "google": "gemini-1.5-pro",
+        "anthropic": "claude-3-opus",
+        "groq": "llama3-70b-8192",
+        "llama": "llama3",
+    }
+    
+    for provider in preferred_order:
+        row = get_llm_config(db, provider)
+        if row and row.enabled:
+            return default_models.get(provider, "gpt-3.5-turbo")
+            
+    # Fallback to OpenAI even if disabled (to prevent total crash, or raise error)
+    return "gpt-4o"
+
+
 def extract_text(file_name: str, data: bytes) -> str:
     lower_name = file_name.lower()
     if lower_name.endswith(".pdf"):
-        reader = PdfReader(io.BytesIO(data))
-        pages = [page.extract_text() or "" for page in reader.pages]
-        return "\n".join(pages)
+        try:
+            reader = PdfReader(io.BytesIO(data))
+            pages = [page.extract_text() or "" for page in reader.pages]
+            return "\n".join(pages)
+        except Exception as e:
+            print(f"Error extracting PDF: {e}")
+            return ""
+    if lower_name.endswith(".docx"):
+        try:
+            doc = Document(io.BytesIO(data))
+            return "\n".join([p.text for p in doc.paragraphs])
+        except Exception as e:
+            print(f"Error extracting DOCX: {e}")
+            return ""
+    if lower_name.endswith((".html", ".htm")):
+        try:
+            soup = BeautifulSoup(data, "html.parser")
+            # Remove script and style elements
+            for script in soup(["script", "style"]):
+                script.decompose()
+            return soup.get_text(separator="\n", strip=True)
+        except Exception as e:
+            print(f"Error extracting HTML: {e}")
+            return ""
+            
     try:
         return data.decode("utf-8")
     except UnicodeDecodeError:
@@ -228,25 +518,91 @@ def extract_text(file_name: str, data: bytes) -> str:
 
 
 def chunk_text(text: str, chunk_size: int = 800, overlap: int = 120) -> list[str]:
-    normalized = " ".join(text.split())
-    if not normalized:
+    """
+    Recursive character text splitter logic to maintain semantic integrity.
+    Splits by paragraph, then sentence, then space, then character.
+    """
+    if not text or not text.strip():
         return []
-    chunks: list[str] = []
-    start = 0
-    while start < len(normalized):
-        end = min(len(normalized), start + chunk_size)
-        chunk = normalized[start:end].strip()
-        if chunk:
-            chunks.append(chunk)
-        if end >= len(normalized):
-            break
-        start = max(0, end - overlap)
-    return chunks
+
+    separators = ["\n\n", "\n", ". ", " ", ""]
+    
+    def split_recursive(content: str, seps: List[str]) -> List[str]:
+        if len(content) <= chunk_size:
+            return [content]
+        
+        if not seps:
+            # Last resort: split by character limit
+            return [content[i:i+chunk_size] for i in range(0, len(content), chunk_size - overlap)]
+
+        current_sep = seps[0]
+        remaining_seps = seps[1:]
+        
+        # Split by current separator
+        if current_sep:
+            parts = content.split(current_sep)
+        else:
+            parts = list(content)
+
+        final_chunks = []
+        current_chunk = ""
+        
+        for part in parts:
+            # If a single part is already too long, recurse further on it
+            if len(part) > chunk_size:
+                if current_chunk:
+                    final_chunks.append(current_chunk.strip())
+                    current_chunk = ""
+                final_chunks.extend(split_recursive(part, remaining_seps))
+                continue
+
+            # Check if adding this part overflows the chunk size
+            if len(current_chunk) + len(part) + len(current_sep) <= chunk_size:
+                if current_chunk:
+                    current_chunk += current_sep + part
+                else:
+                    current_chunk = part
+            else:
+                if current_chunk:
+                    final_chunks.append(current_chunk.strip())
+                current_chunk = part
+                
+        if current_chunk:
+            final_chunks.append(current_chunk.strip())
+            
+        return final_chunks
+
+    # Initial split and filter empty
+    all_chunks = split_recursive(text, separators)
+    
+    # Post-process to ensure overlap and size
+    # For now, we return the recursive split which is already much better than fixed character split.
+    return [c for c in all_chunks if c.strip()]
 
 
 def embed_texts(db: Session, texts: list[str]) -> list[list[float]]:
     if not texts:
         return []
+    
+    # Priority 1: OpenAI
+    try:
+        openai_row = get_llm_config(db, "openai")
+    except HTTPException:
+        openai_row = None
+    if openai_row and openai_row.enabled:
+        openai_key = resolve_llm_key("openai", openai_row)
+        if openai_key:
+            try:
+                response = get_openai_client(openai_key).embeddings.create(
+                    model="text-embedding-3-small",
+                    input=texts,
+                )
+                return [item.embedding for item in response.data]
+            except Exception as e:
+                print(f"OpenAI embedding failed: {e}")
+                pass
+
+    # Priority 2: Google
     try:
         google_row = get_llm_config(db, "google")
     except HTTPException:
@@ -267,23 +623,10 @@ def embed_texts(db: Session, texts: list[str]) -> list[list[float]]:
                     embeddings.append(list(response.embedding.values))
                 if embeddings:
                     return embeddings
-            except Exception:
+            except Exception as e:
+                print(f"Google embedding failed: {e}")
                 pass
-    try:
-        openai_row = get_llm_config(db, "openai")
-    except HTTPException:
-        openai_row = None
-    if openai_row and openai_row.enabled:
-        openai_key = resolve_llm_key("openai", openai_row)
-        if openai_key:
-            try:
-                response = get_openai_client(openai_key).embeddings.create(
-                    model="text-embedding-3-small",
-                    input=texts,
-                )
-                return [item.embedding for item in response.data]
-            except Exception:
-                return []
+                
     return []
 
 
@@ -332,8 +675,10 @@ def build_system_instruction(
     instruction: str,
     context_chunks: list[str],
     inputs_context: str | None = None,
+    capabilities: dict | None = None,
 ) -> str:
-    sections = [instruction]
+    current_time_str = datetime.now().strftime("%A, %B %d, %Y %I:%M %p")
+    sections = [f"Current Date and Time: {current_time_str}", instruction]
     if inputs_context and inputs_context.strip():
         sections.append(inputs_context.strip())
     if context_chunks:
@@ -341,28 +686,119 @@ def build_system_instruction(
             f"--- Context {idx + 1} ---\n{chunk}" for idx, chunk in enumerate(context_chunks)
         )
         sections.append(f"Use the following context when relevant:\n{context_block}")
+    
+    if capabilities:
+        if capabilities.get("webBrowsing"):
+            sections.append("FEATURE ENABLED: Web Search. You have access to a web search tool. Use it ONLY when the user explicitly asks for current information (e.g., news, weather, recent events) or when your internal knowledge cut-off prevents you from answering accurately. Do NOT use it for general knowledge, coding help, or creative tasks unless specifically requested. Always prioritize your internal knowledge.")
+        if capabilities.get("codeExecution"):
+            sections.append("FEATURE ENABLED: Code Execution. You can write and execute Python code blocks to perform complex calculations, data analysis, or visualizations.")
+        if capabilities.get("apiIntegrations"):
+            sections.append("FEATURE ENABLED: API Integrations. You can interact with external services and APIs if specific tool definitions are provided.")
+        if capabilities.get("fileHandling"):
+            sections.append("FEATURE ENABLED: File Handling. The user may upload files to provide context. Use this file content to answer their questions.")
+
     return "\n\n".join(sections)
 
 
-def generate_response(provider: str, model: str, system_instruction: str, message: str, api_key: str) -> str:
+def generate_response(provider: str, model: str, system_instruction: str, message: str, api_key: str, db: Session | None = None, history: list[dict] | None = None) -> str:
     if provider == "openai":
         client = get_openai_client(api_key)
         messages = []
         if system_instruction:
             messages.append({"role": "system", "content": system_instruction})
+        
+        if history:
+            for m in history:
+                role = "assistant" if m["role"] == "model" else m["role"]
+                messages.append({"role": role, "content": m["content"]})
+            
         messages.append({"role": "user", "content": message})
         model_name = normalize_model(provider, model)
+
+        tools = []
+        if system_instruction:
+            if "FEATURE ENABLED: Web Search" in system_instruction:
+                tools.append({
+                    "type": "function",
+                    "function": {
+                        "name": "web_search",
+                        "description": "Search the web for real-time information.",
+                        "parameters": {
+                            "type": "object",
+                            "properties": {
+                                "query": {"type": "string", "description": "The search query"}
+                            },
+                            "required": ["query"]
+                        }
+                    }
+                })
+            if "FEATURE ENABLED: Code Execution" in system_instruction:
+                tools.append({
+                    "type": "function",
+                    "function": {
+                        "name": "run_python",
+                        "description": "Execute Python code to perform calculations, data analysis, or generate files.",
+                        "parameters": {
+                            "type": "object",
+                            "properties": {
+                                "code": {"type": "string", "description": "The Python code to execute"}
+                            },
+                            "required": ["code"]
+                        }
+                    }
+                })
+        
+        if not tools:
+            tools = None
+
         response = client.chat.completions.create(
             model=model_name,
             messages=messages,
             max_tokens=1024,
+            tools=tools,
         )
+
+        # Handle tool calls for non-streaming response
+        if response.choices[0].message.tool_calls:
+            tool_call = response.choices[0].message.tool_calls[0]
+            if tool_call.function.name == "web_search":
+                import json
+                try:
+                    decoder = json.JSONDecoder()
+                    args, _ = decoder.raw_decode(tool_call.function.arguments)
+                    query = args.get("query")
+                    
+                    search_result = perform_web_search(query, db=db)
+                    
+                    # Call again with tool results
+                    messages.append(response.choices[0].message)
+                    messages.append({
+                        "role": "tool",
+                        "tool_call_id": tool_call.id,
+                        "name": "web_search",
+                        "content": search_result
+                    })
+                    
+                    final_response = client.chat.completions.create(
+                        model=model_name,
+                        messages=messages,
+                        max_tokens=1024
+                    )
+                    return final_response.choices[0].message.content or ""
+                except Exception as e:
+                    print(f"Tool execution error: {e}")
+                    return f"Error executing tool: {e}"
+
         return response.choices[0].message.content or ""
     if provider == "llama":
         client = get_llama_client(api_key)
         messages = []
         if system_instruction:
             messages.append({"role": "system", "content": system_instruction})
+        if history:
+            for m in history:
+                role = "assistant" if m["role"] == "model" else m["role"]
+                messages.append({"role": role, "content": m["content"]})
         messages.append({"role": "user", "content": message})
         model_name = normalize_model(provider, model)
         response = client.chat.completions.create(
@@ -376,6 +812,27 @@ def generate_response(provider: str, model: str, system_instruction: str, messag
         messages = []
         if system_instruction:
             messages.append({"role": "system", "content": system_instruction})
+        if history:
+            for m in history:
+                role = "assistant" if m["role"] == "model" else m["role"]
+                messages.append({"role": role, "content": m["content"]})
+        messages.append({"role": "user", "content": message})
+        model_name = normalize_model(provider, model)
+        response = client.chat.completions.create(
+            model=model_name,
+            messages=messages,
+            max_tokens=1024,
+        )
+        return response.choices[0].message.content or ""
+    if provider == "deepseek":
+        client = get_deepseek_client(api_key)
+        messages = []
+        if system_instruction:
+            messages.append({"role": "system", "content": system_instruction})
+        if history:
+            for m in history:
+                role = "assistant" if m["role"] == "model" else m["role"]
+                messages.append({"role": role, "content": m["content"]})
         messages.append({"role": "user", "content": message})
         model_name = normalize_model(provider, model)
         response = client.chat.completions.create(
@@ -389,8 +846,13 @@ def generate_response(provider: str, model: str, system_instruction: str, messag
         kwargs = {
             "model": model,
             "max_tokens": 1024,
-            "messages": [{"role": "user", "content": message}],
+            "messages": [],
         }
+        if history:
+            for m in history:
+                role = "assistant" if m["role"] == "model" else m["role"]
+                kwargs["messages"].append({"role": role, "content": m["content"]})
+        kwargs["messages"].append({"role": "user", "content": message})
         if system_instruction:
             kwargs["system"] = system_instruction
         response = client.messages.create(**kwargs)
@@ -401,39 +863,196 @@ def generate_response(provider: str, model: str, system_instruction: str, messag
         return "".join(parts)
 
     client = get_gemini_client(api_key)
+    contents = []
+    if history:
+        for m in history:
+            role = "model" if m["role"] == "assistant" else m["role"]
+            contents.append({"role": role, "parts": [{"text": m["content"]}]})
+    contents.append({"role": "user", "parts": [{"text": message}]})
+
     if system_instruction:
         response = client.models.generate_content(
             model=model,
-            contents=message,
+            contents=contents,
             config=types.GenerateContentConfig(system_instruction=system_instruction),
         )
     else:
         response = client.models.generate_content(
             model=model,
-            contents=message,
+            contents=contents,
         )
     return getattr(response, "text", "") or ""
 
 
-def stream_response(provider: str, model: str, system_instruction: str, message: str, api_key: str) -> Iterable[bytes]:
+def stream_response(provider: str, model: str, system_instruction: str, message: str, api_key: str, execution_id: str = None, db: Session | None = None, history: list[dict] | None = None) -> Iterable[bytes]:
     if provider == "openai":
         client = get_openai_client(api_key)
         messages = []
         if system_instruction:
             messages.append({"role": "system", "content": system_instruction})
+        
+        if history:
+            for m in history:
+                role = "assistant" if m["role"] == "model" else m["role"]
+                messages.append({"role": role, "content": m["content"]})
+
         messages.append({"role": "user", "content": message})
         model_name = normalize_model(provider, model)
+
+        tools = []
+        if system_instruction:
+            if "FEATURE ENABLED: Web Search" in system_instruction:
+                tools.append({
+                    "type": "function",
+                    "function": {
+                        "name": "web_search",
+                        "description": "Search the web for real-time information.",
+                        "parameters": {
+                            "type": "object",
+                            "properties": {
+                                "query": {"type": "string", "description": "The search query"}
+                            },
+                            "required": ["query"]
+                        }
+                    }
+                })
+            if "FEATURE ENABLED: Code Execution" in system_instruction:
+                tools.append({
+                    "type": "function",
+                    "function": {
+                        "name": "run_python",
+                        "description": "Execute Python code to perform calculations, data analysis, or generate files.",
+                        "parameters": {
+                            "type": "object",
+                            "properties": {
+                                "code": {"type": "string", "description": "The Python code to execute"}
+                            },
+                            "required": ["code"]
+                        }
+                    }
+                })
+        
+        if not tools:
+            tools = None
+
         stream = client.chat.completions.create(
             model=model_name,
             messages=messages,
             max_tokens=1024,
             stream=True,
+            tools=tools,
         )
+
+        tool_call_id = None
+        tool_name = None
+        tool_args_list = []
+
         for chunk in stream:
             delta = chunk.choices[0].delta
+            
+            # Handle Tool Calls
+            if delta.tool_calls:
+                tc = delta.tool_calls[0]
+                if tc.id:
+                    tool_call_id = tc.id
+                    tool_name = tc.function.name
+                if tc.function.arguments:
+                    tool_args_list.append(tc.function.arguments)
+                continue
+            
             text = getattr(delta, "content", None)
             if text:
                 yield text.encode("utf-8")
+
+        # Execute tool if needed
+        if tool_call_id and tool_name == "web_search":
+            args_str = "".join(tool_args_list)
+            import json
+            try:
+                decoder = json.JSONDecoder()
+                args, _ = decoder.raw_decode(args_str)
+                query = args.get("query")
+                yield f"\n\n_Searching for: {query}..._\n\n".encode("utf-8")
+                
+                search_result = perform_web_search(query, db=db)
+                
+                # Append tool messages
+                messages.append({
+                    "role": "assistant",
+                    "content": None,
+                    "tool_calls": [{
+                        "id": tool_call_id,
+                        "type": "function",
+                        "function": {"name": tool_name, "arguments": args_str}
+                    }]
+                })
+                messages.append({
+                    "role": "tool",
+                    "tool_call_id": tool_call_id,
+                    "content": search_result
+                })
+                
+                # Second stream with search results
+                stream2 = client.chat.completions.create(
+                    model=model_name,
+                    messages=messages,
+                    stream=True
+                )
+                for chunk in stream2:
+                    delta = chunk.choices[0].delta
+                    text = getattr(delta, "content", None)
+                    if text:
+                        yield text.encode("utf-8")
+                        
+            except Exception as e:
+                yield f"\n[Search failed: {e}]".encode("utf-8")
+        
+        # Execute run_python tool if needed
+        if tool_call_id and tool_name == "run_python":
+            args_str = "".join(tool_args_list)
+            import json
+            try:
+                decoder = json.JSONDecoder()
+                args, _ = decoder.raw_decode(args_str)
+                code = args.get("code")
+                yield f"\n\n_Executing Python code..._\n\n".encode("utf-8")
+                
+                # Execute code
+                if execution_id:
+                    code_result = execute_python_code(code, execution_id)
+                else:
+                    code_result = "Error: No execution ID available for file storage."
+                
+                # Append tool messages
+                messages.append({
+                    "role": "assistant",
+                    "content": None,
+                    "tool_calls": [{
+                        "id": tool_call_id,
+                        "type": "function",
+                        "function": {"name": tool_name, "arguments": args_str}
+                    }]
+                })
+                messages.append({
+                    "role": "tool",
+                    "tool_call_id": tool_call_id,
+                    "content": code_result
+                })
+                
+                # Second stream with code results
+                stream2 = client.chat.completions.create(
+                    model=model_name,
+                    messages=messages,
+                    stream=True
+                )
+                for chunk in stream2:
+                    delta = chunk.choices[0].delta
+                    text = getattr(delta, "content", None)
+                    if text:
+                        yield text.encode("utf-8")
+                        
+            except Exception as e:
+                yield f"\n[Code execution failed: {e}]".encode("utf-8")
         return
 
     if provider == "llama":
@@ -441,6 +1060,10 @@ def stream_response(provider: str, model: str, system_instruction: str, message:
         messages = []
         if system_instruction:
             messages.append({"role": "system", "content": system_instruction})
+        if history:
+            for m in history:
+                role = "assistant" if m["role"] == "model" else m["role"]
+                messages.append({"role": role, "content": m["content"]})
         messages.append({"role": "user", "content": message})
         model_name = normalize_model(provider, model)
         stream = client.chat.completions.create(
@@ -461,6 +1084,34 @@ def stream_response(provider: str, model: str, system_instruction: str, message:
         messages = []
         if system_instruction:
             messages.append({"role": "system", "content": system_instruction})
+        if history:
+            for m in history:
+                role = "assistant" if m["role"] == "model" else m["role"]
+                messages.append({"role": role, "content": m["content"]})
+        messages.append({"role": "user", "content": message})
+        model_name = normalize_model(provider, model)
+        stream = client.chat.completions.create(
+            model=model_name,
+            messages=messages,
+            max_tokens=1024,
+            stream=True,
+        )
+        for chunk in stream:
+            delta = chunk.choices[0].delta
+            text = getattr(delta, "content", None)
+            if text:
+                yield text.encode("utf-8")
+        return
+
+    if provider == "deepseek":
+        client = get_deepseek_client(api_key)
+        messages = []
+        if system_instruction:
+            messages.append({"role": "system", "content": system_instruction})
+        if history:
+            for m in history:
+                role = "assistant" if m["role"] == "model" else m["role"]
+                messages.append({"role": role, "content": m["content"]})
         messages.append({"role": "user", "content": message})
         model_name = normalize_model(provider, model)
         stream = client.chat.completions.create(
@@ -481,8 +1132,13 @@ def stream_response(provider: str, model: str, system_instruction: str, message:
         kwargs = {
             "model": model,
             "max_tokens": 1024,
-            "messages": [{"role": "user", "content": message}],
+            "messages": [],
         }
+        if history:
+            for m in history:
+                role = "assistant" if m["role"] == "model" else m["role"]
+                kwargs["messages"].append({"role": role, "content": m["content"]})
+        kwargs["messages"].append({"role": "user", "content": message})
         if system_instruction:
             kwargs["system"] = system_instruction
         with client.messages.stream(**kwargs) as stream:
@@ -492,16 +1148,23 @@ def stream_response(provider: str, model: str, system_instruction: str, message:
         return
 
     client = get_gemini_client(api_key)
+    contents = []
+    if history:
+        for m in history:
+            role = "model" if m["role"] == "assistant" else m["role"]
+            contents.append({"role": role, "parts": [{"text": m["content"]}]})
+    contents.append({"role": "user", "parts": [{"text": message}]})
+
     if system_instruction:
         result = client.models.generate_content_stream(
             model=model,
-            contents=message,
+            contents=contents,
             config=types.GenerateContentConfig(system_instruction=system_instruction),
         )
     else:
         result = client.models.generate_content_stream(
             model=model,
-            contents=message,
+            contents=contents,
         )
     for chunk in result:
         text = getattr(chunk, "text", "")
@@ -511,36 +1174,53 @@ def stream_response(provider: str, model: str, system_instruction: str, message:
 
 def build_agent_suggest_prompt(payload: dict[str, Any]) -> str:
     name = str(payload.get("name", "")).strip()
-    action = payload.get("action", "suggest")
+    description = str(payload.get("description", "")).strip()
+    instruction = str(payload.get("instruction", "")).strip()
+    notes = str(payload.get("notes", "")).strip()
+    model_id = str(payload.get("model", "")).lower()
+
     parts = [f"Agent name: {name}"]
-    description = payload.get("description")
+    
     if description:
-        parts.append(f"Current description: {str(description).strip()}")
-    instruction = payload.get("instruction")
+        parts.append(f"Current description: {description}")
     if instruction:
-        parts.append(f"Current instruction: {str(instruction).strip()}")
-    notes = payload.get("notes")
+        parts.append(f"Current instructions: {instruction}")
+        
     if notes:
-        parts.append(f"Creator notes: {str(notes).strip()}")
-
-    if action == "refine":
-        parts.append("Action: Refine the current description/instruction for clarity, accuracy, and usefulness while preserving intent.")
-    elif action == "regenerate":
-        parts.append("Action: Regenerate a fresh description and instruction from scratch.")
+        parts.append(f"Creator's requests/notes for this update: {notes}")
+        parts.append("Action: Refine the agent based on these notes while keeping the existing quality.")
+    elif description or instruction:
+        parts.append("Action: Improve and polish the current agent metadata.")
     else:
-        parts.append("Action: Suggest a concise description and instruction.")
+        parts.append("Action: Generate a fresh, high-quality description and instruction set.")
 
-    parts.append("Guidelines:")
-    parts.append("- Do NOT mention model names or providers.")
-    parts.append("- Description: 1-2 sentences, plain language, outcome-focused.")
-    parts.append("- Instruction: 6-10 bullet points, each an imperative behavior rule.")
-    parts.append("- Include: scope, tone, when to ask clarifying questions, how to use provided context, and how to handle uncertainty.")
-    parts.append("- Avoid listing questions for the user; write agent behavior instead.")
-    parts.append("- Include a safety boundary (no legal/medical/financial advice) and a polite fallback for out-of-scope requests.")
-    parts.append("Output ONLY JSON with keys: description, instruction.")
-    parts.append("Instruction should be a single string with bullets using '-' prefixes.")
+    capabilities = payload.get("enabledCapabilities")
+    if capabilities:
+        enabled = []
+        if capabilities.get("webBrowsing"): enabled.append("Web Search")
+        if capabilities.get("codeExecution"): enabled.append("Code Execution")
+        if capabilities.get("apiIntegrations"): enabled.append("API Integrations")
+        if enabled:
+            parts.append(f"\nNote for AI: The following special features are ENABLED for this agent: {', '.join(enabled)}. Please ensure your generated description and instructions reflect these capabilities.")
 
-    return "".join(parts)
+    # Guidance based on model capabilities
+    if "gpt" in model_id or "gemini" in model_id:
+        parts.append("\nNote for AI: The selected model supports Code Execution, Web Browsing, and Advanced File Handling. You can suggest technical or data-heavy tasks.")
+    elif "claude" in model_id:
+        parts.append("\nNote for AI: The selected model is excellent at conversational nuances and text analysis but has limited web/code execution support. Focus on personality and deep reasoning.")
+    elif "deepseek" in model_id:
+        parts.append("\nNote for AI: The selected model is specialized in Deep Analysis and Coding. Emphasize these strengths in the instructions.")
+    else:
+        parts.append("\nNote for AI: Focus on general text generation and summarization, as this model has limited tool support.")
+
+    parts.append("\nGuidelines:")
+    parts.append("- Output ONLY valid JSON with keys: \"description\", \"instruction\".")
+    parts.append("- Description: 1-2 professional sentences focused on user outcomes.")
+    parts.append("- Instruction: A single string using '-' bullet points for clarity (8-12 rules).")
+    parts.append("- DO NOT mention specific model names or technical providers in the description/instruction themselves.")
+    parts.append("- Include: tone of voice, scope of knowledge, when to ask for clarification, and a polite fallback for out-of-scope requests.")
+
+    return "\n".join(parts)
 
 
 def parse_agent_suggest_response(raw: str, name: str) -> dict[str, str]:
@@ -673,6 +1353,15 @@ def seed_llm_configs(db: Session) -> None:
             "usage": 0,
             "limit_amount": 300,
         },
+        {
+            "id": "deepseek",
+            "name": "DeepSeek API",
+            "provider": "deepseek",
+            "enabled": False,
+            "api_key": "",
+            "usage": 0,
+            "limit_amount": 300,
+        },
     ]
     for config in defaults:
         if config["id"] in existing:
@@ -696,6 +1385,13 @@ def seed_llm_configs(db: Session) -> None:
 def build_vector_index(db: Session) -> None:
     if VECTOR_INDEX is None:
         return
+    
+    # Since LanceDB is persistent, only rebuild if empty
+    if not VECTOR_INDEX.is_empty():
+        print("Vector index already populated, skipping rebuild.")
+        return
+
+    print("Populating vector index from database...")
     rows = db.query(CreatorStudioKnowledgeChunk).all()
     for row in rows:
         embedding = row.embedding or []
@@ -706,3 +1402,4 @@ def build_vector_index(db: Session) -> None:
         except (TypeError, ValueError):
             continue
         VECTOR_INDEX.add(str(row.agent_id), str(row.id), embedding, row.text)
+    print(f"Vector index population complete. Added {len(rows)} chunks.")

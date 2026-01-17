@@ -1,20 +1,27 @@
 import uuid
+import os
 from typing import Any
 
-from fastapi import APIRouter, Depends, File, HTTPException, UploadFile
-from fastapi.responses import StreamingResponse
+import copy
+from fastapi import APIRouter, Depends, File, HTTPException, UploadFile, BackgroundTasks
+from fastapi.responses import StreamingResponse, FileResponse
 from pydantic import ValidationError
 from sqlalchemy.orm import Session
+from sqlalchemy.orm.attributes import flag_modified
 
-from app.core.deps import get_db, get_current_user
+from app.db.session import SessionLocal
+
+from app.core.deps import get_db, get_current_user, get_current_user_optional
 from app.core.security import create_access_token
 from app.models.agent import Agent
+from app.models.execution import AgentExecution
 from app.models.creator_studio import (
     CreatorStudioKnowledgeFile,
     CreatorStudioKnowledgeChunk,
     CreatorStudioLLMConfig,
 )
-from app.models.enums import AgentCategory, AgentStatus, UserRole
+from app.models.transaction import CreditTransaction
+from app.models.enums import AgentCategory, AgentStatus, UserRole, ExecutionStatus, ReviewStatus, TransactionType
 from app.models.user import User
 from app.schemas.creator_studio import (
     CreatorStudioAgentOut,
@@ -31,6 +38,7 @@ from app.schemas.creator_studio import (
     CreatorStudioKnowledgeFileOut,
     CreatorStudioLLMConfigOut,
     CreatorStudioLLMConfigUpdate,
+    CreatorStudioPlatformSettings,
     CreatorStudioPublicChatRequest,
     CreatorStudioUserOut,
 )
@@ -49,6 +57,7 @@ from app.services.creator_studio import (
     format_size,
     generate_response,
     get_assist_model,
+    get_default_enabled_model,
     get_llm_config,
     get_provider_for_model,
     get_or_create_guest_credits,
@@ -99,7 +108,7 @@ def _format_files(db: Session, agent_id: uuid.UUID) -> list[CreatorStudioKnowled
 
 def _creator_config(agent: Agent) -> dict:
     if isinstance(agent.config, dict):
-        return agent.config.get("creator_studio", {}) or {}
+        return copy.deepcopy(agent.config.get("creator_studio", {}) or {})
     return {}
 
 
@@ -122,6 +131,9 @@ def _creator_agent_out(db: Session, agent: Agent) -> CreatorStudioAgentOut:
         creditsPerRun=int(agent.price_per_run),
         createdAt=created_at,
         files=_format_files(db, agent.id),
+        allow_reviews=bool(agent.allow_reviews),
+        review_cost=int(agent.review_cost),
+        enabledCapabilities=creator_cfg.get("enabledCapabilities"),
     )
 
 
@@ -205,14 +217,32 @@ def create_agent(
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ) -> CreatorStudioAgentOut:
+    # Enforce Admin-Controlled Model Selection
+    # Ignore payload.model and always use the default enabled model
+    forced_model = get_default_enabled_model(db)
+    
     config = {
         "creator_studio": {
             "instruction": payload.instruction,
-            "model": payload.model or DEFAULT_MODEL,
+            "model": forced_model, # Override user selection
             "color": payload.color,
             "inputs": [item.model_dump() for item in payload.inputs],
+            "enabledCapabilities": payload.enabledCapabilities.model_dump() if payload.enabledCapabilities else None,
         }
     }
+    
+    # Map capabilities
+    caps_list = []
+    if payload.enabledCapabilities:
+        if payload.enabledCapabilities.codeExecution:
+            caps_list.append("code_execution")
+        if payload.enabledCapabilities.webBrowsing:
+            caps_list.append("web_search")
+        if payload.enabledCapabilities.apiIntegrations:
+            caps_list.append("api_access")
+        if payload.enabledCapabilities.fileHandling:
+            caps_list.append("file_handling")
+
     agent = Agent(
         id=uuid.uuid4(),
         name=payload.name,
@@ -223,13 +253,15 @@ def create_agent(
         price_per_run=max(1, payload.creditsPerRun),
         status=AgentStatus.ACTIVE,
         config=config,
-        capabilities=[],
+        capabilities=caps_list,
         limitations=[],
         demo_available=False,
         is_public=payload.isPublic,
         source=CREATOR_STUDIO_SOURCE,
         creator_id=current_user.id,
         version="1.0.0",
+        allow_reviews=payload.allow_reviews,
+        review_cost=payload.review_cost,
     )
     db.add(agent)
     db.commit()
@@ -257,12 +289,16 @@ def update_agent(
         raise HTTPException(status_code=404, detail="Agent not found.")
 
     creator_cfg = _creator_config(agent)
+    # Enforce Admin-Controlled Model Selection
+    forced_model = get_default_enabled_model(db)
+    
     creator_cfg.update(
         {
             "instruction": payload.instruction,
-            "model": payload.model or creator_cfg.get("model") or DEFAULT_MODEL,
+            "model": forced_model, # Override
             "color": payload.color,
             "inputs": [item.model_dump() for item in payload.inputs],
+            "enabledCapabilities": payload.enabledCapabilities.model_dump() if payload.enabledCapabilities else creator_cfg.get("enabledCapabilities"),
         }
     )
     config = dict(agent.config or {})
@@ -274,6 +310,23 @@ def update_agent(
     agent.price_per_run = max(1, payload.creditsPerRun)
     agent.is_public = payload.isPublic
     agent.config = config
+    flag_modified(agent, "config")
+    agent.allow_reviews = payload.allow_reviews
+    agent.review_cost = payload.review_cost
+
+    # Map capabilities update
+    if payload.enabledCapabilities:
+        caps_list = []
+        if payload.enabledCapabilities.codeExecution:
+            caps_list.append("code_execution")
+        if payload.enabledCapabilities.webBrowsing:
+            caps_list.append("web_search")
+        if payload.enabledCapabilities.apiIntegrations:
+            caps_list.append("api_access")
+        if payload.enabledCapabilities.fileHandling:
+            caps_list.append("file_handling")
+        agent.capabilities = caps_list
+        flag_modified(agent, "capabilities")
 
     db.commit()
     db.refresh(agent)
@@ -326,9 +379,44 @@ def delete_all_agents(
     return {"ok": True}
 
 
+def process_knowledge_file_background(
+    agent_id: uuid.UUID,
+    file_id: uuid.UUID,
+    filename: str,
+    data: bytes,
+):
+    db = SessionLocal()
+    try:
+        text = extract_text(filename, data)
+        chunks = chunk_text(text)
+        embeddings = embed_texts(db, chunks)
+        for idx, chunk in enumerate(chunks):
+            embedding = embeddings[idx] if idx < len(embeddings) else []
+            chunk_id = uuid.uuid4()
+            db.add(
+                CreatorStudioKnowledgeChunk(
+                    id=chunk_id,
+                    file_id=file_id,
+                    agent_id=agent_id,
+                    chunk_index=idx,
+                    text=chunk,
+                    embedding=embedding,
+                )
+            )
+            if VECTOR_INDEX is not None and embedding:
+                VECTOR_INDEX.add(str(agent_id), str(chunk_id), embedding, chunk)
+        db.commit()
+    except Exception as e:
+        print(f"Error in background processing for file {file_id}: {e}")
+        db.rollback()
+    finally:
+        db.close()
+
+
 @router.post("/agents/{agent_id}/files", response_model=list[CreatorStudioKnowledgeFileOut])
 def upload_files(
     agent_id: str,
+    background_tasks: BackgroundTasks,
     files: list[UploadFile] = File(...),
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
@@ -359,24 +447,15 @@ def upload_files(
                 size_bytes=len(data),
             )
         )
-        text = extract_text(upload.filename or "", data)
-        chunks = chunk_text(text)
-        embeddings = embed_texts(db, chunks)
-        for idx, chunk in enumerate(chunks):
-            embedding = embeddings[idx] if idx < len(embeddings) else []
-            chunk_id = uuid.uuid4()
-            db.add(
-                CreatorStudioKnowledgeChunk(
-                    id=chunk_id,
-                    file_id=file_id,
-                    agent_id=agent.id,
-                    chunk_index=idx,
-                    text=chunk,
-                    embedding=embedding,
-                )
-            )
-            if VECTOR_INDEX is not None and embedding:
-                VECTOR_INDEX.add(str(agent.id), str(chunk_id), embedding, chunk)
+        # Process in background
+        background_tasks.add_task(
+            process_knowledge_file_background,
+            agent.id,
+            file_id,
+            upload.filename or "",
+            data
+        )
+        
     db.commit()
     return _format_files(db, agent.id)
 
@@ -426,6 +505,28 @@ def delete_file(
     db.delete(file)
     db.commit()
     return {"ok": True}
+
+
+@router.post("/files/extract")
+def extract_file_text(
+    file: UploadFile = File(...),
+    current_user: User | None = Depends(get_current_user_optional),
+) -> dict:
+    data = file.file.read()
+    file.file.close()
+    if not data:
+        return {"text": ""}
+    
+    filename = file.filename or "file"
+    if len(data) > 10 * 1024 * 1024:
+         raise HTTPException(status_code=400, detail="File too large (max 10MB)")
+
+    try:
+        text = extract_text(filename, data)
+        return {"text": text}
+    except Exception as e:
+        print(f"Extraction failed: {e}")
+        raise HTTPException(status_code=500, detail="Failed to extract text from file")
 
 
 @router.post("/agents/suggest", response_model=CreatorStudioAgentSuggestResponse)
@@ -486,10 +587,82 @@ def purchase_public_credits(
     return CreatorStudioGuestCreditsResponse(credits=credits)
 
 
+@router.post("/public/executions/{execution_id}/review")
+def request_guest_review(
+    execution_id: str,
+    payload: dict,
+    db: Session = Depends(get_db),
+) -> dict:
+    try:
+        exec_uuid = _coerce_uuid(execution_id)
+    except Exception:
+        raise HTTPException(status_code=400, detail="Invalid execution ID")
+
+    execution = db.get(AgentExecution, exec_uuid)
+    if not execution:
+        raise HTTPException(status_code=404, detail="Execution not found")
+
+    if not execution.agent.allow_reviews:
+        raise HTTPException(status_code=400, detail="This agent does not support reviews")
+    
+    if not execution.agent.is_public:
+         raise HTTPException(status_code=403, detail="Not authorized")
+
+    if execution.review_status not in (ReviewStatus.NONE, ReviewStatus.REJECTED):
+        raise HTTPException(status_code=400, detail="Review already requested or completed")
+
+    guest_id = payload.get("guestId")
+    note = payload.get("note")
+    
+    cost = execution.agent.review_cost
+    if cost > 0 and guest_id:
+        credits = get_or_create_guest_credits(db, guest_id)
+        if credits < cost:
+             raise HTTPException(status_code=402, detail=f"Not enough credits. Review costs {cost} credits.")
+        deduct_guest_credits(db, guest_id, cost)
+    
+    execution.review_status = ReviewStatus.PENDING
+    execution.review_request_note = note
+    db.commit()
+    db.refresh(execution)
+    
+    return {"status": "success", "execution_id": str(execution.id)}
+
+
+@router.get("/public/executions/{execution_id}")
+def get_public_execution(
+    execution_id: str,
+    db: Session = Depends(get_db),
+) -> dict:
+    try:
+        exec_uuid = _coerce_uuid(execution_id)
+    except Exception:
+        raise HTTPException(status_code=400, detail="Invalid execution ID")
+
+    execution = db.get(AgentExecution, exec_uuid)
+    if not execution:
+        raise HTTPException(status_code=404, detail="Execution not found")
+
+    if not execution.agent.is_public:
+         raise HTTPException(status_code=403, detail="Not authorized")
+
+    # We return the data in a format similar to AgentExecutionRead
+    return {
+        "id": str(execution.id),
+        "status": execution.status,
+        "review_status": execution.review_status,
+        "review_request_note": execution.review_request_note,
+        "review_response_note": execution.review_response_note,
+        "outputs": execution.outputs,
+        "reviewed_at": execution.reviewed_at.isoformat() if execution.reviewed_at else None
+    }
+
+
 @router.post("/public/chat")
 def public_chat(
     payload: CreatorStudioPublicChatRequest,
     db: Session = Depends(get_db),
+    current_user: User | None = Depends(get_current_user_optional),
 ) -> dict:
     agent = (
         db.query(Agent)
@@ -503,23 +676,66 @@ def public_chat(
     if agent is None:
         raise HTTPException(status_code=404, detail="Agent not found.")
     cost = max(1, int(agent.price_per_run))
-    deduct_guest_credits(db, payload.guestId, cost)
+    if current_user:
+        if current_user.credits < cost:
+            raise HTTPException(status_code=402, detail=f"Not enough credits. Run costs {cost} credits.")
+        current_user.credits -= cost
+        db.add(current_user)
+        transaction = CreditTransaction(
+            user_id=current_user.id,
+            amount=-cost,
+            transaction_type=TransactionType.USAGE,
+            description=f"Run Agent: {agent.name}",
+        )
+        db.add(transaction)
+    else:
+        deduct_guest_credits(db, payload.guestId, cost)
     creator_cfg = _creator_config(agent)
     instruction = creator_cfg.get("instruction") or ""
     model = creator_cfg.get("model") or DEFAULT_MODEL
+    capabilities = creator_cfg.get("enabledCapabilities")
     context_chunks = build_context(db, str(agent.id), payload.message)
-    system_instruction = build_system_instruction(instruction, context_chunks, payload.inputsContext)
+    system_instruction = build_system_instruction(instruction, context_chunks, payload.inputsContext, capabilities)
     provider = get_provider_for_model(db, model)
     config = get_llm_config(db, provider)
     api_key = resolve_llm_key(provider, config)
-    text = generate_response(provider, model, system_instruction, payload.message, api_key)
-    return {"text": text}
+    text = generate_response(provider, model, system_instruction, payload.message, api_key, db=db)
+    
+    # Create execution record for Human-in-Loop
+    # Note: guestId is not a real user, so we cannot set user_id if it's FK to users table and not nullable.
+    # Assuming user_id can be nullable or we skip execution creation if strict.
+    # Let's check AgentExecution model. If user_id is required, we effectively cannot use AgentExecution for guests without a dummy user.
+    # For now, we will TRY to insert None. If it fails, we catch it.
+    execution_id = None
+    try:
+        execution = AgentExecution(
+            id=uuid.uuid4(),
+            agent_id=agent.id,
+            user_id=current_user.id if current_user else None, # Authenticated user or Guest
+            status=ExecutionStatus.COMPLETED,
+            inputs={"message": payload.message, "inputsContext": payload.inputsContext, "guestId": payload.guestId},
+            outputs={"text": text},
+            credits_used=cost,
+            error_message=None,
+        )
+        db.add(execution)
+        db.commit()
+        execution_id = str(execution.id)
+    except Exception as e:
+        print(f"Failed to create execution for guest: {e}")
+        # If user_id is non-nullable, this will fail.
+        # Fallback: maybe don't create execution for guest, but then Review feature won't work for guests.
+        # Proceeding without execution ID.
+        pass
+
+    return {"text": text, "execution_id": execution_id}
 
 
 @router.post("/public/chat/stream")
 def public_chat_stream(
     payload: CreatorStudioPublicChatRequest,
     db: Session = Depends(get_db),
+    current_user: User | None = Depends(get_current_user_optional),
 ) -> StreamingResponse:
     agent = (
         db.query(Agent)
@@ -533,25 +749,91 @@ def public_chat_stream(
     if agent is None:
         raise HTTPException(status_code=404, detail="Agent not found.")
     cost = max(1, int(agent.price_per_run))
-    deduct_guest_credits(db, payload.guestId, cost)
+    if current_user:
+        if current_user.credits < cost:
+            raise HTTPException(status_code=402, detail=f"Not enough credits. Run costs {cost} credits.")
+        current_user.credits -= cost
+        db.add(current_user)
+        transaction = CreditTransaction(
+            user_id=current_user.id,
+            amount=-cost,
+            transaction_type=TransactionType.USAGE,
+            description=f"Run Agent: {agent.name}",
+        )
+        db.add(transaction)
+    else:
+        deduct_guest_credits(db, payload.guestId, cost)
     creator_cfg = _creator_config(agent)
     instruction = creator_cfg.get("instruction") or ""
     model = creator_cfg.get("model") or DEFAULT_MODEL
+    capabilities = creator_cfg.get("enabledCapabilities")
     context_chunks = build_context(db, str(agent.id), payload.message)
-    system_instruction = build_system_instruction(instruction, context_chunks, payload.inputsContext)
+    system_instruction = build_system_instruction(instruction, context_chunks, payload.inputsContext, capabilities)
     provider = get_provider_for_model(db, model)
     config = get_llm_config(db, provider)
     api_key = resolve_llm_key(provider, config)
 
+    # Convert history
+    history_dicts = []
+    if payload.messages:
+        for m in payload.messages:
+            history_dicts.append({"role": m.role, "content": m.content})
+
+    # Create execution record
+    execution = AgentExecution(
+        id=uuid.uuid4(),
+        agent_id=agent.id,
+        user_id=current_user.id if current_user else None, # Authenticated user or Guest
+        status=ExecutionStatus.RUNNING,
+        inputs={"message": payload.message, "inputsContext": payload.inputsContext, "guestId": payload.guestId},
+        outputs={},
+        credits_used=cost,
+        error_message=None,
+    )
+    # Handle potential DB constraint error if user_id is not nullable
+    try:
+        db.add(execution)
+        db.commit()
+        db.refresh(execution)
+    except Exception as e:
+        print(f"Failed to create execution start for guest: {e}")
+        db.rollback()
+        execution = None
+
     def stream() -> Any:
+        full_text = ""
         try:
-            for chunk in stream_response(provider, model, system_instruction, payload.message, api_key):
+            for chunk in stream_response(provider, model, system_instruction, payload.message, api_key, str(execution.id) if execution else None, db=db, history=history_dicts):
+                if isinstance(chunk, bytes):
+                    full_text += chunk.decode("utf-8")
+                else:
+                    full_text += chunk
                 yield chunk
+            
+            # Update execution on completion
+            if execution:
+                execution.status = ExecutionStatus.COMPLETED
+                execution.outputs = {"text": full_text, "streamed": True}
+                db.commit()
+
         except Exception as exc:
             error_payload = f"\n[Error] {exc}"
+            if execution:
+                execution.status = ExecutionStatus.FAILED
+                execution.error_message = str(exc)
+                db.commit()
             yield error_payload.encode("utf-8")
 
-    return StreamingResponse(stream(), media_type="text/plain")
+    headers = {}
+    if execution:
+        headers["X-Execution-Id"] = str(execution.id)
+    
+    # Add CORS headers for streaming response
+    headers["Access-Control-Allow-Origin"] = "*"
+    headers["Access-Control-Allow-Credentials"] = "true"
+    headers["Access-Control-Expose-Headers"] = "X-Execution-Id"
+
+    return StreamingResponse(stream(), media_type="text/plain", headers=headers)
 
 
 @router.post("/chat")
@@ -574,13 +856,44 @@ def chat(
     creator_cfg = _creator_config(agent)
     instruction = creator_cfg.get("instruction") or ""
     model = creator_cfg.get("model") or DEFAULT_MODEL
+    capabilities = creator_cfg.get("enabledCapabilities")
     context_chunks = build_context(db, str(agent.id), payload.message)
-    system_instruction = build_system_instruction(instruction, context_chunks, payload.inputsContext)
+    system_instruction = build_system_instruction(instruction, context_chunks, payload.inputsContext, capabilities)
     provider = get_provider_for_model(db, model)
     config = get_llm_config(db, provider)
     api_key = resolve_llm_key(provider, config)
-    text = generate_response(provider, model, system_instruction, payload.message, api_key)
-    return {"text": text}
+
+    # Convert history
+    history_dicts = []
+    if payload.messages:
+        for m in payload.messages:
+            history_dicts.append({"role": m.role, "content": m.content})
+
+    text = generate_response(provider, model, system_instruction, payload.message, api_key, db=db, history=history_dicts)
+    
+    # Create execution record
+    execution_id = None
+    try:
+        execution = AgentExecution(
+            id=uuid.uuid4(),
+            agent_id=agent.id,
+            user_id=current_user.id,
+            status=ExecutionStatus.COMPLETED,
+            inputs={"message": payload.message, "inputsContext": payload.inputsContext},
+            outputs={"text": text},
+            credits_used=0, # Creator/Internal usage might be free? or check payload? For now 0 or agent price?
+            # Creating agent run usually costs credits unless it's the creator?
+            # The chat endpoint does NOT deduct credits in the current code (unlike public_chat).
+            # So credits_used=0.
+            error_message=None,
+        )
+        db.add(execution)
+        db.commit()
+        execution_id = str(execution.id)
+    except Exception as e:
+        print(f"Failed to create execution for user: {e}")
+
+    return {"text": text, "execution_id": execution_id}
 
 
 @router.post("/chat/stream")
@@ -589,35 +902,139 @@ def chat_stream(
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ) -> StreamingResponse:
-    agent = (
-        db.query(Agent)
-        .filter(
-            Agent.id == _coerce_uuid(payload.agentId),
-            Agent.creator_id == current_user.id,
-            Agent.source == CREATOR_STUDIO_SOURCE,
+    try:
+        agent = (
+            db.query(Agent)
+            .filter(
+                Agent.id == _coerce_uuid(payload.agentId),
+                Agent.creator_id == current_user.id,
+                Agent.source == CREATOR_STUDIO_SOURCE,
+            )
+            .first()
         )
-        .first()
-    )
-    if agent is None:
-        raise HTTPException(status_code=404, detail="Agent not found.")
-    creator_cfg = _creator_config(agent)
-    instruction = creator_cfg.get("instruction") or ""
-    model = creator_cfg.get("model") or DEFAULT_MODEL
-    context_chunks = build_context(db, str(agent.id), payload.message)
-    system_instruction = build_system_instruction(instruction, context_chunks, payload.inputsContext)
-    provider = get_provider_for_model(db, model)
-    config = get_llm_config(db, provider)
-    api_key = resolve_llm_key(provider, config)
+        if agent is None:
+            raise HTTPException(status_code=404, detail="Agent not found.")
+        
+        creator_cfg = _creator_config(agent)
+        instruction = creator_cfg.get("instruction") or ""
+        model = creator_cfg.get("model") or DEFAULT_MODEL
+        capabilities = creator_cfg.get("enabledCapabilities")
+        
+        print(f"[chat_stream] Agent: {agent.id}, Model: {model}", flush=True)
+        
+        context_chunks = build_context(db, str(agent.id), payload.message)
+        system_instruction = build_system_instruction(instruction, context_chunks, payload.inputsContext, capabilities)
+        
+        provider = get_provider_for_model(db, model)
+        print(f"[chat_stream] Provider: {provider}", flush=True)
+        
+        config = get_llm_config(db, provider)
+        api_key = resolve_llm_key(provider, config)
+        
+        if not api_key:
+            raise HTTPException(status_code=500, detail=f"{provider} API key is not configured.")
 
-    def stream() -> Any:
-        try:
-            for chunk in stream_response(provider, model, system_instruction, payload.message, api_key):
-                yield chunk
-        except Exception as exc:
-            error_payload = f"\n[Error] {exc}"
-            yield error_payload.encode("utf-8")
+        # Convert history
+        history_dicts = []
+        if payload.messages:
+            for m in payload.messages:
+                history_dicts.append({"role": m.role, "content": m.content})
 
-    return StreamingResponse(stream(), media_type="text/plain")
+        # Create execution record (RUNNING)
+        execution = AgentExecution(
+            id=uuid.uuid4(),
+            agent_id=agent.id,
+            user_id=current_user.id,
+            status=ExecutionStatus.RUNNING,
+            inputs={"message": payload.message, "inputsContext": payload.inputsContext},
+            outputs={},
+            credits_used=0,
+            error_message=None,
+        )
+        db.add(execution)
+        db.commit() # ID is generated
+        
+        print(f"[chat_stream] Execution created: {execution.id}", flush=True)
+        
+        def stream() -> Any:
+            full_text = ""
+            try:
+                for chunk in stream_response(provider, model, system_instruction, payload.message, api_key, execution_id=str(execution.id), db=db, history=history_dicts):
+                    if isinstance(chunk, bytes):
+                        full_text += chunk.decode("utf-8")
+                    else:
+                        full_text += chunk
+                    yield chunk
+                
+                # Update execution
+                execution.status = ExecutionStatus.COMPLETED
+                execution.outputs = {"text": full_text, "streamed": True}
+                db.commit()
+
+            except Exception as exc:
+                import traceback
+                traceback.print_exc()
+                error_payload = f"\n[Error] {exc}"
+                execution.status = ExecutionStatus.FAILED
+                execution.error_message = str(exc)
+                db.commit()
+                yield error_payload.encode("utf-8")
+
+        headers = {
+            "X-Execution-Id": str(execution.id),
+            "Access-Control-Allow-Origin": "*",
+            "Access-Control-Allow-Credentials": "true",
+            "Access-Control-Expose-Headers": "X-Execution-Id",
+        }
+        return StreamingResponse(stream(), media_type="text/plain", headers=headers)
+    
+    except HTTPException:
+        # Re-raise HTTP exceptions as-is
+        raise
+    except Exception as e:
+        # Catch any other errors and log them
+        import traceback
+        print(f"[chat_stream] ERROR: {e}", flush=True)
+        traceback.print_exc()
+        raise HTTPException(status_code=500, detail=f"Internal error: {str(e)}")
+
+
+@router.get("/admin/settings", response_model=CreatorStudioPlatformSettings)
+def get_platform_settings(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """
+    Retrieve global platform settings (API keys for Search, etc).
+    """
+    _require_admin(current_user)
+    from app.services.creator_studio import get_app_setting
+    return {
+        "SERPAPI_KEY": get_app_setting(db, "SERPAPI_KEY"),
+        "GOOGLE_SEARCH_API_KEY": get_app_setting(db, "GOOGLE_SEARCH_API_KEY"),
+        "GOOGLE_SEARCH_CX": get_app_setting(db, "GOOGLE_SEARCH_CX"),
+    }
+
+
+@router.post("/admin/settings")
+def update_platform_settings(
+    payload: CreatorStudioPlatformSettings,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """
+    Update global platform settings.
+    """
+    _require_admin(current_user)
+    from app.services.creator_studio import set_app_setting
+    if payload.SERPAPI_KEY is not None:
+        set_app_setting(db, "SERPAPI_KEY", payload.SERPAPI_KEY)
+    if payload.GOOGLE_SEARCH_API_KEY is not None:
+        set_app_setting(db, "GOOGLE_SEARCH_API_KEY", payload.GOOGLE_SEARCH_API_KEY)
+    if payload.GOOGLE_SEARCH_CX is not None:
+        set_app_setting(db, "GOOGLE_SEARCH_CX", payload.GOOGLE_SEARCH_CX)
+    
+    return {"message": "Settings updated"}
 
 
 @router.get("/admin/llm-configs", response_model=list[CreatorStudioLLMConfigOut])
@@ -696,3 +1113,29 @@ def update_admin_assist_model(
     _ = get_provider_for_model(db, model)
     set_app_setting(db, "assist_model", model)
     return CreatorStudioAssistModelResponse(model=model)
+
+
+@router.get("/files/{execution_id}/{filename}")
+def get_generated_file(
+    execution_id: str,
+    filename: str,
+) -> FileResponse:
+    """
+    Serve generated files from code execution.
+    """
+    file_path = os.path.join(os.getcwd(), ".generated_files", execution_id, filename)
+    
+    if not os.path.exists(file_path):
+        raise HTTPException(status_code=404, detail="File not found")
+    
+    # Security check: ensure path is within .generated_files
+    real_path = os.path.realpath(file_path)
+    base_path = os.path.realpath(os.path.join(os.getcwd(), ".generated_files"))
+    if not real_path.startswith(base_path):
+        raise HTTPException(status_code=403, detail="Access denied")
+    
+    return FileResponse(
+        path=file_path,
+        filename=filename,
+        media_type="application/octet-stream"
+    )

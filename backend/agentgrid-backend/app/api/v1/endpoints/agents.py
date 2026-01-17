@@ -13,6 +13,7 @@ from app.services.execution import ExecutionService
 from app.schemas.execution import AgentExecutionRead
 from typing import Dict, Any
 
+
 router = APIRouter(tags=["agents"])
 
 
@@ -38,6 +39,7 @@ def list_agents(
     creator_id: Optional[str] = None,
     source: str = Query("manual", pattern="^(manual|creator_studio|all)$"),
     include_creator_studio_public: bool = Query(False),
+    favorited_by: Optional[str] = Query(None),
     db: Session = Depends(get_db),
     current_user: Optional[User] = Depends(get_current_user_optional),
 ):
@@ -59,6 +61,7 @@ def list_agents(
         creator_id=creator_id,
         source=source,
         include_creator_studio_public=include_creator_studio_public,
+        favorited_by=favorited_by,
     )
 
     return {
@@ -88,6 +91,12 @@ def update_agent(
     return AgentService.update_agent(db, agent_id, agent_data, current_user)
 
 
+@router.delete("/{agent_id}", status_code=status.HTTP_204_NO_CONTENT)
+def delete_agent(
+    agent_id: str,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_creator),
+):
     AgentService.delete_agent(db, agent_id, current_user)
     return None
 
@@ -108,3 +117,5 @@ def execute_agent(
         execution_inputs = inputs
 
     return ExecutionService.execute_agent(db, agent_id, execution_inputs, current_user)
+
+

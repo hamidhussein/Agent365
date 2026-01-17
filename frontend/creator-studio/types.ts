@@ -1,6 +1,6 @@
 import React from 'react';
 
-export type ViewState = 'auth' | 'dashboard' | 'admin-dashboard' | 'create-agent' | 'edit-agent' | 'chat' | 'marketplace' | 'public-chat';
+export type ViewState = 'auth' | 'dashboard' | 'admin-dashboard' | 'create-agent' | 'edit-agent' | 'chat' | 'marketplace' | 'public-chat' | 'reviews';
 export type UserRole = 'creator' | 'admin';
 
 export interface KnowledgeFile {
@@ -29,6 +29,15 @@ export interface Agent {
   creditsPerRun: number;
   createdAt: string;
   color: string;
+  allow_reviews?: boolean;
+  review_cost?: number;
+  capabilities?: string[];
+  enabledCapabilities?: {
+    codeExecution: boolean;
+    webBrowsing: boolean;
+    apiIntegrations: boolean;
+    fileHandling: boolean;
+  };
 }
 
 export interface AgentPayload {
@@ -40,6 +49,16 @@ export interface AgentPayload {
   inputs: AgentInput[];
   isPublic: boolean;
   creditsPerRun: number;
+  allow_reviews?: boolean;
+  review_cost?: number;
+  enabledCapabilities?: {
+    codeExecution: boolean;
+    webBrowsing: boolean;
+    apiIntegrations: boolean;
+    fileHandling: boolean;
+  };
+  capabilities?: string[];
+  files?: string[];
 }
 
 export interface AgentSuggestPayload {
@@ -74,7 +93,7 @@ export interface ChatMessage {
 export interface LLMProviderConfig {
   id: string;
   name: string;
-  provider: 'google' | 'openai' | 'anthropic' | 'llama' | 'groq';
+  provider: 'google' | 'openai' | 'anthropic' | 'llama' | 'groq' | 'deepseek';
   status?: 'available' | 'coming-soon';
   enabled: boolean;
   apiKey: string;
@@ -93,6 +112,18 @@ export interface ModelOption {
   label: string;
   desc: string;
   icon: React.ReactNode;
-  provider: 'google' | 'openai' | 'anthropic' | 'llama' | 'groq';
+  family?: string; // e.g., "GPT-4 Family", "Claude 3.5 Family"
+  provider: 'google' | 'openai' | 'anthropic' | 'llama' | 'groq' | 'deepseek';
   status?: 'available' | 'coming-soon';
+  capabilities?: {
+    codeExecution: boolean;
+    fileHandling: 'advanced' | 'limited' | 'text-only' | 'none';
+    webBrowsing: boolean;
+    apiIntegrations: boolean;
+  };
+}
+export interface PlatformSettings {
+  SERPAPI_KEY?: string;
+  GOOGLE_SEARCH_API_KEY?: string;
+  GOOGLE_SEARCH_CX?: string;
 }

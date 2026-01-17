@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { ViewState, Agent, LLMProviderConfig, AgentPayload } from './types';
+import { ViewState, Agent, LLMProviderConfig, AgentPayload, PlatformSettings } from './types';
 import { DEFAULT_LLM_CONFIGS } from './constants';
 import { AuthScreen } from './components/auth/AuthScreen';
 import { Marketplace } from './components/marketplace/Marketplace';
@@ -7,6 +7,7 @@ import { AdminDashboard } from './components/admin/AdminDashboard';
 import { Dashboard } from './components/dashboard/Dashboard';
 import { AgentBuilder } from './components/agent/AgentBuilder';
 import { ChatInterface } from './components/chat/ChatInterface';
+import CreatorReviewsPage from './pages/CreatorReviewsPage';
 import { adminApi, agentsApi, publicApi } from './api';
 import { useAuthStore } from '@/lib/store';
 import { addAgent, updateAgent as updateAgentInList, removeAgent } from './lib/agentStore';
@@ -38,8 +39,8 @@ const CreatorStudioApp = ({ initialView }: { initialView?: string }) => {
   const [selectedAgent, setSelectedAgent] = useState<Agent | null>(null);
   const [editingAgent, setEditingAgent] = useState<Agent | null>(null);
   const [publicAgents, setPublicAgents] = useState<Agent[]>([]);
+  const [platformSettings, setPlatformSettings] = useState<PlatformSettings>({});
   const [guestId] = useState<string>(getGuestId());
-  const [guestCredits, setGuestCredits] = useState(0);
 
   const loadAgents = async () => {
     const list = await agentsApi.list();
@@ -52,14 +53,9 @@ const CreatorStudioApp = ({ initialView }: { initialView?: string }) => {
   };
 
   const loadGuestCredits = async () => {
-    const result = await publicApi.getCredits(guestId);
-    setGuestCredits(result.credits);
+    await publicApi.getCredits(guestId);
   };
 
-  const handleBuyCredits = async (amount: number) => {
-    await publicApi.purchaseCredits(guestId, amount);
-    await loadGuestCredits();
-  };
 
   const loadAdminConfigs = async () => {
     const configs = await adminApi.listLLMConfigs();
@@ -69,6 +65,15 @@ const CreatorStudioApp = ({ initialView }: { initialView?: string }) => {
   const loadAssistModel = async () => {
     const result = await adminApi.getAssistModel();
     setAssistModel(result.model);
+  };
+
+  const loadPlatformSettings = async () => {
+    try {
+      const settings = await adminApi.getPlatformSettings();
+      setPlatformSettings(settings);
+    } catch (error) {
+      console.error('Failed to load platform settings:', error);
+    }
   };
 
   useEffect(() => {
@@ -85,6 +90,7 @@ const CreatorStudioApp = ({ initialView }: { initialView?: string }) => {
         if (initialView === 'admin-dashboard') {
           await loadAdminConfigs();
           await loadAssistModel();
+          await loadPlatformSettings();
         } else {
           await loadAgents();
         }
@@ -100,6 +106,7 @@ const CreatorStudioApp = ({ initialView }: { initialView?: string }) => {
         if (mainUser?.role === 'admin') {
           await loadAdminConfigs();
           await loadAssistModel();
+          await loadPlatformSettings();
         }
       } catch (error) {
         console.error('Creator Studio bootstrap failed:', error);
@@ -188,10 +195,21 @@ const CreatorStudioApp = ({ initialView }: { initialView?: string }) => {
     }
   };
 
+  const handleUpdatePlatformSettings = async (updates: Partial<PlatformSettings>) => {
+    const next = { ...platformSettings, ...updates };
+    setPlatformSettings(next);
+    try {
+      await adminApi.updatePlatformSettings(next);
+    } catch (error: any) {
+      alert(error?.message || 'Unable to update platform settings.');
+    }
+  };
+
   const handleSaveLLMConfig = async () => {
     try {
       await loadAdminConfigs();
       await loadAssistModel();
+      await loadPlatformSettings();
       alert('Settings saved.');
     } catch (error: any) {
       alert(error?.message || 'Unable to refresh configs.');
@@ -226,15 +244,15 @@ const CreatorStudioApp = ({ initialView }: { initialView?: string }) => {
           onUpdateAssistModel={handleUpdateAssistModel}
           onUpdateConfig={handleUpdateLLMConfig}
           onSave={handleSaveLLMConfig}
+          platformSettings={platformSettings}
+          onUpdatePlatformSettings={handleUpdatePlatformSettings}
         />
       )}
 
       {view === 'marketplace' && (
         <Marketplace
           agents={publicAgents}
-          credits={guestCredits}
           onSelectAgent={handleSelectPublicAgent}
-          onBuyCredits={handleBuyCredits}
           onRefresh={loadPublicAgents}
           onBack={() => setView('auth')}
         />
@@ -250,11 +268,16 @@ const CreatorStudioApp = ({ initialView }: { initialView?: string }) => {
           onSelectAgent={handleSelectAgent}
           onEditAgent={handleEditAgent}
           onDeleteAgent={handleDeleteAgent}
+          onReviewsClick={() => setView('reviews')}
         />
       )}
 
       {view === 'create-agent' && (
-        <div className="min-h-screen bg-slate-900 pt-8">
+        <div className="container mx-auto px-4 py-8 max-w-7xl animate-in fade-in duration-300">
+          <div className="mb-6">
+            <h1 className="text-2xl font-bold text-white mb-2">Create New Agent</h1>
+            <p className="text-slate-400">Configure your AI agent's personality, knowledge, and capabilities.</p>
+          </div>
           <AgentBuilder
             onCancel={() => setView('dashboard')}
             onSave={handleCreateAgent}
@@ -263,7 +286,11 @@ const CreatorStudioApp = ({ initialView }: { initialView?: string }) => {
       )}
 
       {view === 'edit-agent' && editingAgent && (
-        <div className="min-h-screen bg-slate-900 pt-8">
+        <div className="container mx-auto px-4 py-8 max-w-7xl animate-in fade-in duration-300">
+          <div className="mb-6">
+            <h1 className="text-2xl font-bold text-white mb-2">Edit Agent</h1>
+            <p className="text-slate-400">Update your agent's configuration.</p>
+          </div>
           <AgentBuilder
             initialData={editingAgent}
             onCancel={() => {
@@ -286,8 +313,6 @@ const CreatorStudioApp = ({ initialView }: { initialView?: string }) => {
           }}
           publicMode
           guestId={guestId}
-          credits={guestCredits}
-          onBuyCredits={handleBuyCredits}
           onCreditsRefresh={loadGuestCredits}
         />
       )}
@@ -300,6 +325,10 @@ const CreatorStudioApp = ({ initialView }: { initialView?: string }) => {
             setView('dashboard');
           }}
         />
+      )}
+
+      {view === 'reviews' && (
+        <CreatorReviewsPage />
       )}
     </>
   );

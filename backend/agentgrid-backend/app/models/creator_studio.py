@@ -42,6 +42,8 @@ class CreatorStudioKnowledgeChunk(TimestampMixin, Base):
     agent = relationship("Agent", back_populates="creator_studio_chunks")
 
 
+
+
 class CreatorStudioLLMConfig(TimestampMixin, Base):
     __tablename__ = "creator_studio_llm_configs"
 

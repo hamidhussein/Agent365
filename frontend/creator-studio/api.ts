@@ -1,4 +1,4 @@
-﻿import { Agent, AgentPayload, AgentSuggestPayload, AgentSuggestResponse, AssistModelResponse, AssistModelUpdate, LLMProviderConfig, UserProfile } from './types';
+﻿import { Agent, AgentPayload, AgentSuggestPayload, AgentSuggestResponse, AssistModelResponse, AssistModelUpdate, LLMProviderConfig, PlatformSettings, UserProfile } from './types';
 
 const defaultBase = import.meta.env.VITE_API_URL
   ? import.meta.env.VITE_API_URL.replace(/\/api\/v1\/?$/, '') + '/creator-studio'
@@ -120,6 +120,15 @@ export const adminApi = {
       method: 'PUT',
       body: JSON.stringify(payload)
     }) as Promise<AssistModelResponse>;
+  },
+  async getPlatformSettings() {
+    return apiFetch('/api/admin/settings') as Promise<PlatformSettings>;
+  },
+  async updatePlatformSettings(payload: PlatformSettings) {
+    return apiFetch('/api/admin/settings', {
+      method: 'POST',
+      body: JSON.stringify(payload)
+    }) as Promise<{ message: string }>;
   }
 };
 
@@ -136,5 +145,13 @@ export const publicApi = {
       method: 'POST',
       body: JSON.stringify({ guestId, amount })
     }) as Promise<{ credits: number }>;
+  },
+  async extractFileText(file: File) {
+    const form = new FormData();
+    form.append('file', file);
+    return apiFetch('/api/files/extract', {
+      method: 'POST',
+      body: form
+    }) as Promise<{ text: string }>;
   }
 };

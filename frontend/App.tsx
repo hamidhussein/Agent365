@@ -9,6 +9,7 @@ import PageLoadingOverlay from './components/common/LoadingSpinner';
 import { LoadingSpinner as SharedLoadingSpinner } from '@/components/shared/LoadingSpinner';
 import { SkipToContent } from '@/components/shared/SkipToContent';
 import axiosInstance from '@/lib/api/client';
+import { ToastProvider } from '@/contexts/ToastContext';
 
 const HomePage = lazyWithRetry(() => import('./components/pages/HomePage'));
 const AgentsPage = lazyWithRetry(() => import('./components/pages/AgentsPage'));
@@ -42,7 +43,7 @@ export type Page =
   'adminSettings' |
   'notFound';
 
-export type DashboardPage = 'overview' | 'runs' | 'favorites' | 'transactions' | 'settings';
+export type DashboardPage = 'overview' | 'runs' | 'favorites' | 'transactions' | 'settings' | 'reviews';
 
 import { mapBackendAgent, BackendAgent } from '@/lib/utils/agentMapper';
 
@@ -55,7 +56,7 @@ interface AgentsListResponse {
 }
 
 const fetchAgents = async (): Promise<AgentsListResponse> => {
-  const response = await axiosInstance.get<AgentsListResponse>('/agents', {
+  const response = await axiosInstance.get<AgentsListResponse>('/agents/', {
     params: { limit: 50, include_creator_studio_public: true },
   });
   return response.data;
@@ -328,7 +329,7 @@ const App: React.FC = () => {
       case 'marketplace':
         return <AgentsPage agents={agents} {...sharedAgentProps} />;
       case 'agentDetail':
-        return agent ? <AgentDetailPage agent={agent} onRunAgent={handleRunAgent} onSelectCreator={handleSelectCreator} isFavorited={user?.favoriteAgentIds?.includes(agent.id) || false} onToggleFavorite={toggleFavorite} /> : null;
+        return agent ? <AgentDetailPage agent={agent} onRunAgent={handleRunAgent} onSelectCreator={handleSelectCreator} onSelectAgent={handleSelectAgent} isFavorited={user?.favoriteAgentIds?.includes(agent.id) || false} onToggleFavorite={toggleFavorite} /> : null;
       case 'creatorDashboard':
         return <CreatorDashboardPage setCurrentPage={navigateTo} onSelectAgent={handleSelectAgent} />;
       case 'creatorStudio':
@@ -338,7 +339,7 @@ const App: React.FC = () => {
       case 'createAgent':
         return <CreateAgentPage setCurrentPage={navigateTo} />;
       case 'runAgent':
-        return agent ? <RunAgentPage agent={agent} onBackToDetail={handleBackToDetail} /> : null;
+        return agent ? <RunAgentPage agent={agent} onBackToDetail={handleBackToDetail} onSelectAgent={handleSelectAgent} /> : null;
       case 'creatorProfile':
         return (creator && creatorAgents.length > 0) ? <CreatorProfilePage creator={creator} agents={creatorAgents} onSelectAgent={handleSelectAgent} favoriteAgentIds={new Set(user?.favoriteAgentIds || [])} onToggleFavorite={toggleFavorite} /> : null;
       case 'pricing':
@@ -352,6 +353,7 @@ const App: React.FC = () => {
           onSelectAgent={handleSelectAgent}
           onToggleFavorite={toggleFavorite}
           agents={agents}
+          onAddCredits={() => navigateTo('pricing')}
         />;
       case 'search':
         return (
@@ -375,28 +377,30 @@ const App: React.FC = () => {
   const isCreatorStudio = currentPage === 'creatorStudio';
 
   return (
-    <div className={`min-h-screen flex flex-col relative ${isCreatorStudio ? 'bg-slate-900' : 'bg-gray-900 font-sans'}`}>
-      {(isLoading || isAgentsLoading) && <PageLoadingOverlay />}
-      <SkipToContent />
-      <Header
-        setCurrentPage={navigateTo}
-        currentPage={currentPage}
-        creditBalance={user?.credits || 0}
-        onSearch={handleSearch}
-      />
-      <main id="main-content" className="flex-grow">
-        <Suspense
-          fallback={
-            <div className="flex justify-center py-16">
-              <SharedLoadingSpinner size="lg" />
-            </div>
-          }
-        >
-          {renderPage()}
-        </Suspense>
-      </main>
-      <Footer />
-    </div>
+    <ToastProvider>
+      <div className={`min-h-screen flex flex-col relative ${isCreatorStudio ? 'bg-slate-900' : 'bg-gray-900 font-sans'}`}>
+        {(isLoading || isAgentsLoading) && <PageLoadingOverlay />}
+        <SkipToContent />
+        <Header
+          setCurrentPage={navigateTo}
+          currentPage={currentPage}
+          creditBalance={user?.credits || 0}
+          onSearch={handleSearch}
+        />
+        <main id="main-content" className="flex-grow">
+          <Suspense
+            fallback={
+              <div className="flex justify-center py-16">
+                <SharedLoadingSpinner size="lg" />
+              </div>
+            }
+          >
+            {renderPage()}
+          </Suspense>
+        </main>
+        <Footer />
+      </div>
+    </ToastProvider>
   );
 };
 

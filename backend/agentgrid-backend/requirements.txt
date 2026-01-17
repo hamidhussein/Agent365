@@ -1,4 +1,4 @@
-alembic
+﻿alembic
 amqp
 annotated-doc
 annotated-types
@@ -66,6 +66,7 @@ wcwidth
 websockets
 Werkzeug
 email-validator
+beautifulsoup4
 # pandas
 # beautifulsoup4
 # lxml
@@ -83,3 +84,4 @@ email-validator
 # numpy
 # pypdf
 # PyJWT
+duckduckgo-search>=5.0.0

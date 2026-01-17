@@ -38,3 +38,11 @@ class TransactionType(str, enum.Enum):
     USAGE = "usage"
     REFUND = "refund"
     EARNING = "earning"
+
+
+class ReviewStatus(str, enum.Enum):
+    NONE = "none"
+    PENDING = "pending"
+    IN_PROGRESS = "in_progress"
+    COMPLETED = "completed"
+    REJECTED = "rejected"

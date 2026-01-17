@@ -26,6 +26,8 @@ export interface Transaction {
     updated_at: string;
 }
 
+export type ReviewStatus = 'none' | 'pending' | 'in_progress' | 'completed' | 'rejected';
+
 export interface Execution {
     id: string;
     agent_id: string;
@@ -37,6 +39,13 @@ export interface Execution {
     credits_used: number;
     created_at: string;
     updated_at: string;
+    review_status?: ReviewStatus;
+    review_request_note?: string;
+    review_response_note?: string;
+    reviewed_at?: string;
+    agent?: {
+        name: string;
+    };
 }
 
 export interface CreditPackage {
@@ -72,6 +81,8 @@ export interface Agent {
     runs: number;
     price: number;
     price_per_run?: number; // Add support for backend field
+    allow_reviews?: boolean;
+    review_cost?: number;
     creator: User; // Changed from Creator to User
     isNew?: boolean;
     isFeatured?: boolean;

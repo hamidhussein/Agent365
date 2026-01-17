@@ -10,12 +10,14 @@ export const Dashboard = ({
   onSelectAgent,
   onEditAgent,
   onDeleteAgent,
+  onReviewsClick,
 }: {
   agents: Agent[],
   onCreateClick: () => void,
   onSelectAgent: (agent: Agent) => void,
   onEditAgent: (agent: Agent) => void,
   onDeleteAgent: (id: string) => void,
+  onReviewsClick?: () => void,
 }) => {
   const [deleteId, setDeleteId] = useState<string | null>(null);
 
@@ -32,9 +34,16 @@ export const Dashboard = ({
             <h1 className="text-2xl font-bold text-white">Your Agents</h1>
             <p className="text-slate-400 mt-1">Manage and deploy your AI workforce.</p>
           </div>
-          <Button onClick={onCreateClick}>
-            <Plus size={18} /> Create New Agent
-          </Button>
+          <div className="flex gap-3">
+            {onReviewsClick && (
+              <Button onClick={onReviewsClick} variant="outline">
+                <MessageSquare size={18} /> Reviews
+              </Button>
+            )}
+            <Button onClick={onCreateClick}>
+              <Plus size={18} /> Create New Agent
+            </Button>
+          </div>
         </div>
 
         {/* Stats Grid (Mock) */}

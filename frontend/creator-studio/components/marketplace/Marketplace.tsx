@@ -1,20 +1,16 @@
-import { Bot, Coins, RefreshCcw, Sparkles } from 'lucide-react';
+import { Bot, RefreshCcw, Sparkles } from 'lucide-react';
 import { Button } from '../ui/Button';
 import { Agent } from '../../types';
 import { MODEL_OPTIONS } from '../../constants';
 
 export const Marketplace = ({
   agents,
-  credits,
   onSelectAgent,
-  onBuyCredits,
   onRefresh,
   onBack
 }: {
   agents: Agent[];
-  credits: number;
   onSelectAgent: (agent: Agent) => void;
-  onBuyCredits: (amount: number) => void;
   onRefresh: () => void;
   onBack: () => void;
 }) => {
@@ -36,14 +32,6 @@ export const Marketplace = ({
             <Button variant="outline" className="text-xs" onClick={onRefresh}>
               <RefreshCcw size={14} /> Refresh
             </Button>
-            <div className="hidden sm:flex items-center gap-2 bg-slate-800/70 border border-slate-700 rounded-full px-3 py-1.5">
-              <Coins size={14} className="text-amber-400" />
-              <span className="text-xs text-slate-300">Credits</span>
-              <span className="text-xs font-semibold text-white">{credits}</span>
-            </div>
-            <Button variant="outline" className="text-xs" onClick={() => onBuyCredits(10)}>
-              Buy 10
-            </Button>
             <Button variant="secondary" className="text-xs" onClick={onBack}>
               Back
             </Button>
@@ -58,7 +46,7 @@ export const Marketplace = ({
               <Bot size={32} className="text-slate-500" />
             </div>
             <h3 className="text-lg font-medium text-white mb-2">No public agents yet</h3>
-            <p className="text-slate-500 max-w-sm mx-auto">Creators haven’t published any agents. Check back soon.</p>
+            <p className="text-slate-500 max-w-sm mx-auto">Creators havenÂ’t published any agents. Check back soon.</p>
           </div>
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
@@ -98,3 +86,4 @@ export const Marketplace = ({
     </div>
   );
 };
+

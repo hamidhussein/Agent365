@@ -27,6 +27,8 @@ export type BackendAgent = {
     demo_available?: boolean;
     version: string;
     thumbnail_url?: string | null;
+    allow_reviews?: boolean;
+    review_cost?: number;
     creator_id: string;
     creator?: {
         id: string;
@@ -53,8 +55,6 @@ const createPlaceholderCreator = (id: string): User => {
         bio: 'Creator profile coming soon.',
         creditBalance: 0,
         favoriteAgentIds: [],
-        created_at: new Date().toISOString(),
-        updated_at: new Date().toISOString()
     };
 };
 
@@ -96,8 +96,6 @@ export const mapBackendAgent = (agent: BackendAgent): Agent => {
         role: 'user',
         creditBalance: 0,
         favoriteAgentIds: [],
-        created_at: new Date().toISOString(),
-        updated_at: new Date().toISOString()
     } : createPlaceholderCreator(agent.creator_id ?? agent.id);
 
     return {
@@ -119,6 +117,8 @@ export const mapBackendAgent = (agent: BackendAgent): Agent => {
         source: agent.source || 'manual',
         isPublic: agent.is_public ?? false,
         inputSchema,
+        allow_reviews: agent.allow_reviews ?? false,
+        review_cost: agent.review_cost ?? 5,
         mockResult: 'Run results will appear here.',
         reviews: [],
     };

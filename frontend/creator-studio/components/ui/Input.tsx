@@ -1,6 +1,6 @@
 
 
-export const Input = ({ label, className, ...props }: any) => (
+export const Input = ({ label, className = '', ...props }: any) => (
   <div className={`flex flex-col gap-1.5 mb-4 ${className}`}>
     {label && <label className="text-sm font-medium text-slate-300">{label}</label>}
     <input 

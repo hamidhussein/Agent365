@@ -1,13 +1,17 @@
 ﻿import { useEffect, useRef, useState } from 'react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
-import { Bot, Send, FileText, Copy, RotateCcw, Square, Download } from 'lucide-react';
+import { Bot, Send, FileText, Copy, RotateCcw, Square, Download, Globe, Code, Zap, Paperclip, Loader2, X } from 'lucide-react';
+import { publicApi } from '../../api';
 import { Button } from '../ui/Button';
 import { Input, TextArea } from '../ui/Input';
 import { Agent, ChatMessage } from '../../types';
 import { MODEL_OPTIONS } from '../../constants';
 import { createBotMessage, createUserMessage, updateMessageText } from '../../lib/chatState';
 import { API_BASE, authApi } from '../../api';
+import { api } from '../../../src/lib/api/client';
+import { ReviewStatus } from '../../../src/lib/types';
+import ReviewRequestModal from '../../../components/reviews/ReviewRequestModal';
 
 const copyToClipboard = async (text: string) => {
   try {
@@ -33,19 +37,18 @@ export const ChatInterface = ({
   onBack,
   publicMode = false,
   guestId,
-  credits,
-  onBuyCredits,
   onCreditsRefresh
 }: {
   agent: Agent,
   onBack: () => void,
   publicMode?: boolean,
   guestId?: string,
-  credits?: number,
-  onBuyCredits?: (amount: number) => void,
   onCreditsRefresh?: () => void
 }) => {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
+  const [attachment, setAttachment] = useState<{ name: string; content: string } | null>(null);
+  const [isUploading, setIsUploading] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
   const [inputValue, setInputValue] = useState('');
   const [isThinking, setIsThinking] = useState(false);
   const [lastUserMessage, setLastUserMessage] = useState<string | null>(null);
@@ -57,6 +60,39 @@ export const ChatInterface = ({
   const abortControllerRef = useRef<AbortController | null>(null);
   const agentModelOption = MODEL_OPTIONS.find(m => m.id === agent.model);
     const isPublicMode = Boolean(publicMode && guestId);
+    const [lastExecutionId, setLastExecutionId] = useState<string | null>(null);
+    const [reviewStatus, setReviewStatus] = useState<ReviewStatus>('none');
+    const [isReviewModalOpen, setIsReviewModalOpen] = useState(false);
+
+  const handleRequestReview = async (note: string) => {
+    if (!lastExecutionId) return;
+
+    if (isPublicMode) {
+        // Use public endpoint
+        const res = await fetch(`${API_BASE}/api/public/executions/${lastExecutionId}/review`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ note, guestId })
+        });
+        if (!res.ok) {
+            const text = await res.text();
+            let errorMessage = text || 'Failed to request review';
+            try {
+                const data = JSON.parse(text);
+                errorMessage = data.message || data.detail || errorMessage;
+            } catch (e) {
+                // Not JSON, use raw text or default
+            }
+            throw new Error(errorMessage);
+        }
+    } else {
+        // Use authenticated endpoint
+        await api.executions.requestReview(lastExecutionId, note);
+    }
+    
+    setReviewStatus('pending');
+    if (onCreditsRefresh) onCreditsRefresh();
+  };
 
   useEffect(() => {
     abortControllerRef.current?.abort();
@@ -120,6 +156,22 @@ export const ChatInterface = ({
     return `USER PROVIDED THE FOLLOWING REQUIRED INPUTS:\n${lines.join('\n')}`;
   };
 
+  const handleFileSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setIsUploading(true);
+    try {
+        const { text } = await publicApi.extractFileText(file);
+        setAttachment({ name: file.name, content: text });
+    } catch (err) {
+        console.error(err);
+        alert('Failed to extract text from file.');
+    } finally {
+        setIsUploading(false);
+        if (fileInputRef.current) fileInputRef.current.value = '';
+    }
+  };
+
   const handleStartConversation = () => {
     const errors: Record<string, string> = {};
     agent.inputs.forEach((input) => {
@@ -148,16 +200,21 @@ export const ChatInterface = ({
     abortControllerRef.current = controller;
 
     const headers = new Headers({ 'Content-Type': 'application/json' });
-    if (!isPublicMode) {
-      const token = authApi.getToken();
-      if (token) {
-        headers.set('Authorization', `Bearer ${token}`);
-      }
+    const token = authApi.getToken();
+    if (token) {
+      headers.set('Authorization', `Bearer ${token}`);
     }
 
+    const history = messages
+      .filter(m => m.id !== 'init') // Skip initial greeting
+      .map(m => ({
+        role: m.role === 'model' ? 'model' : 'user',
+        content: m.text
+      }));
+
     const payload = isPublicMode
-      ? { guestId, agentId: agent.id, message, inputsContext: context }
-      : { agentId: agent.id, message, inputsContext: context };
+      ? { guestId, agentId: agent.id, message, inputsContext: context, messages: history }
+      : { agentId: agent.id, message, inputsContext: context, messages: history };
 
     const endpoint = isPublicMode ? '/api/public/chat/stream' : '/api/chat/stream';
     const response = await fetch(`${API_BASE}${endpoint}`, {
@@ -177,6 +234,12 @@ export const ChatInterface = ({
       throw new Error(text || 'Request failed');
     }
 
+    const execId = response.headers.get('X-Execution-Id');
+    if (execId) {
+        setLastExecutionId(execId);
+        setReviewStatus('none');
+    }
+
     const reader = response.body.getReader();
     const decoder = new TextDecoder();
     let fullText = '';
@@ -190,20 +253,29 @@ export const ChatInterface = ({
   };
 
   const sendMessage = async (text: string, includeUserMessage: boolean = true) => {
-    if (!text.trim() || isThinking) return;
+    if ((!text.trim() && !attachment) || isThinking) return;
+
+    let messageText = text;
+    if (attachment && includeUserMessage) {
+      messageText += `\n\n<details><summary>Attached File: ${attachment.name}</summary>\n\n${attachment.content}\n\n</details>`;
+      setAttachment(null);
+    }
 
     const botMsg = createBotMessage('');
 
+    setLastExecutionId(null);
+    setReviewStatus('none');
+
     setMessages(prev => {
       if (!includeUserMessage) return [...prev, botMsg];
-      const userMsg = createUserMessage(text);
+      const userMsg = createUserMessage(messageText);
       return [...prev, userMsg, botMsg];
     });
     setInputValue('');
     setIsThinking(true);
 
     try {
-      await streamResponse(text, botMsg.id, inputsContext);
+      await streamResponse(messageText, botMsg.id, inputsContext);
     } catch (error: any) {
       if (error?.name !== 'AbortError') {
         if (error?.code === 'INSUFFICIENT_CREDITS') {
@@ -220,6 +292,46 @@ export const ChatInterface = ({
       }
     }
   };
+
+  useEffect(() => {
+    let interval: NodeJS.Timeout;
+    if (reviewStatus === 'pending' && lastExecutionId) {
+      interval = setInterval(async () => {
+        try {
+          let data: any;
+          if (isPublicMode) {
+            const res = await fetch(`${API_BASE}/api/public/executions/${lastExecutionId}`);
+            if (res.ok) {
+              data = await res.json();
+            }
+          } else {
+            const res = await api.executions.get(lastExecutionId);
+            data = res.data;
+          }
+
+          if (data && data.review_status === 'completed') {
+            setReviewStatus('completed');
+            // Update the last bot message with the review results
+            setMessages(prev => {
+              const lastMsg = [...prev].reverse().find(m => m.role === 'model');
+              if (lastMsg) {
+                const updatedText = `${lastMsg.text}\n\n---\n**Expert Review Note:** ${data.review_response_note || 'The creator has reviewed your request.'}\n\n**Updated Result:**\n${typeof data.outputs === 'object' ? JSON.stringify(data.outputs, null, 2) : data.outputs}`;
+                return prev.map(m => m.id === lastMsg.id ? { ...m, text: updatedText } : m);
+              }
+              return prev;
+            });
+            clearInterval(interval);
+          } else if (data && data.review_status === 'rejected') {
+            setReviewStatus('rejected');
+            clearInterval(interval);
+          }
+        } catch (err) {
+          console.error("Polling error:", err);
+        }
+      }, 5000);
+    }
+    return () => clearInterval(interval);
+  }, [reviewStatus, lastExecutionId, isPublicMode]);
 
   const handleSend = async () => {
     if (!inputValue.trim()) return;
@@ -274,21 +386,6 @@ export const ChatInterface = ({
           <Button variant="outline" className="mt-4 text-xs" onClick={exportConversation}>
             <Download size={14} /> Export Chat
           </Button>
-          {isPublicMode && typeof credits === 'number' && (
-            <div className="mt-4 rounded-lg border border-slate-700 bg-slate-900/60 p-3">
-              <div className="flex items-center justify-between text-xs text-slate-400">
-                <span>Credits</span>
-                <span className="text-slate-200 font-semibold">{credits}</span>
-              </div>
-              <Button
-                variant="outline"
-                className="mt-3 text-xs w-full"
-                onClick={() => onBuyCredits?.(10)}
-              >
-                Buy 10 credits
-              </Button>
-            </div>
-          )}
         </div>
 
         <div className="p-6 flex-1 overflow-y-auto">
@@ -305,6 +402,40 @@ export const ChatInterface = ({
               ))}
             </ul>
           )}
+          
+          {(agent.enabledCapabilities?.codeExecution || agent.enabledCapabilities?.webBrowsing || agent.enabledCapabilities?.apiIntegrations || agent.enabledCapabilities?.fileHandling) && (
+            <div className="mt-6">
+              <h3 className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-3">Capabilities</h3>
+              <ul className="space-y-2">
+                {agent.enabledCapabilities.webBrowsing && (
+                  <li className="flex items-center gap-2 text-sm text-slate-300">
+                    <Globe size={14} className="text-teal-400" />
+                    <span>Web Browsing</span>
+                  </li>
+                )}
+                {agent.enabledCapabilities.codeExecution && (
+                  <li className="flex items-center gap-2 text-sm text-slate-300">
+                    <Code size={14} className="text-purple-400" />
+                    <span>Code Execution</span>
+                  </li>
+                )}
+                {agent.enabledCapabilities.apiIntegrations && (
+                  <li className="flex items-center gap-2 text-sm text-slate-300">
+                    <Zap size={14} className="text-amber-400" />
+                    <span>API Actions</span>
+                  </li>
+                )}
+                {agent.enabledCapabilities.fileHandling && (
+                  <li className="flex items-center gap-2 text-sm text-slate-300">
+                    <FileText size={14} className="text-orange-400" />
+                    <span>File Handling</span>
+                  </li>
+                )}
+              </ul>
+            </div>
+          )}
+          
+
         </div>
       </div>
 
@@ -416,7 +547,7 @@ export const ChatInterface = ({
               {messages.map((msg) => (
                 <div key={msg.id} className={`group flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
                   <div
-                    className={`max-w-[80%] rounded-2xl px-5 py-4 shadow-sm relative ${
+                    className={`max-w-[80%] rounded-2xl px-5 py-4 shadow-sm relative break-words ${
                       msg.role === 'user'
                         ? 'bg-blue-600 text-white rounded-br-none'
                         : 'bg-slate-800 border border-slate-700 text-slate-200 rounded-bl-none'
@@ -496,11 +627,59 @@ export const ChatInterface = ({
                     >
                       <Square size={14} /> Stop
                     </Button>
+                    {agent.allow_reviews && lastExecutionId && !isThinking && (
+                        <Button
+                        variant="outline"
+                        className={`text-xs ${reviewStatus === 'pending' ? 'text-amber-400 border-amber-400/50' : ''}`}
+                        onClick={() => setIsReviewModalOpen(true)}
+                        disabled={reviewStatus !== 'none' && reviewStatus !== 'rejected'}
+                        title={reviewStatus === 'pending' ? "Review Pending" : "Request Expert Review"}
+                        >
+                        {reviewStatus === 'pending' ? 'Review Pending' : 'Request Review'}
+                        </Button>
+                    )}
                   </div>
                   <div className="text-xs text-slate-500">{agentModelOption?.label || 'AI Model'}</div>
                 </div>
 
+                {attachment && (
+                  <div className="mb-2 mx-1 flex items-center justify-between p-2 bg-slate-800 border border-slate-700 rounded-lg animate-in slide-in-from-bottom-1">
+                    <div className="flex items-center gap-2 overflow-hidden">
+                      <div className="bg-blue-500/20 p-1.5 rounded text-blue-400">
+                        <Paperclip size={14} />
+                      </div>
+                      <span className="text-xs text-slate-200 truncate font-medium max-w-[200px]">{attachment.name}</span>
+                      <span className="text-xs text-slate-500">(Context)</span>
+                    </div>
+                    <button 
+                      onClick={() => setAttachment(null)}
+                      className="text-slate-500 hover:text-red-400 transition-colors p-1"
+                    >
+                      <X size={14} />
+                    </button>
+                  </div>
+                )}
                 <div className="relative flex items-end gap-2 bg-slate-800 border border-slate-700 rounded-xl p-2 focus-within:ring-2 focus-within:ring-blue-500/50 transition-all">
+                  {agent.enabledCapabilities?.fileHandling && (
+                    <>
+                      <input 
+                        type="file" 
+                        ref={fileInputRef} 
+                        className="hidden" 
+                        onChange={handleFileSelect}
+                        accept=".pdf,.txt,.md,.docx,.html,.csv"
+                      />
+                      <Button
+                        onClick={() => fileInputRef.current?.click()}
+                        disabled={isUploading || isThinking || !!attachment}
+                        variant="ghost"
+                        className="mb-0.5 rounded-lg w-10 h-10 p-0 flex items-center justify-center shrink-0 text-slate-400 hover:text-white hover:bg-slate-700"
+                        title="Attach file"
+                      >
+                        {isUploading ? <Loader2 size={18} className="animate-spin" /> : <Paperclip size={18} />}
+                      </Button>
+                    </>
+                  )}
                   <textarea
                     value={inputValue}
                     onChange={(e) => setInputValue(e.target.value)}
@@ -532,6 +711,13 @@ export const ChatInterface = ({
           </>
         )}
       </div>
+      <ReviewRequestModal 
+        isOpen={isReviewModalOpen}
+        onClose={() => setIsReviewModalOpen(false)}
+        onSubmit={handleRequestReview}
+        agentName={agent.name}
+        reviewCost={agent.review_cost}
+      />
     </div>
   );
 };

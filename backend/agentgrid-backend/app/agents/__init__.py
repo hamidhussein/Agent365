@@ -8,3 +8,5 @@ from app.agents.examples import EchoAgent
 # from app.agents.meeting_agent import MeetingMinutesAgent
 # from app.agents.sql_agent import SQLTranslatorAgent
 # from app.agents.data_cleanser import DataCleanserAgent
+
+from app.agents.seo_auditor_pro import SEOAuditorPro

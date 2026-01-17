@@ -16,6 +16,9 @@ class Settings(BaseSettings):
     JWT_SECRET_KEY: str = "super-secret-change-me"
     JWT_ALGORITHM: str = "HS256"
     OPENAI_API_KEY: str = "your_openai_api_key_here"
+    SERPAPI_KEY: str | None = None
+    GOOGLE_SEARCH_API_KEY: str | None = None
+    GOOGLE_SEARCH_CX: str | None = None
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 30
     REFRESH_TOKEN_EXPIRE_DAYS: int = 7
 

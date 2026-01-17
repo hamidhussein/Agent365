@@ -40,6 +40,9 @@ const CreditPackageCard: React.FC<{ pkg: CreditPackage }> = ({ pkg }) => {
             };
 
             login(frontendUser); // Updates the store
+            setTimeout(() => {
+                window.location.assign("/dashboard/settings");
+            }, 400);
 
         } catch (e: any) {
             error(e.response?.data?.detail || "Purchase failed. Please try again.");

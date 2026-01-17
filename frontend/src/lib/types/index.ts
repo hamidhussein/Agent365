@@ -43,6 +43,8 @@ export interface Agent {
   limitations?: string[];
   thumbnail_url?: string;
   demo_available: boolean;
+  allow_reviews?: boolean;
+  review_cost?: number;
   created_at: string;
   updated_at: string;
 }
@@ -112,15 +114,22 @@ export interface SocialLinks {
 export interface AgentExecution {
   id: string;
   agent_id: string;
-  user_id: string;
+  user_id: string | null;
   status: ExecutionStatus;
   inputs: Record<string, any>;
   outputs?: Record<string, any>;
+  refined_outputs?: Record<string, any>;
   error_message?: string;
   credits_used: number;
   started_at: string;
   completed_at?: string;
+  created_at: string;
+  updated_at: string;
   duration_ms?: number;
+  review_status?: ReviewStatus;
+  review_request_note?: string;
+  review_response_note?: string;
+  reviewed_at?: string;
 }
 
 export enum ExecutionStatus {
@@ -130,6 +139,8 @@ export enum ExecutionStatus {
   FAILED = 'failed',
   CANCELLED = 'cancelled',
 }
+
+export type ReviewStatus = 'none' | 'pending' | 'in_progress' | 'completed' | 'rejected';
 
 // ============= REVIEW TYPES =============
 export interface Review {
@@ -202,4 +213,9 @@ export interface AgentFilters {
   tags?: string[];
   search_query?: string;
   sort_by?: 'popular' | 'rating' | 'newest' | 'price_low' | 'price_high';
+  creator_id?: string;
+  limit?: number;
+  skip?: number;
+  source?: 'manual' | 'creator_studio' | 'all';
+  include_creator_studio_public?: boolean;
 }

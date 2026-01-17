@@ -60,9 +60,14 @@ class AgentService:
         creator_id: Optional[str] = None,
         source: Optional[str] = "manual",
         include_creator_studio_public: bool = False,
+        favorited_by: Optional[str] = None,
     ) -> Tuple[List[Agent], int]:
         query = db.query(Agent).filter(Agent.status == AgentStatus.ACTIVE)
         creator_public_filter = and_(Agent.source == "creator_studio", Agent.is_public.is_(True))
+
+        if favorited_by:
+            favorited_by_uuid = _coerce_uuid(favorited_by)
+            query = query.join(Agent.favorited_by_users).filter(User.id == favorited_by_uuid)
 
         if source == "manual" or source is None:
             if include_creator_studio_public:

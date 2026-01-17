@@ -46,6 +46,9 @@ class Agent(TimestampMixin, Base):
     version: Mapped[str] = mapped_column(String(32), default="1.0.0")
     thumbnail_url: Mapped[Optional[str]] = mapped_column(String(512), nullable=True)
 
+    allow_reviews: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    review_cost: Mapped[int] = mapped_column(Integer, default=5, nullable=False)
+
     creator_id: Mapped[uuid.UUID] = mapped_column(
         Uuid, ForeignKey("users.id", ondelete="CASCADE"), nullable=False
     )
@@ -69,3 +72,4 @@ class Agent(TimestampMixin, Base):
     creator_studio_chunks: Mapped[List["CreatorStudioKnowledgeChunk"]] = relationship(
         back_populates="agent", cascade="all, delete"
     )
+

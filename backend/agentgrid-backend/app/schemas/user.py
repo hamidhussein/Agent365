@@ -36,3 +36,23 @@ class UserRead(UserBase):
     favoriteAgentIds: list[UUID] = []
 
     model_config = ConfigDict(from_attributes=True, populate_by_name=True)
+
+
+class UserUpdate(BaseModel):
+    full_name: str | None = Field(None, max_length=255)
+
+
+class PasswordUpdate(BaseModel):
+    old_password: str
+    new_password: str = Field(min_length=8)
+
+    @field_validator("new_password")
+    @classmethod
+    def validate_new_password_strength(cls, value: str) -> str:
+        if not any(char.isupper() for char in value):
+            raise ValueError("Password must include at least one uppercase letter")
+        if not any(char.islower() for char in value):
+            raise ValueError("Password must include at least one lowercase letter")
+        if not any(char.isdigit() for char in value):
+            raise ValueError("Password must include at least one digit")
+        return value

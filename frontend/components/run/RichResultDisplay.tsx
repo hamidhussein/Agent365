@@ -1,20 +1,83 @@
 import React, { useState } from 'react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
-import { Clipboard, Check, Code, Terminal, FileText, Mail, AlertTriangle } from 'lucide-react';
+import { Clipboard, Check, Code, Terminal, FileText, Mail, AlertTriangle, UserCheck, CheckCircle } from 'lucide-react';
 import { clsx, type ClassValue } from "clsx";
 import { twMerge } from "tailwind-merge";
+import * as Dialog from '@radix-ui/react-dialog';
 
 function cn(...inputs: ClassValue[]) {
     return twMerge(clsx(inputs));
 }
 
 interface RichResultDisplayProps {
-    result: any; // Can be string or object
+    result: any;
     error?: string | null;
     isStreaming: boolean;
     onRunAgain: () => void;
+    onRequestReview?: (note: string) => Promise<void>;
+    reviewStatus?: 'none' | 'pending' | 'in_progress' | 'completed' | 'rejected';
 }
+
+const RequestReviewModal: React.FC<{
+    isOpen: boolean;
+    onClose: () => void;
+    onSubmit: (note: string) => Promise<void>;
+}> = ({ isOpen, onClose, onSubmit }) => {
+    const [note, setNote] = useState('');
+    const [loading, setLoading] = useState(false);
+
+    const handleSubmit = async (e: React.FormEvent) => {
+        e.preventDefault();
+        setLoading(true);
+        await onSubmit(note);
+        setLoading(false);
+        onClose();
+    };
+
+    return (
+        <Dialog.Root open={isOpen} onOpenChange={onClose}>
+            <Dialog.Portal>
+                <Dialog.Overlay className="fixed inset-0 bg-black/50 data-[state=open]:animate-overlayShow relative z-50 backdrop-blur-sm" />
+                <Dialog.Content className="fixed left-[50%] top-[50%] max-h-[85vh] w-[90vw] max-w-[500px] translate-x-[-50%] translate-y-[-50%] rounded-xl bg-gray-900 border border-gray-700 p-6 shadow-2xl focus:outline-none z-50 data-[state=open]:animate-contentShow">
+                    <Dialog.Title className="text-xl font-bold text-white mb-2">
+                        Request Expert Review
+                    </Dialog.Title>
+                    <Dialog.Description className="text-gray-400 text-sm mb-4">
+                        Not satisfied with the result? Ask the creator to review and refine it.
+                    </Dialog.Description>
+                    <form onSubmit={handleSubmit}>
+                        <textarea
+                            className="w-full bg-gray-800 border border-gray-700 rounded-md p-3 text-white placeholder-gray-500 focus:ring-2 focus:ring-brand-primary outline-none min-h-[100px]"
+                            placeholder="Describe what needs to be improved..."
+                            value={note}
+                            onChange={(e) => setNote(e.target.value)}
+                            required
+                        />
+                        <div className="flex justify-end gap-3 mt-4">
+                            <button
+                                type="button"
+                                onClick={onClose}
+                                className="px-4 py-2 text-sm font-medium text-gray-300 hover:text-white"
+                            >
+                                Cancel
+                            </button>
+                            <button
+                                type="submit"
+                                disabled={loading}
+                                className="px-4 py-2 text-sm font-medium bg-brand-primary text-white rounded-md hover:bg-brand-primary/90 disabled:opacity-50"
+                            >
+                                {loading ? 'Sending...' : 'Request Review'}
+                            </button>
+                        </div>
+                    </form>
+                </Dialog.Content>
+            </Dialog.Portal>
+        </Dialog.Root>
+    );
+};
+
+// ... (CopyButton, MarkdownBlock, Card, ResultParser components remain unchanged)
 
 const CopyButton: React.FC<{ text: string }> = ({ text }) => {
     const [copied, setCopied] = useState(false);
@@ -37,7 +100,7 @@ const CopyButton: React.FC<{ text: string }> = ({ text }) => {
 
 const MarkdownBlock: React.FC<{ content: string; className?: string }> = ({ content, className }) => {
     return (
-        <div className={cn("prose prose-invert max-w-none text-sm leading-relaxed", className)}>
+        <div className={cn("prose prose-invert max-w-none text-sm leading-relaxed break-words min-w-0", className)}>
             <ReactMarkdown
                 remarkPlugins={[remarkGfm]}
                 components={{
@@ -164,7 +227,17 @@ const ResultParser: React.FC<{ data: any }> = ({ data }) => {
     return <pre>{JSON.stringify(data, null, 2)}</pre>;
 };
 
-const RichResultDisplay: React.FC<RichResultDisplayProps> = ({ result, error, isStreaming, onRunAgain }) => {
+const RichResultDisplay: React.FC<RichResultDisplayProps & { refinedResult?: any }> = ({ result, refinedResult, error, isStreaming, onRunAgain, onRequestReview, reviewStatus }) => {
+    const [isReviewOpen, setIsReviewOpen] = useState(false);
+    const [viewMode, setViewMode] = useState<'original' | 'refined'>(refinedResult ? 'refined' : 'original');
+
+    // Auto-switch to refined if it becomes available (e.g. real-time update)
+    React.useEffect(() => {
+        if (refinedResult) {
+            setViewMode('refined');
+        }
+    }, [refinedResult]);
+
     if (error) {
         return (
             <div className="animate-in fade-in duration-500">
@@ -200,20 +273,80 @@ const RichResultDisplay: React.FC<RichResultDisplayProps> = ({ result, error, is
 
     if (!result) return null;
 
+    const displayData = viewMode === 'refined' && refinedResult ? refinedResult : result;
+
     return (
         <div className="animate-in fade-in duration-700">
             <div className="flex items-center justify-between mb-6">
-                <h2 className="text-2xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-white to-gray-400">
-                    Execution Result
-                </h2>
-                {/* Global Run Again if needed at top, but usually at bottom is fine */}
+                <div className="flex items-center gap-4">
+                    <h2 className="text-2xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-white to-gray-400">
+                        Execution Result
+                    </h2>
+                    
+                    {refinedResult && (
+                        <div className="bg-gray-800 p-1 rounded-lg flex items-center border border-gray-700">
+                            <button
+                                onClick={() => setViewMode('original')}
+                                className={cn(
+                                    "px-3 py-1 text-xs font-medium rounded-md transition-all",
+                                    viewMode === 'original' ? "bg-gray-700 text-white shadow-sm" : "text-gray-400 hover:text-white"
+                                )}
+                            >
+                                Original
+                            </button>
+                            <button
+                                onClick={() => setViewMode('refined')}
+                                className={cn(
+                                    "px-3 py-1 text-xs font-medium rounded-md transition-all flex items-center gap-1.5",
+                                    viewMode === 'refined' ? "bg-purple-600 text-white shadow-sm" : "text-purple-400/80 hover:text-purple-300"
+                                )}
+                            >
+                                <CheckCircle className="w-3 h-3" />
+                                Expert Verified
+                            </button>
+                        </div>
+                    )}
+                </div>
+                
+                {reviewStatus === 'pending' && (
+                    <span className="text-amber-400 text-sm font-medium px-3 py-1 bg-amber-950/30 border border-amber-900/50 rounded-full flex items-center gap-2">
+                        <UserCheck size={14} /> Review Pending
+                    </span>
+                 )}
             </div>
 
-            <div className="bg-gray-950/30 rounded-xl border border-gray-800 p-6 min-h-[300px] shadow-inner backdrop-blur-sm">
-                <ResultParser data={result} />
+            <div className={cn(
+                "bg-gray-950/30 rounded-xl border p-6 min-h-[300px] shadow-inner backdrop-blur-sm transition-colors duration-300",
+                viewMode === 'refined' ? "border-purple-500/30 bg-purple-900/5" : "border-gray-800"
+            )}>
+                 {viewMode === 'refined' && (
+                    <div className="mb-6 bg-purple-500/10 border border-purple-500/20 rounded-lg p-3 flex items-start gap-3">
+                        <UserCheck className="w-5 h-5 text-purple-400 mt-0.5 flex-shrink-0" />
+                        <div>
+                            <h4 className="text-sm font-semibold text-purple-200">Expert Verified Output</h4>
+                            <p className="text-xs text-purple-300/80 mt-1">This result has been reviewed and refined by the agent creator.</p>
+                        </div>
+                    </div>
+                )}
+                <ResultParser data={displayData} />
             </div>
 
-            <div className="mt-8 flex justify-end">
+            <div className="mt-8 flex items-center justify-end gap-3">
+                 {onRequestReview && (!reviewStatus || reviewStatus === 'none' || reviewStatus === 'rejected') && !refinedResult && (
+                     <>
+                        <button
+                            onClick={() => setIsReviewOpen(true)}
+                            className="inline-flex items-center justify-center rounded-lg border border-gray-600 px-6 py-3 text-sm font-semibold text-gray-300 hover:bg-gray-800 hover:text-white transition-colors"
+                        >
+                            Request Expert Review
+                        </button>
+                        <RequestReviewModal
+                            isOpen={isReviewOpen}
+                            onClose={() => setIsReviewOpen(false)}
+                            onSubmit={onRequestReview}
+                        />
+                     </>
+                 )}
                 <button
                     onClick={onRunAgain}
                     disabled={isStreaming}
