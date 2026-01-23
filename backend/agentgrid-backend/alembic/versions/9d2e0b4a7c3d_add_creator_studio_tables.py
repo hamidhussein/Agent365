@@ -21,7 +21,7 @@ depends_on: Union[str, Sequence[str], None] = None
 def upgrade() -> None:
     op.add_column(
         'agents',
-        sa.Column('is_public', sa.Boolean(), nullable=False, server_default=sa.text('0'))
+        sa.Column('is_public', sa.Boolean(), nullable=False, server_default=sa.text('false'))
     )
     op.add_column(
         'agents',
@@ -32,8 +32,8 @@ def upgrade() -> None:
         'creator_studio_app_settings',
         sa.Column('key', sa.String(length=128), nullable=False),
         sa.Column('value', sa.String(length=2048), nullable=False),
-        sa.Column('created_at', sa.DateTime(timezone=True), server_default=sa.text('(CURRENT_TIMESTAMP)'), nullable=False),
-        sa.Column('updated_at', sa.DateTime(timezone=True), server_default=sa.text('(CURRENT_TIMESTAMP)'), nullable=False),
+        sa.Column('created_at', sa.DateTime(timezone=True), server_default=sa.func.now(), nullable=False),
+        sa.Column('updated_at', sa.DateTime(timezone=True), server_default=sa.func.now(), nullable=False),
         sa.PrimaryKeyConstraint('key')
     )
 
@@ -41,8 +41,8 @@ def upgrade() -> None:
         'creator_studio_guest_credits',
         sa.Column('id', sa.String(length=128), nullable=False),
         sa.Column('credits', sa.Integer(), nullable=False),
-        sa.Column('created_at', sa.DateTime(timezone=True), server_default=sa.text('(CURRENT_TIMESTAMP)'), nullable=False),
-        sa.Column('updated_at', sa.DateTime(timezone=True), server_default=sa.text('(CURRENT_TIMESTAMP)'), nullable=False),
+        sa.Column('created_at', sa.DateTime(timezone=True), server_default=sa.func.now(), nullable=False),
+        sa.Column('updated_at', sa.DateTime(timezone=True), server_default=sa.func.now(), nullable=False),
         sa.PrimaryKeyConstraint('id')
     )
 
@@ -55,8 +55,8 @@ def upgrade() -> None:
         sa.Column('api_key', sa.String(length=512), nullable=False),
         sa.Column('usage', sa.Integer(), nullable=False),
         sa.Column('limit_amount', sa.Integer(), nullable=False),
-        sa.Column('created_at', sa.DateTime(timezone=True), server_default=sa.text('(CURRENT_TIMESTAMP)'), nullable=False),
-        sa.Column('updated_at', sa.DateTime(timezone=True), server_default=sa.text('(CURRENT_TIMESTAMP)'), nullable=False),
+        sa.Column('created_at', sa.DateTime(timezone=True), server_default=sa.func.now(), nullable=False),
+        sa.Column('updated_at', sa.DateTime(timezone=True), server_default=sa.func.now(), nullable=False),
         sa.PrimaryKeyConstraint('id')
     )
 
@@ -66,8 +66,8 @@ def upgrade() -> None:
         sa.Column('agent_id', sa.Uuid(), nullable=False),
         sa.Column('name', sa.String(length=255), nullable=False),
         sa.Column('size_bytes', sa.Integer(), nullable=False),
-        sa.Column('created_at', sa.DateTime(timezone=True), server_default=sa.text('(CURRENT_TIMESTAMP)'), nullable=False),
-        sa.Column('updated_at', sa.DateTime(timezone=True), server_default=sa.text('(CURRENT_TIMESTAMP)'), nullable=False),
+        sa.Column('created_at', sa.DateTime(timezone=True), server_default=sa.func.now(), nullable=False),
+        sa.Column('updated_at', sa.DateTime(timezone=True), server_default=sa.func.now(), nullable=False),
         sa.ForeignKeyConstraint(['agent_id'], ['agents.id'], ondelete='CASCADE'),
         sa.PrimaryKeyConstraint('id')
     )
@@ -80,8 +80,8 @@ def upgrade() -> None:
         sa.Column('chunk_index', sa.Integer(), nullable=False),
         sa.Column('text', sa.Text(), nullable=False),
         sa.Column('embedding', sa.JSON(), nullable=False),
-        sa.Column('created_at', sa.DateTime(timezone=True), server_default=sa.text('(CURRENT_TIMESTAMP)'), nullable=False),
-        sa.Column('updated_at', sa.DateTime(timezone=True), server_default=sa.text('(CURRENT_TIMESTAMP)'), nullable=False),
+        sa.Column('created_at', sa.DateTime(timezone=True), server_default=sa.func.now(), nullable=False),
+        sa.Column('updated_at', sa.DateTime(timezone=True), server_default=sa.func.now(), nullable=False),
         sa.ForeignKeyConstraint(['agent_id'], ['agents.id'], ondelete='CASCADE'),
         sa.ForeignKeyConstraint(['file_id'], ['creator_studio_knowledge_files.id'], ondelete='CASCADE'),
         sa.PrimaryKeyConstraint('id')

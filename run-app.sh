@@ -12,7 +12,7 @@ FRONTEND_DIR="frontend"
 # 1. Start Backend in background
 echo "Starting Backend on port 8000..."
 export PYTHONPATH="backend/agentgrid-backend"
-export DATABASE_URL="sqlite:///backend/agentgrid-backend/agentgrid.db"
+export DATABASE_URL="postgresql://postgres:postgres@localhost:5432/agentgrid"
 cd $BACKEND_DIR
 ./venv/bin/python -m uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload &
 BACKEND_PID=$!

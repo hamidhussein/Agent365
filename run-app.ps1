@@ -10,7 +10,7 @@ $BackendVenv = "$BackendDir\venv\Scripts\python.exe"
 
 # 1. Start Backend in a new window
 Write-Host "Starting Backend on port 8000..." -ForegroundColor Green
-$BackendCommand = "`$env:PYTHONPATH='backend/agentgrid-backend'; `$env:DATABASE_URL='sqlite:///backend/agentgrid-backend/agentgrid.db'; & '$BackendVenv' -m uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload"
+$BackendCommand = "`$env:PYTHONPATH='backend/agentgrid-backend'; `$env:DATABASE_URL='postgresql://postgres:postgres@localhost:5432/agentgrid'; & '$BackendVenv' -m uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload"
 Start-Process powershell -ArgumentList "-NoExit", "-Command", $BackendCommand
 
 # 2. Start Frontend in a new window

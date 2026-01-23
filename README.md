@@ -2,27 +2,37 @@
 
 This guide provides step-by-step instructions to set up and run the AgentGrid platform locally.
 
+## ✨ New Features
+### Advanced Creator Studio
+- **Agent Architect**: Conversational builder that helps you create agents using natural language.
+- **Live Preview**: Real-time side-by-side chat to test your agent before saving.
+- **Enhanced Skills**: Dynamic integration of Web Search and Code Execution.
+
+---
+
 ## 🚀 Quick Start (Windows)
 
-To start both the frontend and backend with a single command:
+To start the entire environment with a single command:
 
-1.  Open PowerShell in the project root.
-2.  Run the following script:
+1.  **Start Database**: Ensure Docker Desktop is running.
+    ```powershell
+    docker compose up -d db
+    ```
+2.  **Run Services**: Open PowerShell in the project root and run:
     ```powershell
     .\run-app.ps1
     ```
-    This will open two new terminal windows: one for the backend (port 8000) and one for the frontend (port 3000).
+    This will open two terminal windows: one for the backend (port 8000) and one for the frontend (port 3000).
 
 ---
 
 ## 🛠 Manual Setup
 
-If you prefer to run services manually, follow these steps:
-
 ### 1. Prerequisites
 - **Python 3.10+**
 - **Node.js 18+** & **npm**
-- **SQLite**
+- **Docker** (for PostgreSQL)
+- **PostgreSQL 15+** (if not using Docker)
 
 ### 2. Backend Setup
 The backend is located in `backend/agentgrid-backend`.
@@ -36,7 +46,7 @@ pip install -r requirements.txt
 
 #### Environment Config (`backend/agentgrid-backend/.env`)
 ```ini
-DATABASE_URL=sqlite:///./agentgrid.db
+DATABASE_URL=postgresql://postgres:postgres@localhost:5432/agentgrid
 SECRET_KEY=your_secret_key_here
 ALGORITHM=HS256
 OPENAI_API_KEY=your_openai_api_key_here
@@ -44,15 +54,20 @@ OPENAI_API_KEY=your_openai_api_key_here
 
 #### Database Initialization
 ```powershell
-# Create tables and seed data
-python init_db.py
+# Start the Postgres container (if using Docker)
+docker compose up -d db
+
+# Run Alembic migrations to set up the schema
+alembic upgrade head
+
+# Seed initial agents
 python seed_agents.py
 ```
 
 #### Start Backend
 From the **project root**:
 ```powershell
-$env:PYTHONPATH="backend/agentgrid-backend"; $env:DATABASE_URL="sqlite:///backend/agentgrid-backend/agentgrid.db"; .\backend\agentgrid-backend\venv\Scripts\python.exe -m uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
+$env:PYTHONPATH="backend/agentgrid-backend"; $env:DATABASE_URL="postgresql://postgres:postgres@localhost:5432/agentgrid"; .\backend\agentgrid-backend\venv\Scripts\python.exe -m uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
 ```
 
 ### 3. Frontend Setup
@@ -77,8 +92,6 @@ npm run dev
 
 ## 🔑 Default Credentials
 
-Use these credentials to test the application:
-
 | Role | Email | Password |
 | :--- | :--- | :--- |
 | **Admin** | `admin@agentgrid.ai` | `admin123` |
@@ -90,10 +103,10 @@ Use these credentials to test the application:
 
 1.  **Frontend**: [http://localhost:3000](http://localhost:3000)
 2.  **Backend API Docs**: [http://localhost:8000/docs](http://localhost:8000/docs)
-3.  **Login**: Use the Admin credentials above to access the full features, including the Creator Studio.
+3.  **Creator Studio**: Go to the "Creator Studio" tab to try the new **Agent Architect**.
 
 ## 📌 Troubleshooting
 
-- **Port Conflicts**: Ensure ports 8000 and 3000 are not in use by other applications.
-- **Database Missing Tables**: If you see `no such table` errors, run `python init_db.py` in the backend directory.
-- **Frontend API Errors**: Double-check that `frontend/.env` points to `http://localhost:8000/api/v1`.
+- **Database Connection**: If the backend fails to start, ensure Docker is running and the `db` container is up (`docker ps`).
+- **Migrations**: If you see `no such table` errors, run `alembic upgrade head`.
+- **Unique Constraint Errors**: If you encounter errors during your first run, ensure your `agentgrid` database in Postgres is empty before running migrations.
