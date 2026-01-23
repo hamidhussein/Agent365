@@ -131,6 +131,7 @@ class CreatorStudioPublicChatRequest(BaseModel):
     message: str
     inputsContext: Optional[str] = None
     messages: Optional[list[CreatorStudioChatMessage]] = None
+    draftConfig: Optional[dict] = None
 
 
 class CreatorStudioGuestCreditsRequest(BaseModel):
@@ -146,3 +147,15 @@ class CreatorStudioPlatformSettings(BaseModel):
     SERPAPI_KEY: Optional[str] = None
     GOOGLE_SEARCH_API_KEY: Optional[str] = None
     GOOGLE_SEARCH_CX: Optional[str] = None
+
+
+class CreatorStudioAgentBuildRequest(BaseModel):
+    message: str
+    agent_id: Optional[str] = None
+    current_state: Optional[dict] = None
+    history: Optional[list[CreatorStudioChatMessage]] = None
+
+
+class CreatorStudioAgentBuildResponse(BaseModel):
+    architect_message: str
+    suggested_changes: Optional[dict] = None

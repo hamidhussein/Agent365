@@ -69,9 +69,30 @@ export const ChatInterface = ({
 
     if (isPublicMode) {
         // Use public endpoint
+        const headers = new Headers({ 'Content-Type': 'application/json' });
+        
+        // Exhaustive token search
+        let token = localStorage.getItem('auth_token') || localStorage.getItem('token');
+        
+        if (!token) {
+            try {
+                const authStorage = localStorage.getItem('auth-storage');
+                if (authStorage) {
+                    const parsed = JSON.parse(authStorage);
+                    // Some Zustand setups store the token directly in the state
+                    token = parsed?.state?.token;
+                }
+            } catch (e) {}
+        }
+
+        if (token) {
+            const bearerToken = token.startsWith('Bearer ') ? token : `Bearer ${token}`;
+            headers.set('Authorization', bearerToken);
+        }
+
         const res = await fetch(`${API_BASE}/api/public/executions/${lastExecutionId}/review`, {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
+            headers,
             body: JSON.stringify({ note, guestId })
         });
         if (!res.ok) {
@@ -300,7 +321,12 @@ export const ChatInterface = ({
         try {
           let data: any;
           if (isPublicMode) {
-            const res = await fetch(`${API_BASE}/api/public/executions/${lastExecutionId}`);
+            const headers = new Headers();
+            const token = authApi.getToken();
+            if (token) {
+                headers.set('Authorization', `Bearer ${token}`);
+            }
+            const res = await fetch(`${API_BASE}/api/public/executions/${lastExecutionId}`, { headers });
             if (res.ok) {
               data = await res.json();
             }

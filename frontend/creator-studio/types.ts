@@ -127,3 +127,15 @@ export interface PlatformSettings {
   GOOGLE_SEARCH_API_KEY?: string;
   GOOGLE_SEARCH_CX?: string;
 }
+
+export interface AgentBuildPayload {
+  message: string;
+  agent_id?: string;
+  current_state?: Record<string, any>;
+  history?: { role: 'user' | 'model' | 'system'; content: string }[];
+}
+
+export interface AgentBuildResponse {
+  architect_message: string;
+  suggested_changes?: Partial<AgentPayload>;
+}

@@ -1403,3 +1403,74 @@ def build_vector_index(db: Session) -> None:
             continue
         VECTOR_INDEX.add(str(row.agent_id), str(row.id), embedding, row.text)
     print(f"Vector index population complete. Added {len(rows)} chunks.")
+
+
+def build_agent_chat(
+    db: Session,
+    message: str,
+    current_state: dict[str, Any] | None = None,
+    history: list[dict[str, Any]] | None = None,
+) -> dict[str, Any]:
+    model = get_assist_model(db)
+    if not model:
+        model = get_default_enabled_model(db)
+    
+    try:
+        provider = get_provider_for_model(db, model)
+    except HTTPException:
+        # If specifically disabled, fallback to next best
+        model = get_default_enabled_model(db)
+        provider = get_provider_for_model(db, model)
+    config = get_llm_config(db, provider)
+    api_key = resolve_llm_key(provider, config)
+
+    # Specialized System Instruction for the Architect
+    system_instruction = (
+        "You are the 'Agent Architect', a world-class AI expert assistant that helps users build their own AI agents on the AgentGrid platform.\n\n"
+        "Your goal is to guide the user naturally through the creation process. You should be friendly, professional, and insightful.\n\n"
+        "GUIDELINES:\n"
+        "1. Conversation: Talk to the user about their agent. Ask clarifying questions if their idea is vague. Suggest features like web search or code execution if they fit the use case.\n"
+        "2. JSON Updates: Whenever the conversation leads to a change in the agent's definition, you MUST include a JSON block at the end of your response inside a <suggestion> tag.\n"
+        "3. Fields to update: 'name', 'description', 'instruction'.\n\n"
+        "EXAMPLE JSON BLOCK:\n"
+        "<suggestion>\n"
+        "{\n"
+        "  \"name\": \"Travel Guru\",\n"
+        "  \"description\": \"A Japanese travel expert...\",\n"
+        "  \"instruction\": \"- You are a travel expert...\"\n"
+        "}\n"
+        "</suggestion>\n\n"
+        "The current agent state is provided below. Update it incrementally as the user provides more details."
+    )
+
+    if current_state:
+        # Filter None values to keep it clean
+        clean_state = {k: v for k, v in current_state.items() if v is not None}
+        system_instruction += f"\n\nCurrent Agent State:\n{json.dumps(clean_state, indent=2)}"
+
+    # Format history for the LLM
+    llm_history = []
+    if history:
+        for m in history:
+            role = "assistant" if m["role"] == "model" else m["role"]
+            llm_history.append({"role": role, "content": m["content"]})
+
+    # Generate response
+    response_text = generate_response(provider, model, system_instruction, message, api_key, db=db, history=llm_history)
+
+    # Parse out the suggestion
+    suggested_changes = None
+    suggestion_match = re.search(r"<suggestion>(.*?)</suggestion>", response_text, re.DOTALL)
+    if suggestion_match:
+        try:
+            suggested_changes = json.loads(suggestion_match.group(1).strip())
+            # Clean the response text from the tag for cleaner UI display
+            response_text = response_text.replace(suggestion_match.group(0), "").strip()
+        except Exception as e:
+            print(f"Failed to parse architect suggestion: {e}")
+            pass
+
+    return {
+        "architect_message": response_text,
+        "suggested_changes": suggested_changes
+    }

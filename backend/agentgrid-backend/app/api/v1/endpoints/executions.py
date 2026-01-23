@@ -161,8 +161,9 @@ def request_execution_review(
     # Deduct cost if applicable (Future work: transaction logic)
     cost = execution.agent.review_cost
     if cost > 0:
+        print(f"[DEBUG] Standard Review: User={current_user.username}, Credits={current_user.credits}, Cost={cost}", flush=True)
         if current_user.credits < cost:
-             raise HTTPException(status_code=402, detail=f"Not enough credits. Review costs {cost} credits.")
+             raise HTTPException(status_code=402, detail=f"User {current_user.username} has only {current_user.credits} credits. Review costs {cost} credits.")
         current_user.credits -= cost
         # Log transaction... (omitted for brevity, ideally use a service)
 

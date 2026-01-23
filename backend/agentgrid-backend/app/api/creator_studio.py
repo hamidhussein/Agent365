@@ -3,7 +3,7 @@ import os
 from typing import Any
 
 import copy
-from fastapi import APIRouter, Depends, File, HTTPException, UploadFile, BackgroundTasks
+from fastapi import APIRouter, Depends, File, HTTPException, UploadFile, BackgroundTasks, Request
 from fastapi.responses import StreamingResponse, FileResponse
 from pydantic import ValidationError
 from sqlalchemy.orm import Session
@@ -41,6 +41,8 @@ from app.schemas.creator_studio import (
     CreatorStudioPlatformSettings,
     CreatorStudioPublicChatRequest,
     CreatorStudioUserOut,
+    CreatorStudioAgentBuildRequest,
+    CreatorStudioAgentBuildResponse,
 )
 from app.schemas.user import UserCreate
 from app.services.auth import authenticate_user, register_user
@@ -58,6 +60,7 @@ from app.services.creator_studio import (
     generate_response,
     get_assist_model,
     get_default_enabled_model,
+    build_agent_chat,
     get_llm_config,
     get_provider_for_model,
     get_or_create_guest_credits,
@@ -554,6 +557,22 @@ def suggest_agent(
     return CreatorStudioAgentSuggestResponse(**parsed)
 
 
+@router.post("/agents/build", response_model=CreatorStudioAgentBuildResponse)
+def build_agent_architect(
+    payload: CreatorStudioAgentBuildRequest,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> CreatorStudioAgentBuildResponse:
+    # Use architect chat to refine agent metadata
+    result = build_agent_chat(
+        db,
+        message=payload.message,
+        current_state=payload.current_state,
+        history=[m.model_dump() for m in payload.history] if payload.history else None,
+    )
+    return CreatorStudioAgentBuildResponse(**result)
+
+
 @router.get("/public/agents", response_model=list[CreatorStudioAgentOut])
 def list_public_agents(db: Session = Depends(get_db)) -> list[CreatorStudioAgentOut]:
     agents = (
@@ -589,10 +608,13 @@ def purchase_public_credits(
 
 @router.post("/public/executions/{execution_id}/review")
 def request_guest_review(
+    request: Request,
     execution_id: str,
     payload: dict,
     db: Session = Depends(get_db),
+    current_user: User | None = Depends(get_current_user_optional),
 ) -> dict:
+    print(f"[DEBUG] Headers: {dict(request.headers)}", flush=True)
     try:
         exec_uuid = _coerce_uuid(execution_id)
     except Exception:
@@ -614,12 +636,30 @@ def request_guest_review(
     guest_id = payload.get("guestId")
     note = payload.get("note")
     
+    print(f"[DEBUG] request_guest_review: execution_id={execution_id}, guest_id={guest_id}, current_user={current_user.username if current_user else 'None'}", flush=True)
+    
     cost = execution.agent.review_cost
-    if cost > 0 and guest_id:
-        credits = get_or_create_guest_credits(db, guest_id)
-        if credits < cost:
-             raise HTTPException(status_code=402, detail=f"Not enough credits. Review costs {cost} credits.")
-        deduct_guest_credits(db, guest_id, cost)
+    if cost > 0:
+        if current_user:
+            if current_user.credits < cost:
+                raise HTTPException(status_code=402, detail=f"User {current_user.username} has only {current_user.credits} credits. Review costs {cost} credits.")
+            current_user.credits -= cost
+            db.add(current_user)
+            # Add transaction record
+            transaction = CreditTransaction(
+                user_id=current_user.id,
+                amount=-cost,
+                transaction_type=TransactionType.USAGE,
+                description=f"Review Request for execution {execution_id}",
+            )
+            db.add(transaction)
+        elif guest_id:
+            credits = get_or_create_guest_credits(db, guest_id)
+            if credits < cost:
+                 raise HTTPException(status_code=402, detail=f"Guest session has only {credits} credits. Review costs {cost} credits.")
+            deduct_guest_credits(db, guest_id, cost)
+        else:
+            raise HTTPException(status_code=401, detail="Authentication required or guestId missing")
     
     execution.review_status = ReviewStatus.PENDING
     execution.review_request_note = note
@@ -664,6 +704,32 @@ def public_chat(
     db: Session = Depends(get_db),
     current_user: User | None = Depends(get_current_user_optional),
 ) -> dict:
+    # Handle Preview Case
+    if payload.agentId == 'preview' and payload.draftConfig:
+        draft = payload.draftConfig
+        instruction = draft.get("instruction", "")
+        model = draft.get("model")
+        if not model or model == "auto":
+            model = get_default_enabled_model(db)
+        capabilities = draft.get("enabledCapabilities")
+        
+        # For preview, we skip context (RAG) unless we want to simulate it.
+        # Let's just use the instruction and capabilities for now.
+        system_instruction = build_system_instruction(instruction, [], payload.inputsContext, capabilities)
+        
+        provider = get_provider_for_model(db, model)
+        config = get_llm_config(db, provider)
+        api_key = resolve_llm_key(provider, config)
+        
+        # Convert history
+        history = []
+        if payload.messages:
+            for m in payload.messages:
+                history.append({"role": m.role, "content": m.content})
+                
+        text = generate_response(provider, model, system_instruction, payload.message, api_key, db=db, history=history)
+        return {"text": text, "execution_id": "preview"}
+
     agent = (
         db.query(Agent)
         .filter(

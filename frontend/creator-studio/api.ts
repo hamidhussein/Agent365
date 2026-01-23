@@ -1,4 +1,4 @@
-﻿import { Agent, AgentPayload, AgentSuggestPayload, AgentSuggestResponse, AssistModelResponse, AssistModelUpdate, LLMProviderConfig, PlatformSettings, UserProfile } from './types';
+﻿import { Agent, AgentBuildPayload, AgentBuildResponse, AgentPayload, AgentSuggestPayload, AgentSuggestResponse, AssistModelResponse, AssistModelUpdate, LLMProviderConfig, PlatformSettings, UserProfile } from './types';
 
 const defaultBase = import.meta.env.VITE_API_URL
   ? import.meta.env.VITE_API_URL.replace(/\/api\/v1\/?$/, '') + '/creator-studio'
@@ -98,6 +98,12 @@ export const agentsApi = {
       method: 'POST',
       body: JSON.stringify(payload)
     }) as Promise<AgentSuggestResponse>;
+  },
+  async build(payload: AgentBuildPayload) {
+    return apiFetch('/api/agents/build', {
+      method: 'POST',
+      body: JSON.stringify(payload)
+    }) as Promise<AgentBuildResponse>;
   }
 };
 
@@ -153,5 +159,11 @@ export const publicApi = {
       method: 'POST',
       body: form
     }) as Promise<{ text: string }>;
+  },
+  async publicChat(payload: { guestId: string, agentId: string, message: string, messages?: any[], draftConfig?: any }) {
+    return apiFetch('/api/public/chat', {
+      method: 'POST',
+      body: JSON.stringify(payload)
+    }) as Promise<{ text: string, execution_id?: string }>;
   }
 };

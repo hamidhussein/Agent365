@@ -3,7 +3,7 @@ import React, { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { MessageSquare, Clock, CheckCircle, User, Calendar, Loader2 } from 'lucide-react';
 import { api } from '@/lib/api/client';
-import ReviewResponseModal from './ReviewResponseModal';
+import ReviewResponseModal from '../../components/reviews/ReviewResponseModal';
 
 interface Review {
   id: string;
