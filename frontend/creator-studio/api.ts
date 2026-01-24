@@ -1,4 +1,4 @@
-﻿import { Agent, AgentBuildPayload, AgentBuildResponse, AgentPayload, AgentSuggestPayload, AgentSuggestResponse, AssistModelResponse, AssistModelUpdate, LLMProviderConfig, PlatformSettings, UserProfile } from './types';
+﻿import { Agent, AgentActionPayload, AgentActionResponse, AgentBuildPayload, AgentBuildResponse, AgentPayload, AgentSuggestPayload, AgentSuggestResponse, AssistModelResponse, AssistModelUpdate, LLMProviderConfig, PlatformSettings, UserProfile } from './types';
 
 const defaultBase = import.meta.env.VITE_API_URL
   ? import.meta.env.VITE_API_URL.replace(/\/api\/v1\/?$/, '') + '/creator-studio'
@@ -104,6 +104,32 @@ export const agentsApi = {
       method: 'POST',
       body: JSON.stringify(payload)
     }) as Promise<AgentBuildResponse>;
+  },
+  async getActions(agentId: string) {
+    return apiFetch(`/api/agents/${agentId}/actions`) as Promise<AgentActionResponse[]>;
+  },
+  async createAction(agentId: string, payload: AgentActionPayload) {
+    return apiFetch(`/api/agents/${agentId}/actions`, {
+      method: 'POST',
+      body: JSON.stringify(payload)
+    }) as Promise<AgentActionResponse>;
+  },
+  async updateAction(agentId: string, actionId: string, payload: Partial<AgentActionPayload>) {
+    return apiFetch(`/api/agents/${agentId}/actions/${actionId}`, {
+      method: 'PUT',
+      body: JSON.stringify(payload)
+    }) as Promise<AgentActionResponse>;
+  },
+  async deleteAction(agentId: string, actionId: string) {
+    return apiFetch(`/api/agents/${agentId}/actions/${actionId}`, {
+      method: 'DELETE'
+    }) as Promise<{ ok: boolean }>;
+  },
+  async testAction(agentId: string, actionId: string, params: any) {
+    return apiFetch(`/api/agents/${agentId}/actions/${actionId}/test`, {
+      method: 'POST',
+      body: JSON.stringify(params)
+    });
   }
 };
 

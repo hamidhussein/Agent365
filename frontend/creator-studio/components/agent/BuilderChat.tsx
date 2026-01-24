@@ -4,7 +4,7 @@ import { Button } from '../ui/Button';
 import { agentsApi } from '../../api';
 import { AgentPayload } from '../../types';
 
-interface Message {
+export interface Message {
   role: 'user' | 'model';
   content: string;
 }
@@ -13,15 +13,11 @@ interface BuilderChatProps {
   currentState: Partial<AgentPayload>;
   onUpdateState: (updates: Partial<AgentPayload>) => void;
   agentId?: string;
+  messages: Message[];
+  setMessages: React.Dispatch<React.SetStateAction<Message[]>>;
 }
 
-export const BuilderChat = ({ currentState, onUpdateState, agentId }: BuilderChatProps) => {
-  const [messages, setMessages] = useState<Message[]>([
-    { 
-      role: 'model', 
-      content: "Hi! I'm your Agent Architect. What kind of agent would you like to build today?" 
-    }
-  ]);
+export const BuilderChat = ({ currentState, onUpdateState, agentId, messages, setMessages }: BuilderChatProps) => {
   const [input, setInput] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);

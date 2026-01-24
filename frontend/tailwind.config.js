@@ -72,6 +72,14 @@ module.exports = {
           DEFAULT: 'hsl(var(--card))',
           foreground: 'hsl(var(--card-foreground))',
         },
+        'brand-primary': '#4F46E5',
+        'brand-secondary': '#7C3AED',
+        'gray-900': '#111827',
+        'gray-800': '#1F2937',
+        'gray-700': '#374151',
+        'gray-600': '#4B5563',
+        'gray-300': '#D1D5DB',
+        'gray-100': '#F3F4F6',
       },
       borderRadius: {
         lg: 'var(--radius)',
@@ -126,6 +134,10 @@ module.exports = {
       ringOffsetWidth: {
         DEFAULT: '2px',
       },
+      boxShadow: {
+        'glow-primary': '0 0 15px 5px rgba(79, 70, 229, 0.4)',
+        'glow-secondary': '0 0 15px 5px rgba(124, 58, 237, 0.4)',
+      }
     },
   },
   plugins: [

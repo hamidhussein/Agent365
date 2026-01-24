@@ -38,6 +38,7 @@ export interface Agent {
     apiIntegrations: boolean;
     fileHandling: boolean;
   };
+  creator_studio_actions?: AgentActionResponse[];
 }
 
 export interface AgentPayload {
@@ -138,4 +139,26 @@ export interface AgentBuildPayload {
 export interface AgentBuildResponse {
   architect_message: string;
   suggested_changes?: Partial<AgentPayload>;
+}
+
+export interface AgentActionResponse {
+  id: string;
+  agent_id: string;
+  name: string;
+  description: string;
+  url: string;
+  method: 'GET' | 'POST' | 'PUT' | 'DELETE';
+  headers?: Record<string, string>;
+  openapi_spec?: Record<string, any>;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface AgentActionPayload {
+  name: string;
+  description: string;
+  url: string;
+  method: 'GET' | 'POST' | 'PUT' | 'DELETE';
+  headers?: Record<string, string>;
+  openapi_spec?: Record<string, any>;
 }

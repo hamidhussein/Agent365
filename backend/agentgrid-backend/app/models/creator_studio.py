@@ -37,6 +37,7 @@ class CreatorStudioKnowledgeChunk(TimestampMixin, Base):
     chunk_index: Mapped[int] = mapped_column(Integer, nullable=False)
     text: Mapped[str] = mapped_column(Text, nullable=False)
     embedding: Mapped[list] = mapped_column(JSON, default=list)
+    chunk_metadata: Mapped[dict] = mapped_column(JSON, default=dict)
 
     file = relationship("CreatorStudioKnowledgeFile", back_populates="chunks")
     agent = relationship("Agent", back_populates="creator_studio_chunks")
@@ -68,3 +69,20 @@ class CreatorStudioGuestCredit(TimestampMixin, Base):
 
     id: Mapped[str] = mapped_column(String(128), primary_key=True)
     credits: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+
+
+class AgentAction(TimestampMixin, Base):
+    __tablename__ = "agent_actions"
+
+    id: Mapped[uuid.UUID] = mapped_column(Uuid, primary_key=True, default=uuid.uuid4)
+    agent_id: Mapped[uuid.UUID] = mapped_column(
+        Uuid, ForeignKey("agents.id", ondelete="CASCADE"), nullable=False
+    )
+    name: Mapped[str] = mapped_column(String(255), nullable=False) # e.g. "get_weather"
+    description: Mapped[str] = mapped_column(Text, nullable=False) # LLM decider
+    openapi_spec: Mapped[dict] = mapped_column(JSON, default=dict) # Input parameters
+    url: Mapped[str] = mapped_column(String(512), nullable=False)
+    method: Mapped[str] = mapped_column(String(16), default="POST")
+    headers: Mapped[dict] = mapped_column(JSON, default=dict) # For Auth keys
+
+    agent = relationship("Agent", back_populates="creator_studio_actions")

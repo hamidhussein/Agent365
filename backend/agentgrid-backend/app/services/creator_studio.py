@@ -193,6 +193,7 @@ def execute_python_code(code: str, execution_id: str) -> str:
         # Write code to file
         with open(code_file, "w", encoding="utf-8") as f:
             f.write(code)
+            
         
         try:
             # Run code with subprocess for safety
@@ -206,6 +207,9 @@ def execute_python_code(code: str, execution_id: str) -> str:
             
             stdout = result.stdout
             stderr = result.stderr
+            
+            if result.returncode != 0:
+                return f"ERROR: Python script failed with return code {result.returncode}.\n\nSTDOUT:\n{stdout}\n\nSTDERR:\n{stderr}"
             
             # Check for generated files
             files_before = set()
@@ -226,7 +230,7 @@ def execute_python_code(code: str, execution_id: str) -> str:
                 import shutil
                 shutil.copy(src, dst)
                 # Store reference
-                file_links.append(f"[Download {filename}](/api/creator-studio/files/{execution_id}/{filename})")
+                file_links.append(f"[Download {filename}](/creator-studio/api/files/{execution_id}/{filename})")
             
             # Store in global dict
             GENERATED_FILES[execution_id] = [os.path.join(output_dir, f) for f in all_files]
@@ -283,12 +287,18 @@ class VectorIndex:
                 pa.field("id", pa.string()),
                 pa.field("agent_id", pa.string()),
                 pa.field("text", pa.string()),
+                pa.field("metadata", pa.string()), # JSON string for flexibility
             ])
             self.table = self.db.create_table(table_name, schema=schema)
+            # Create FTS index for keyword search
+            try:
+                self.table.create_fts_index("text")
+            except Exception as e:
+                print(f"Failed to create FTS index: {e}")
         else:
             self.table = self.db.open_table(table_name)
 
-    def add(self, agent_id: str, chunk_id: str, embedding: list[float], text: str) -> None:
+    def add(self, agent_id: str, chunk_id: str, embedding: list[float], text: str, metadata: dict = None) -> None:
         if self.table is None:
             return
         try:
@@ -296,7 +306,8 @@ class VectorIndex:
                 "vector": embedding,
                 "id": str(chunk_id),
                 "agent_id": str(agent_id),
-                "text": text
+                "text": text,
+                "metadata": json.dumps(metadata or {})
             }])
         except Exception as e:
             print(f"Error adding to VectorIndex: {e}")
@@ -319,17 +330,54 @@ class VectorIndex:
         except Exception as e:
             print(f"Error dropping agent from VectorIndex: {e}")
 
-    def search(self, agent_id: str, embedding: list[float], top_k: int = 4) -> list[str]:
-        if self.table is None or not embedding:
+    def search(self, agent_id: str, embedding: list[float], query: str = None, top_k: int = 15) -> list[dict]:
+        """
+        Hybrid search: Vector + FTS
+        """
+        if self.table is None:
             return []
+        
         try:
-            results = (
-                self.table.search(embedding)
-                .where(f"agent_id = '{agent_id}'")
-                .limit(top_k)
-                .to_list()
-            )
-            return [r["text"] for r in results]
+            # 1. Vector Search
+            vector_results = []
+            if embedding:
+                vector_results = (
+                    self.table.search(embedding)
+                    .where(f"agent_id = '{agent_id}'")
+                    .limit(top_k)
+                    .to_list()
+                )
+            
+            # 2. Keyword Search (FTS)
+            fts_results = []
+            if query:
+                try:
+                    fts_results = (
+                        self.table.search(query, query_type="fts")
+                        .where(f"agent_id = '{agent_id}'")
+                        .limit(top_k)
+                        .to_list()
+                    )
+                except Exception as e:
+                    print(f"FTS search failed: {e}")
+
+            # Combine results (Simple deduplication and fusion)
+            seen_ids = set()
+            combined = []
+            
+            # Give slight priority to FTS for exact keyword matches, then interleave
+            for r in fts_results + vector_results:
+                if r["id"] not in seen_ids:
+                    combined.append(r)
+                    seen_ids.add(r["id"])
+            
+            return [
+                {
+                    "text": r["text"],
+                    "metadata": json.loads(r["metadata"]) if r.get("metadata") else {}
+                } 
+                for r in results
+            ]
         except Exception as e:
             print(f"Error searching VectorIndex: {e}")
             return []
@@ -630,6 +678,46 @@ def embed_texts(db: Session, texts: list[str]) -> list[list[float]]:
     return []
 
 
+def rewrite_query(db: Session, message: str, history: list[dict] | None = None) -> str:
+    """
+    Analyzes conversation history and current message to generate a standalone search query.
+    """
+    if not history:
+        return message
+
+    # Only look at the last few exchanges for efficiency
+    history_snippets = []
+    for m in history[-3:]:
+        role = "User" if m["role"] == "user" else "Assistant"
+        history_snippets.append(f"{role}: {m['content']}")
+    
+    context = "\n".join(history_snippets)
+    prompt = (
+        f"Given the following conversation history and a new user message, "
+        f"rewrite the user message into a standalone, descriptive search query that captures "
+        f"the full context needed for document retrieval. If the message is already a clear standalone query, return it as is.\n\n"
+        f"History:\n{context}\n\n"
+        f"New Message: {message}\n\n"
+        f"Standalone Query:"
+    )
+
+    try:
+        # Use system's dynamic model selection instead of hardcoded provider
+        model = get_default_enabled_model(db)
+        provider = infer_provider(model)
+        config = get_llm_config(db, provider)
+        api_key = resolve_llm_key(provider, config)
+        
+        rewritten = generate_response(provider, model, "You are a search query optimizer.", prompt, api_key, db=db)
+        # Remove common prefixes the LLM might include
+        final_query = rewritten.strip().replace("Standalone Query:", "").strip()
+        print(f"RAG rewritten query: '{message}' -> '{final_query}'")
+        return final_query
+    except Exception as e:
+        print(f"Query rewriting failed: {e}")
+        return message
+
+
 def cosine_similarity(a: list[float], b: list[float]) -> float:
     if not a or not b:
         return 0.0
@@ -642,65 +730,189 @@ def cosine_similarity(a: list[float], b: list[float]) -> float:
     return dot / (norm_a * norm_b)
 
 
-def build_context(db: Session, agent_id: str | uuid.UUID, query: str) -> list[str]:
-    embeddings = embed_texts(db, [query])
-    if not embeddings:
+def rerank_chunks(db: Session, query: str, chunks: list[dict], top_n: int = 5) -> list[dict]:
+    """
+    Second-stage Reranking: Uses a lightweight LLM pass to select the most relevant chunks.
+    Returns a list of dictionaries: [{"text": "...", "metadata": {...}}, ...]
+    """
+    if not chunks:
         return []
-    query_embedding = embeddings[0]
+    if len(chunks) <= top_n:
+        return chunks
+
+    # Prepare reranking prompt
+    context_text = "\n\n".join([f"ID: {i}\nContent: {c['text']}" for i, c in enumerate(chunks)])
+    prompt = (
+        f"You are a reranking assistant. Given a user query and a set of document chunks, "
+        f"select the top {top_n} most relevant chunks that directly answer the query.\n\n"
+        f"Query: {query}\n\n"
+        f"Chunks:\n{context_text}\n\n"
+        f"Return ONLY a comma-separated list of IDs in order of relevance. Example: 3, 0, 5"
+    )
+
+    try:
+        # Use system's dynamic model selection instead of hardcoded provider
+        model = get_default_enabled_model(db)
+        provider = infer_provider(model)
+        config = get_llm_config(db, provider)
+        api_key = resolve_llm_key(provider, config)
+        
+        response = generate_response(provider, model, "You are a reranking expert.", prompt, api_key, db=db)
+        
+        # Parse IDs
+        try:
+            ids = [int(idx.strip()) for idx in response.split(",") if idx.strip().isdigit()]
+            reranked = [chunks[i] for i in ids if i < len(chunks)]
+            return reranked[:top_n]
+        except:
+            # Fallback to original order if parsing fails
+            return chunks[:top_n]
+            
+    except Exception as e:
+        print(f"Reranking failed: {e}")
+        return chunks[:top_n]
+
+
+def build_context(db: Session, agent_id: str | uuid.UUID, query: str) -> list[dict]:
+    """
+    Super RAG Retrieval: Hybrid Search + Re-ranking
+    Returns a list of dictionaries: [{"text": "...", "metadata": {...}}, ...]
+    """
+    embeddings = embed_texts(db, [query])
+    query_embedding = embeddings[0] if embeddings else []
+    
     agent_uuid = _coerce_uuid(agent_id)
     agent_key = str(agent_uuid)
-    if VECTOR_INDEX is not None and VECTOR_INDEX.has_index(agent_key, len(query_embedding)):
-        results = VECTOR_INDEX.search(agent_key, query_embedding)
-        if results:
-            return results
-    rows = (
-        db.query(CreatorStudioKnowledgeChunk)
-        .filter(CreatorStudioKnowledgeChunk.agent_id == agent_uuid)
-        .all()
-    )
-    if not rows:
-        return []
-    scored = []
-    for row in rows:
-        emb = row.embedding or []
-        if not isinstance(emb, list):
-            continue
-        score = cosine_similarity(query_embedding, emb)
-        scored.append((score, row.text))
-    scored.sort(key=lambda item: item[0], reverse=True)
-    return [text for _, text in scored[:4]]
+    
+    # 1. Retrieval (Hybrid)
+    candidate_chunks = []
+    if VECTOR_INDEX is not None:
+        # Check if table has data and dimension matches
+        if VECTOR_INDEX.has_index(agent_key, len(query_embedding) if query_embedding else 0):
+            candidate_chunks = VECTOR_INDEX.search(agent_key, query_embedding, query=query, top_k=20)
+    
+    # 2. Fallback to SQL if VectorIndex is empty/missing
+    if not candidate_chunks:
+        rows = (
+            db.query(CreatorStudioKnowledgeChunk)
+            .filter(CreatorStudioKnowledgeChunk.agent_id == agent_uuid)
+            .all()
+        )
+        if not rows:
+            return []
+            
+        # Basic similarity for SQL chunks if no vector index
+        sql_candidates = []
+        for row in rows:
+            emb = row.embedding or []
+            score = cosine_similarity(query_embedding, emb) if query_embedding and emb else 0
+            # Ensure we wrap in dict format compatible with LanceDB output
+            sql_candidates.append({
+                "score": score, 
+                "text": row.text, 
+                "id": str(row.id),
+                "metadata": row.chunk_metadata or {}
+            })
+            
+        sql_candidates.sort(key=lambda x: x["score"], reverse=True)
+        candidate_chunks = sql_candidates[:20]
+
+    # 3. Re-ranking
+    return rerank_chunks(db, query, candidate_chunks, top_n=5)
 
 
 def build_system_instruction(
     instruction: str,
-    context_chunks: list[str],
+    context_chunks: list[dict],
     inputs_context: str | None = None,
     capabilities: dict | None = None,
 ) -> str:
+    """
+    Constructs a high-fidelity system prompt that combines agent persona with 
+    robust RAG guidelines and grounded interaction rules.
+    """
     current_time_str = datetime.now().strftime("%A, %B %d, %Y %I:%M %p")
-    sections = [f"Current Date and Time: {current_time_str}", instruction]
+    
+    # --- RAG Core Guidelines ---
+    sections = [
+        f"Current Date and Time: {current_time_str}",
+        "## YOUR ROLE & PERSONA\n" + instruction,
+    ]
+
     if inputs_context and inputs_context.strip():
-        sections.append(inputs_context.strip())
+        sections.append("## USER-PROVIDED INPUT CONTEXT\n" + inputs_context.strip())
+
     if context_chunks:
-        context_block = "\n\n".join(
-            f"--- Context {idx + 1} ---\n{chunk}" for idx, chunk in enumerate(context_chunks)
+        # --- RAG Core Guidelines ---
+        rag_guidelines = (
+            "## RAG OPERATIONAL GUIDELINES\n"
+            "1. **Primary Information Source**: Use the provided 'Context' blocks as your primary source of truth. If the context contains the answer, prioritize it over your internal knowledge.\n"
+            "2. **Grounding & Faithfulness**: Only state what is supported by the context. Do not invent information.\n"
+            "3. **Handling Uncertainty**: If the provided context does not contain enough information to answer the user's request accurately, state clearly that you do not have that information based on the current knowledge base. Offer to help with what you DO know.\n"
+            "4. **Synthesis**: If multiple context chunks provide relevant information, synthesize them into a coherent, organized response.\n"
+            "5. **Source Attribution**: When you use information from a context block, mention the source at the end of the relevant sentence or paragraph using the format: [Source: <filename>].\n"
         )
-        sections.append(f"Use the following context when relevant:\n{context_block}")
+        sections.append(rag_guidelines)
+
+        formatted_chunks = []
+        for idx, chunk_dict in enumerate(context_chunks):
+            text = chunk_dict.get("text", "")
+            meta = chunk_dict.get("metadata") or {}
+            source = meta.get("source", "Unknown Source")
+            
+            chunk_block = (
+                f"--- Context Block {idx + 1} (Source: {source}) ---\n"
+                f"{text}\n"
+            )
+            formatted_chunks.append(chunk_block)
+        
+        sections.append("## PROVIDED CONTEXT BLOCKS\n" + "\n".join(formatted_chunks))
     
     if capabilities:
-        if capabilities.get("webBrowsing"):
-            sections.append("FEATURE ENABLED: Web Search. You have access to a web search tool. Use it ONLY when the user explicitly asks for current information (e.g., news, weather, recent events) or when your internal knowledge cut-off prevents you from answering accurately. Do NOT use it for general knowledge, coding help, or creative tasks unless specifically requested. Always prioritize your internal knowledge.")
-        if capabilities.get("codeExecution"):
-            sections.append("FEATURE ENABLED: Code Execution. You can write and execute Python code blocks to perform complex calculations, data analysis, or visualizations.")
-        if capabilities.get("apiIntegrations"):
-            sections.append("FEATURE ENABLED: API Integrations. You can interact with external services and APIs if specific tool definitions are provided.")
-        if capabilities.get("fileHandling"):
-            sections.append("FEATURE ENABLED: File Handling. The user may upload files to provide context. Use this file content to answer their questions.")
+        cap_section = ["## ENABLED CAPABILITIES"]
+        
+        # Robustly determine if capabilities are enabled (handle dict, list, camelCase, snake_case)
+        if isinstance(capabilities, list):
+            can_search = any(x in capabilities for x in ["web_search", "webBrowsing"])
+            can_exec = any(x in capabilities for x in ["code_execution", "codeExecution"])
+            can_api = any(x in capabilities for x in ["api_access", "apiIntegrations"])
+            can_files = any(x in capabilities for x in ["file_handling", "fileHandling"])
+        else:
+            # Assume dict-like (Pydantic model or raw dict)
+            get_cap = lambda k: capabilities.get(k) if hasattr(capabilities, "get") else getattr(capabilities, k, False)
+            can_search = get_cap("webBrowsing") or get_cap("web_search")
+            can_exec = get_cap("codeExecution") or get_cap("code_execution")
+            can_api = get_cap("apiIntegrations") or get_cap("api_access")
+            can_files = get_cap("fileHandling") or get_cap("file_handling")
+
+        if can_search:
+            cap_section.append("- FEATURE ENABLED: Web Search: You have access to a web search tool. Use it ONLY for real-time information (news, weather) or when context is insufficient. Always prioritize provided context first.")
+        
+        if can_exec:
+            exec_instruction = (
+                "- FEATURE ENABLED: Code Execution: You have the 'run_python' tool. You can write and execute Python code blocks for file generation.\n"
+                "  - **PDF generation**: Use the `fpdf2` library. **IMPORTANT**: The library is called `fpdf2` but you MUST import it as `fpdf`. Never try to `import fpdf2`. ONLY USE: `from fpdf import FPDF`. (Example: `pdf = FPDF(); pdf.add_page(); pdf.set_font('helvetica', size=12); pdf.cell(text='Hello'); pdf.output('file.pdf')`)\n"
+                "  - **Word (.docx) generation**: Use the `python-docx` library. IMPORT VIA: `import docx`. (Example: `doc = docx.Document(); doc.add_paragraph('Hello'); doc.save('file.docx')`)\n"
+                "  - **CRITICAL**: If the user asks for a 'downloadable document', 'file', 'PDF', or 'Word document', you **MUST** use this tool to generate it. If you believe you lack a library, you are WRONG. Always use `fpdf` or `docx` as shown above.\n"
+                "  - **UNICODE WARNING**: The default PDF font ('helvetica') does NOT support non-Latin characters (like Urdu or Arabic). If the content contains such characters, you MUST stick to English/ASCII in the PDF or the script will crash."
+            )
+            cap_section.append(exec_instruction)
+            
+        if can_api:
+            cap_section.append("- FEATURE ENABLED: API Integrations: You can interact with external services if specific tools are defined.")
+            
+        if can_files:
+            cap_section.append("- FEATURE ENABLED: File Handling: You can process and reference content from uploaded files.")
+        
+        if len(cap_section) > 1:
+            sections.append("\n".join(cap_section))
 
     return "\n\n".join(sections)
 
 
-def generate_response(provider: str, model: str, system_instruction: str, message: str, api_key: str, db: Session | None = None, history: list[dict] | None = None) -> str:
+from app.services.tool_engine import get_actions_for_agent, format_action_as_tool, execute_agent_action, format_action_as_gemini_tool
+
+def generate_response(provider: str, model: str, system_instruction: str, message: str, api_key: str, db: Session | None = None, history: list[dict] | None = None, agent_id: str | None = None) -> str:
     if provider == "openai":
         client = get_openai_client(api_key)
         messages = []
@@ -748,6 +960,12 @@ def generate_response(provider: str, model: str, system_instruction: str, messag
                     }
                 })
         
+        # --- Add Dynamic Actions ---
+        if db and agent_id:
+            db_actions = get_actions_for_agent(db, agent_id)
+            for action in db_actions:
+                tools.append(format_action_as_tool(action))
+        
         if not tools:
             tools = None
 
@@ -762,7 +980,7 @@ def generate_response(provider: str, model: str, system_instruction: str, messag
         if response.choices[0].message.tool_calls:
             tool_call = response.choices[0].message.tool_calls[0]
             if tool_call.function.name == "web_search":
-                import json
+
                 try:
                     decoder = json.JSONDecoder()
                     args, _ = decoder.raw_decode(tool_call.function.arguments)
@@ -788,6 +1006,62 @@ def generate_response(provider: str, model: str, system_instruction: str, messag
                 except Exception as e:
                     print(f"Tool execution error: {e}")
                     return f"Error executing tool: {e}"
+            
+            elif tool_call.function.name.startswith("action_"):
+                # Handle dynamic API action
+                action_uuid_str = tool_call.function.name.replace("action_", "").replace("_", "-")
+                try:
+
+                    decoder = json.JSONDecoder()
+                    args, _ = decoder.raw_decode(tool_call.function.arguments)
+                    
+                    result = execute_agent_action(db, action_uuid_str, args)
+                    
+                    messages.append(response.choices[0].message)
+                    messages.append({
+                        "role": "tool",
+                        "tool_call_id": tool_call.id,
+                        "name": tool_call.function.name,
+                        "content": result
+                    })
+                    
+                    final_response = client.chat.completions.create(
+                        model=model_name,
+                        messages=messages,
+                        max_tokens=1024
+                    )
+                    return final_response.choices[0].message.content or ""
+                except Exception as e:
+                    print(f"Dynamic action execution error: {e}")
+                    return f"Error executing action: {e}"
+            
+            elif tool_call.function.name.startswith("action_"):
+                # Handle dynamic API action
+                action_uuid_str = tool_call.function.name.replace("action_", "").replace("_", "-")
+                try:
+
+                    decoder = json.JSONDecoder()
+                    args, _ = decoder.raw_decode(tool_call.function.arguments)
+                    
+                    result = execute_agent_action(db, action_uuid_str, args)
+                    
+                    messages.append(response.choices[0].message)
+                    messages.append({
+                        "role": "tool",
+                        "tool_call_id": tool_call.id,
+                        "name": tool_call.function.name,
+                        "content": result
+                    })
+                    
+                    final_response = client.chat.completions.create(
+                        model=model_name,
+                        messages=messages,
+                        max_tokens=1024
+                    )
+                    return final_response.choices[0].message.content or ""
+                except Exception as e:
+                    print(f"Dynamic action execution error: {e}")
+                    return f"Error executing action: {e}"
 
         return response.choices[0].message.content or ""
     if provider == "llama":
@@ -818,11 +1092,105 @@ def generate_response(provider: str, model: str, system_instruction: str, messag
                 messages.append({"role": role, "content": m["content"]})
         messages.append({"role": "user", "content": message})
         model_name = normalize_model(provider, model)
+        
+        # Shared OpenAI-compatible tool logic
+        tools = []
+        if system_instruction:
+            if "FEATURE ENABLED: Web Search" in system_instruction:
+                tools.append({
+                    "type": "function",
+                    "function": {
+                        "name": "web_search",
+                        "description": "Search the web for real-time information.",
+                        "parameters": {
+                            "type": "object",
+                            "properties": {
+                                "query": {"type": "string", "description": "The search query"}
+                            },
+                            "required": ["query"]
+                        }
+                    }
+                })
+            if "FEATURE ENABLED: Code Execution" in system_instruction:
+                tools.append({
+                    "type": "function",
+                    "function": {
+                        "name": "run_python",
+                        "description": "Execute Python code to perform calculations, data analysis, or generate files.",
+                        "parameters": {
+                            "type": "object",
+                            "properties": {
+                                "code": {"type": "string", "description": "The Python code to execute"}
+                            },
+                            "required": ["code"]
+                        }
+                    }
+                })
+        
+        if db and agent_id:
+            db_actions = get_actions_for_agent(db, agent_id)
+            for action in db_actions:
+                tools.append(format_action_as_tool(action))
+        
+        if not tools: settings_tools = None
+        else: settings_tools = tools
+
         response = client.chat.completions.create(
             model=model_name,
             messages=messages,
             max_tokens=1024,
+            tools=settings_tools if settings_tools else None,
         )
+
+        # Handle tool calls
+        if response.choices[0].message.tool_calls:
+            tool_call = response.choices[0].message.tool_calls[0]
+            if tool_call.function.name == "web_search":
+
+                try:
+                    decoder = json.JSONDecoder()
+                    args, _ = decoder.raw_decode(tool_call.function.arguments)
+                    query = args.get("query")
+                    search_result = perform_web_search(query, db=db)
+                    messages.append(response.choices[0].message)
+                    messages.append({
+                        "role": "tool",
+                        "tool_call_id": tool_call.id,
+                        "name": "web_search",
+                        "content": search_result
+                    })
+                    final_response = client.chat.completions.create(
+                        model=model_name,
+                        messages=messages,
+                        max_tokens=1024
+                    )
+                    return final_response.choices[0].message.content or ""
+                except Exception as e:
+                    return f"Error executing tool: {e}"
+            
+            elif tool_call.function.name.startswith("action_"):
+                action_uuid_str = tool_call.function.name.replace("action_", "").replace("_", "-")
+                try:
+
+                    decoder = json.JSONDecoder()
+                    args, _ = decoder.raw_decode(tool_call.function.arguments)
+                    result = execute_agent_action(db, action_uuid_str, args)
+                    messages.append(response.choices[0].message)
+                    messages.append({
+                        "role": "tool",
+                        "tool_call_id": tool_call.id,
+                        "name": tool_call.function.name,
+                        "content": result
+                    })
+                    final_response = client.chat.completions.create(
+                        model=model_name,
+                        messages=messages,
+                        max_tokens=1024
+                    )
+                    return final_response.choices[0].message.content or ""
+                except Exception as e:
+                    return f"Error executing action: {e}"
+
         return response.choices[0].message.content or ""
     if provider == "deepseek":
         client = get_deepseek_client(api_key)
@@ -835,13 +1203,109 @@ def generate_response(provider: str, model: str, system_instruction: str, messag
                 messages.append({"role": role, "content": m["content"]})
         messages.append({"role": "user", "content": message})
         model_name = normalize_model(provider, model)
+        
+        # Shared OpenAI-compatible tool logic
+        tools = []
+        if system_instruction:
+            if "FEATURE ENABLED: Web Search" in system_instruction:
+                tools.append({
+                    "type": "function",
+                    "function": {
+                        "name": "web_search",
+                        "description": "Search the web for real-time information.",
+                        "parameters": {
+                            "type": "object",
+                            "properties": {
+                                "query": {"type": "string", "description": "The search query"}
+                            },
+                            "required": ["query"]
+                        }
+                    }
+                })
+            if "FEATURE ENABLED: Code Execution" in system_instruction:
+                tools.append({
+                    "type": "function",
+                    "function": {
+                        "name": "run_python",
+                        "description": "Execute Python code to perform calculations, data analysis, or generate files.",
+                        "parameters": {
+                            "type": "object",
+                            "properties": {
+                                "code": {"type": "string", "description": "The Python code to execute"}
+                            },
+                            "required": ["code"]
+                        }
+                    }
+                })
+        
+        if db and agent_id:
+            db_actions = get_actions_for_agent(db, agent_id)
+            for action in db_actions:
+                tools.append(format_action_as_tool(action))
+        
+        if not tools: settings_tools = None
+        else: settings_tools = tools
+
         response = client.chat.completions.create(
             model=model_name,
             messages=messages,
             max_tokens=1024,
+            tools=settings_tools if settings_tools else None,
         )
+
+        # Handle tool calls
+        if response.choices[0].message.tool_calls:
+            tool_call = response.choices[0].message.tool_calls[0]
+            if tool_call.function.name == "web_search":
+
+                try:
+                    decoder = json.JSONDecoder()
+                    args, _ = decoder.raw_decode(tool_call.function.arguments)
+                    query = args.get("query")
+                    search_result = perform_web_search(query, db=db)
+                    messages.append(response.choices[0].message)
+                    messages.append({
+                        "role": "tool",
+                        "tool_call_id": tool_call.id,
+                        "name": "web_search",
+                        "content": search_result
+                    })
+                    final_response = client.chat.completions.create(
+                        model=model_name,
+                        messages=messages,
+                        max_tokens=1024
+                    )
+                    return final_response.choices[0].message.content or ""
+                except Exception as e:
+                    return f"Error executing tool: {e}"
+            
+            elif tool_call.function.name.startswith("action_"):
+                action_uuid_str = tool_call.function.name.replace("action_", "").replace("_", "-")
+                try:
+
+                    decoder = json.JSONDecoder()
+                    args, _ = decoder.raw_decode(tool_call.function.arguments)
+                    result = execute_agent_action(db, action_uuid_str, args)
+                    messages.append(response.choices[0].message)
+                    messages.append({
+                        "role": "tool",
+                        "tool_call_id": tool_call.id,
+                        "name": tool_call.function.name,
+                        "content": result
+                    })
+                    final_response = client.chat.completions.create(
+                        model=model_name,
+                        messages=messages,
+                        max_tokens=1024
+                    )
+                    return final_response.choices[0].message.content or ""
+                except Exception as e:
+                    return f"Error executing action: {e}"
+
         return response.choices[0].message.content or ""
     if provider == "anthropic":
+        from app.services.tool_engine import format_action_as_anthropic_tool # Ensure import available
+        
         client = get_anthropic_client(api_key)
         kwargs = {
             "model": model,
@@ -855,7 +1319,98 @@ def generate_response(provider: str, model: str, system_instruction: str, messag
         kwargs["messages"].append({"role": "user", "content": message})
         if system_instruction:
             kwargs["system"] = system_instruction
+            
+        # Anthropic Tool Logic
+        tools = []
+        if system_instruction:
+            if "FEATURE ENABLED: Web Search" in system_instruction:
+                tools.append({
+                    "name": "web_search",
+                    "description": "Search the web for real-time information.",
+                    "input_schema": {
+                        "type": "object",
+                        "properties": {
+                            "query": {"type": "string", "description": "The search query"}
+                        },
+                        "required": ["query"]
+                    }
+                })
+            if "FEATURE ENABLED: Code Execution" in system_instruction:
+                tools.append({
+                    "name": "run_python",
+                    "description": "Execute Python code to perform calculations, data analysis, or generate files.",
+                    "input_schema": {
+                        "type": "object",
+                        "properties": {
+                            "code": {"type": "string", "description": "The Python code to execute"}
+                        },
+                        "required": ["code"]
+                    }
+                })
+
+        if db and agent_id:
+            db_actions = get_actions_for_agent(db, agent_id)
+            for action in db_actions:
+                tools.append(format_action_as_anthropic_tool(action))
+        
+        if tools:
+            kwargs["tools"] = tools
+
         response = client.messages.create(**kwargs)
+        
+        # Handle Tool Use
+        has_tool_use = False
+        tool_results = []
+        
+        for block in response.content:
+            if block.type == "tool_use":
+                has_tool_use = True
+                tool_name = block.name
+                tool_id = block.id
+                tool_input = block.input
+                
+                result_content = ""
+                
+                if tool_name == "web_search":
+                    query = tool_input.get("query")
+                    result_content = perform_web_search(query, db=db)
+                elif tool_name == "run_python":
+                    # Simple mock or real implementation if supported in shared logic
+                    # For now just strictly support actions or web search in this block
+                    # unless we duplicated code execution logic which implies execution_id context.
+                    # Since generate_response is stateless mostly, we skip code exec or mock it.
+                    # Use existing logic if any? 
+                    # Assuming we just return error if not fully supported or implement fully.
+                    # Let's support web search and actions.
+                    result_content = "Python execution not fully supported in this context."
+                elif tool_name.startswith("action_"):
+                    action_uuid_str = tool_name.replace("action_", "").replace("_", "-")
+                    try:
+                        result_content = execute_agent_action(db, action_uuid_str, tool_input)
+                    except Exception as e:
+                        result_content = f"Error: {e}"
+                
+                tool_results.append({
+                    "type": "tool_result",
+                    "tool_use_id": tool_id,
+                    "content": result_content
+                })
+
+        if has_tool_use:
+            # Append assistant's response first (it contains the tool_use blocks)
+            kwargs["messages"].append({"role": "assistant", "content": response.content})
+            # Append tool results
+            kwargs["messages"].append({"role": "user", "content": tool_results})
+            
+            # Get final response
+            response2 = client.messages.create(**kwargs)
+            
+            parts = []
+            for block in response2.content:
+                if block.type == "text":
+                    parts.append(block.text)
+            return "".join(parts)
+
         parts = []
         for block in response.content:
             if block.type == "text":
@@ -870,21 +1425,81 @@ def generate_response(provider: str, model: str, system_instruction: str, messag
             contents.append({"role": role, "parts": [{"text": m["content"]}]})
     contents.append({"role": "user", "parts": [{"text": message}]})
 
-    if system_instruction:
-        response = client.models.generate_content(
-            model=model,
-            contents=contents,
-            config=types.GenerateContentConfig(system_instruction=system_instruction),
-        )
-    else:
-        response = client.models.generate_content(
-            model=model,
-            contents=contents,
-        )
+    gemini_tools = []
+    if db and agent_id:
+        db_actions = get_actions_for_agent(db, agent_id)
+        if db_actions:
+             gemini_tools.append({"function_declarations": [format_action_as_gemini_tool(a) for a in db_actions]})
+
+    config = types.GenerateContentConfig(system_instruction=system_instruction)
+    if gemini_tools:
+        config.tools = gemini_tools
+
+    response = client.models.generate_content(
+        model=model,
+        contents=contents,
+        config=config,
+    )
+    
+    # Handle usage of function calls
+    if response.function_calls:
+        # We only handle the first one for now in this simple loop, 
+        # or iterate if multiple. Gemini usually returns one or more parts.
+        
+        # In python SDK, response.function_calls is a list? or we check parts.
+        # It's better to check parts.
+        full_response_text = ""
+        
+        # Helper to process parts
+        function_responses = []
+        for part in response.candidates[0].content.parts:
+            if part.function_call:
+                 fc = part.function_call
+                 action_uuid_str = fc.name.replace("action_", "").replace("_", "-")
+                 args = {k: v for k, v in fc.args.items()}
+                 
+                 print(f"Gemini Action Call: {fc.name} args={args}")
+                 
+                 try:
+                     result_str = execute_agent_action(db, action_uuid_str, args)
+                     # Gemini expects function response
+                     function_responses.append({
+                         "name": fc.name,
+                         "response": {"result": result_str}
+                     })
+                 except Exception as e:
+                     function_responses.append({
+                         "name": fc.name,
+                         "response": {"error": str(e)}
+                     })
+        
+        if function_responses:
+            # Send result back
+            # We must append the model's call to history first
+            contents.append(response.candidates[0].content)
+            
+            # Then the tool response
+            parts_response = []
+            for fr in function_responses:
+                parts_response.append(types.Part(function_response=types.FunctionResponse(
+                    name=fr["name"],
+                    response=fr["response"]
+                )))
+            
+            contents.append(types.Content(role="tool", parts=parts_response))
+            
+            # Generate final response
+            response2 = client.models.generate_content(
+                model=model,
+                contents=contents,
+                config=config 
+            )
+            return getattr(response2, "text", "") or ""
+
     return getattr(response, "text", "") or ""
 
 
-def stream_response(provider: str, model: str, system_instruction: str, message: str, api_key: str, execution_id: str = None, db: Session | None = None, history: list[dict] | None = None) -> Iterable[bytes]:
+def stream_response(provider: str, model: str, system_instruction: str, message: str, api_key: str, execution_id: str = None, db: Session | None = None, history: list[dict] | None = None, agent_id: str | None = None) -> Iterable[bytes]:
     if provider == "openai":
         client = get_openai_client(api_key)
         messages = []
@@ -932,6 +1547,13 @@ def stream_response(provider: str, model: str, system_instruction: str, message:
                     }
                 })
         
+        # --- Add Dynamic Actions ---
+        if db and agent_id:
+            from app.services.tool_engine import get_actions_for_agent, format_action_as_tool
+            db_actions = get_actions_for_agent(db, agent_id)
+            for action in db_actions:
+                tools.append(format_action_as_tool(action))
+
         if not tools:
             tools = None
 
@@ -962,21 +1584,54 @@ def stream_response(provider: str, model: str, system_instruction: str, message:
             
             text = getattr(delta, "content", None)
             if text:
-                yield text.encode("utf-8")
+                yield (json.dumps({"type": "token", "content": text}) + "\n").encode("utf-8")
 
         # Execute tool if needed
-        if tool_call_id and tool_name == "web_search":
+        if tool_call_id and tool_name:
             args_str = "".join(tool_args_list)
-            import json
+            args = {}
             try:
                 decoder = json.JSONDecoder()
                 args, _ = decoder.raw_decode(args_str)
-                query = args.get("query")
-                yield f"\n\n_Searching for: {query}..._\n\n".encode("utf-8")
+            except:
+                pass
+            
+            # Emit tool call event
+            yield (json.dumps({
+                "type": "tool_call", 
+                "name": tool_name, 
+                "args": args
+            }) + "\n").encode("utf-8")
+            
+            result_content = ""
+            
+            try:
+                if tool_name == "web_search":
+                    query = args.get("query")
+                    yield (json.dumps({"type": "thought", "content": f"Searching web for: {query}"}) + "\n").encode("utf-8")
+                    result_content = perform_web_search(query, db=db)
                 
-                search_result = perform_web_search(query, db=db)
+                elif tool_name.startswith("action_"):
+                    # Handle dynamic API action
+                    action_uuid_str = tool_name.replace("action_", "").replace("_", "-")
+                    yield (json.dumps({"type": "thought", "content": f"Calling external action: {tool_name}"}) + "\n").encode("utf-8")
+                    result_content = execute_agent_action(db, action_uuid_str, args)
+                elif tool_name == "run_python":
+                    code = args.get("code")
+                    yield (json.dumps({"type": "thought", "content": "Executing Python code..."}) + "\n").encode("utf-8")
+                    if execution_id:
+                        result_content = execute_python_code(code, execution_id)
+                    else:
+                        result_content = "Code execution requires a valid execution session."
+                        
+                # Emit tool result event
+                yield (json.dumps({
+                    "type": "tool_result", 
+                    "name": tool_name, 
+                    "result": result_content
+                }) + "\n").encode("utf-8")
                 
-                # Append tool messages
+                # Append tool messages for the second pass
                 messages.append({
                     "role": "assistant",
                     "content": None,
@@ -989,10 +1644,11 @@ def stream_response(provider: str, model: str, system_instruction: str, message:
                 messages.append({
                     "role": "tool",
                     "tool_call_id": tool_call_id,
-                    "content": search_result
+                    "name": tool_name,
+                    "content": result_content
                 })
                 
-                # Second stream with search results
+                # Second stream with tool results
                 stream2 = client.chat.completions.create(
                     model=model_name,
                     messages=messages,
@@ -1002,57 +1658,10 @@ def stream_response(provider: str, model: str, system_instruction: str, message:
                     delta = chunk.choices[0].delta
                     text = getattr(delta, "content", None)
                     if text:
-                        yield text.encode("utf-8")
-                        
+                        yield (json.dumps({"type": "token", "content": text}) + "\n").encode("utf-8")
+
             except Exception as e:
-                yield f"\n[Search failed: {e}]".encode("utf-8")
-        
-        # Execute run_python tool if needed
-        if tool_call_id and tool_name == "run_python":
-            args_str = "".join(tool_args_list)
-            import json
-            try:
-                decoder = json.JSONDecoder()
-                args, _ = decoder.raw_decode(args_str)
-                code = args.get("code")
-                yield f"\n\n_Executing Python code..._\n\n".encode("utf-8")
-                
-                # Execute code
-                if execution_id:
-                    code_result = execute_python_code(code, execution_id)
-                else:
-                    code_result = "Error: No execution ID available for file storage."
-                
-                # Append tool messages
-                messages.append({
-                    "role": "assistant",
-                    "content": None,
-                    "tool_calls": [{
-                        "id": tool_call_id,
-                        "type": "function",
-                        "function": {"name": tool_name, "arguments": args_str}
-                    }]
-                })
-                messages.append({
-                    "role": "tool",
-                    "tool_call_id": tool_call_id,
-                    "content": code_result
-                })
-                
-                # Second stream with code results
-                stream2 = client.chat.completions.create(
-                    model=model_name,
-                    messages=messages,
-                    stream=True
-                )
-                for chunk in stream2:
-                    delta = chunk.choices[0].delta
-                    text = getattr(delta, "content", None)
-                    if text:
-                        yield text.encode("utf-8")
-                        
-            except Exception as e:
-                yield f"\n[Code execution failed: {e}]".encode("utf-8")
+                yield (json.dumps({"type": "error", "content": f"Tool error: {str(e)}"}) + "\n").encode("utf-8")
         return
 
     if provider == "llama":
@@ -1076,7 +1685,7 @@ def stream_response(provider: str, model: str, system_instruction: str, message:
             delta = chunk.choices[0].delta
             text = getattr(delta, "content", None)
             if text:
-                yield text.encode("utf-8")
+                yield (json.dumps({"type": "token", "content": text}) + "\n").encode("utf-8")
         return
 
     if provider == "groq":
@@ -1090,17 +1699,163 @@ def stream_response(provider: str, model: str, system_instruction: str, message:
                 messages.append({"role": role, "content": m["content"]})
         messages.append({"role": "user", "content": message})
         model_name = normalize_model(provider, model)
+        
+        # Shared OpenAI-compatible tool logic
+        tools = []
+        if system_instruction:
+            if "FEATURE ENABLED: Web Search" in system_instruction:
+                tools.append({
+                    "type": "function",
+                    "function": {
+                        "name": "web_search",
+                        "description": "Search the web for real-time information.",
+                        "parameters": {
+                            "type": "object",
+                            "properties": {
+                                "query": {"type": "string", "description": "The search query"}
+                            },
+                            "required": ["query"]
+                        }
+                    }
+                })
+            if "FEATURE ENABLED: Code Execution" in system_instruction:
+                tools.append({
+                    "type": "function",
+                    "function": {
+                        "name": "run_python",
+                        "description": "Execute Python code to perform calculations, data analysis, or generate files.",
+                        "parameters": {
+                            "type": "object",
+                            "properties": {
+                                "code": {"type": "string", "description": "The Python code to execute"}
+                            },
+                            "required": ["code"]
+                        }
+                    }
+                })
+        
+        if db and agent_id:
+            db_actions = get_actions_for_agent(db, agent_id)
+            for action in db_actions:
+                tools.append(format_action_as_tool(action))
+        
+        if not tools: settings_tools = None
+        else: settings_tools = tools
+
         stream = client.chat.completions.create(
             model=model_name,
             messages=messages,
             max_tokens=1024,
             stream=True,
+            tools=settings_tools if settings_tools else None,
         )
+        
+        tool_call_id = None
+        tool_name = None
+        tool_args_list = []
+
         for chunk in stream:
             delta = chunk.choices[0].delta
+            
+            # Handle Tool Calls
+            if delta.tool_calls:
+                tc = delta.tool_calls[0]
+                if tc.id:
+                    tool_call_id = tc.id
+                    tool_name = tc.function.name
+                if tc.function.arguments:
+                    tool_args_list.append(tc.function.arguments)
+                continue
+            
             text = getattr(delta, "content", None)
             if text:
-                yield text.encode("utf-8")
+                yield (json.dumps({"type": "token", "content": text}) + "\n").encode("utf-8")
+
+        # Execute tool if needed
+        if tool_call_id and tool_name == "web_search":
+            args_str = "".join(tool_args_list)
+
+            try:
+                decoder = json.JSONDecoder()
+                args, _ = decoder.raw_decode(args_str)
+                query = args.get("query")
+                yield (json.dumps({"type": "thought", "content": f"Searching web for: {query}"}) + "\n").encode("utf-8")
+                
+                search_result = perform_web_search(query, db=db)
+                
+                # Append tool messages
+                messages.append({
+                    "role": "assistant",
+                    "content": None,
+                    "tool_calls": [{
+                        "id": tool_call_id,
+                        "type": "function",
+                        "function": {"name": tool_name, "arguments": args_str}
+                    }]
+                })
+                messages.append({
+                    "role": "tool",
+                    "tool_call_id": tool_call_id,
+                    "name": "web_search",
+                    "content": search_result
+                })
+                
+                # Second stream with search results
+                stream2 = client.chat.completions.create(
+                    model=model_name,
+                    messages=messages,
+                    stream=True
+                )
+                for chunk in stream2:
+                    delta = chunk.choices[0].delta
+                    text = getattr(delta, "content", None)
+                    if text:
+                        yield (json.dumps({"type": "token", "content": text}) + "\n").encode("utf-8")
+                        
+            except Exception as e:
+                yield (json.dumps({"type": "error", "content": f"Search failed: {e}"}) + "\n").encode("utf-8")
+        
+        elif tool_call_id and tool_name and tool_name.startswith("action_"):
+            action_uuid_str = tool_name.replace("action_", "").replace("_", "-")
+            args_str = "".join(tool_args_list)
+            try:
+
+                decoder = json.JSONDecoder()
+                args, _ = decoder.raw_decode(args_str)
+                
+                yield f"\n\n_Executing action: {tool_name}..._\n\n".encode("utf-8")
+                
+                result = execute_agent_action(db, action_uuid_str, args)
+                
+                messages.append({
+                    "role": "assistant",
+                    "content": None,
+                    "tool_calls": [{
+                        "id": tool_call_id,
+                        "type": "function",
+                        "function": {"name": tool_name, "arguments": args_str}
+                    }]
+                })
+                messages.append({
+                    "role": "tool",
+                    "tool_call_id": tool_call_id,
+                    "name": tool_name,
+                    "content": result
+                })
+                
+                stream2 = client.chat.completions.create(
+                    model=model_name,
+                    messages=messages,
+                    stream=True
+                )
+                for chunk in stream2:
+                    delta = chunk.choices[0].delta
+                    text = getattr(delta, "content", None)
+                    if text:
+                        yield text.encode("utf-8")
+
+            except Exception as e:
+                yield f"\n[Action execution failed: {e}]".encode("utf-8")
         return
 
     if provider == "deepseek":
@@ -1114,20 +1869,168 @@ def stream_response(provider: str, model: str, system_instruction: str, message:
                 messages.append({"role": role, "content": m["content"]})
         messages.append({"role": "user", "content": message})
         model_name = normalize_model(provider, model)
+        
+        # Shared OpenAI-compatible tool logic
+        tools = []
+        if system_instruction:
+            if "FEATURE ENABLED: Web Search" in system_instruction:
+                tools.append({
+                    "type": "function",
+                    "function": {
+                        "name": "web_search",
+                        "description": "Search the web for real-time information.",
+                        "parameters": {
+                            "type": "object",
+                            "properties": {
+                                "query": {"type": "string", "description": "The search query"}
+                            },
+                            "required": ["query"]
+                        }
+                    }
+                })
+            if "FEATURE ENABLED: Code Execution" in system_instruction:
+                tools.append({
+                    "type": "function",
+                    "function": {
+                        "name": "run_python",
+                        "description": "Execute Python code to perform calculations, data analysis, or generate files.",
+                        "parameters": {
+                            "type": "object",
+                            "properties": {
+                                "code": {"type": "string", "description": "The Python code to execute"}
+                            },
+                            "required": ["code"]
+                        }
+                    }
+                })
+        
+        if db and agent_id:
+            db_actions = get_actions_for_agent(db, agent_id)
+            for action in db_actions:
+                tools.append(format_action_as_tool(action))
+        
+        if not tools: settings_tools = None
+        else: settings_tools = tools
+
         stream = client.chat.completions.create(
             model=model_name,
             messages=messages,
             max_tokens=1024,
             stream=True,
+            tools=settings_tools if settings_tools else None,
         )
+        
+        tool_call_id = None
+        tool_name = None
+        tool_args_list = []
+
         for chunk in stream:
             delta = chunk.choices[0].delta
+            
+            # Handle Tool Calls
+            if delta.tool_calls:
+                tc = delta.tool_calls[0]
+                if tc.id:
+                    tool_call_id = tc.id
+                    tool_name = tc.function.name
+                if tc.function.arguments:
+                    tool_args_list.append(tc.function.arguments)
+                continue
+            
             text = getattr(delta, "content", None)
             if text:
-                yield text.encode("utf-8")
+                yield (json.dumps({"type": "token", "content": text}) + "\n").encode("utf-8")
+
+        # Execute tool if needed
+        if tool_call_id and tool_name == "web_search":
+            args_str = "".join(tool_args_list)
+
+            try:
+                decoder = json.JSONDecoder()
+                args, _ = decoder.raw_decode(args_str)
+                query = args.get("query")
+                yield (json.dumps({"type": "thought", "content": f"Searching web for: {query}"}) + "\n").encode("utf-8")
+                
+                search_result = perform_web_search(query, db=db)
+                
+                # Append tool messages
+                messages.append({
+                    "role": "assistant",
+                    "content": None,
+                    "tool_calls": [{
+                        "id": tool_call_id,
+                        "type": "function",
+                        "function": {"name": tool_name, "arguments": args_str}
+                    }]
+                })
+                messages.append({
+                    "role": "tool",
+                    "tool_call_id": tool_call_id,
+                    "name": "web_search",
+                    "content": search_result
+                })
+                
+                # Second stream with search results
+                stream2 = client.chat.completions.create(
+                    model=model_name,
+                    messages=messages,
+                    stream=True
+                )
+                for chunk in stream2:
+                    delta = chunk.choices[0].delta
+                    text = getattr(delta, "content", None)
+                    if text:
+                        yield (json.dumps({"type": "token", "content": text}) + "\n").encode("utf-8")
+                        
+            except Exception as e:
+                yield (json.dumps({"type": "error", "content": f"Search failed: {e}"}) + "\n").encode("utf-8")
+        
+        elif tool_call_id and tool_name and tool_name.startswith("action_"):
+            action_uuid_str = tool_name.replace("action_", "").replace("_", "-")
+            args_str = "".join(tool_args_list)
+            try:
+
+                decoder = json.JSONDecoder()
+                args, _ = decoder.raw_decode(args_str)
+                
+                yield f"\n\n_Executing action: {tool_name}..._\n\n".encode("utf-8")
+                
+                result = execute_agent_action(db, action_uuid_str, args)
+                
+                messages.append({
+                    "role": "assistant",
+                    "content": None,
+                    "tool_calls": [{
+                        "id": tool_call_id,
+                        "type": "function",
+                        "function": {"name": tool_name, "arguments": args_str}
+                    }]
+                })
+                messages.append({
+                    "role": "tool",
+                    "tool_call_id": tool_call_id,
+                    "name": tool_name,
+                    "content": result
+                })
+                
+                stream2 = client.chat.completions.create(
+                    model=model_name,
+                    messages=messages,
+                    stream=True
+                )
+                for chunk in stream2:
+                    delta = chunk.choices[0].delta
+                    text = getattr(delta, "content", None)
+                    if text:
+                        yield text.encode("utf-8")
+
+            except Exception as e:
+                yield f"\n[Action execution failed: {e}]".encode("utf-8")
         return
 
     if provider == "anthropic":
+        from app.services.tool_engine import format_action_as_anthropic_tool # Ensure import available
+        
         client = get_anthropic_client(api_key)
         kwargs = {
             "model": model,
@@ -1141,13 +2044,118 @@ def stream_response(provider: str, model: str, system_instruction: str, message:
         kwargs["messages"].append({"role": "user", "content": message})
         if system_instruction:
             kwargs["system"] = system_instruction
+            
+        # Anthropic Tool Logic
+        tools = []
+        if system_instruction:
+            if "FEATURE ENABLED: Web Search" in system_instruction:
+                tools.append({
+                    "name": "web_search",
+                    "description": "Search the web for real-time information.",
+                    "input_schema": {
+                        "type": "object",
+                        "properties": {
+                            "query": {"type": "string", "description": "The search query"}
+                        },
+                        "required": ["query"]
+                    }
+                })
+            if "FEATURE ENABLED: Code Execution" in system_instruction:
+                tools.append({
+                    "name": "run_python",
+                    "description": "Execute Python code to perform calculations, data analysis, or generate files.",
+                    "input_schema": {
+                        "type": "object",
+                        "properties": {
+                            "code": {"type": "string", "description": "The Python code to execute"}
+                        },
+                        "required": ["code"]
+                    }
+                })
+
+        if db and agent_id:
+            db_actions = get_actions_for_agent(db, agent_id)
+            for action in db_actions:
+                tools.append(format_action_as_anthropic_tool(action))
+        
+        if tools:
+            kwargs["tools"] = tools
+
+        # We need to capture the full tool use to add it to history properly
+        current_tool_use = {}
+        tool_input_json = []
+
         with client.messages.stream(**kwargs) as stream:
-            for text in stream.text_stream:
-                if text:
-                    yield text.encode("utf-8")
+            for event in stream:
+                if event.type == "content_block_start" and event.content_block.type == "tool_use":
+                    current_tool_use = event.content_block
+                    tool_input_json = []
+                    yield (json.dumps({"type": "thought", "content": f"Executing action: {current_tool_use.name}..."}) + "\n").encode("utf-8")
+                    
+                elif event.type == "content_block_delta" and event.delta.type == "input_json_delta":
+                    tool_input_json.append(event.delta.partial_json)
+                    
+                elif event.type == "content_block_stop":
+                    if current_tool_use:
+                        # Reconstruct full input
+                        full_json = "".join(tool_input_json)
+
+                        try:
+                            tool_input = json.loads(full_json)
+                            # Execute
+                            result_content = ""
+                            if current_tool_use.name == "web_search":
+                                query = tool_input.get("query")
+                                result_content = perform_web_search(query, db=db)
+                            elif current_tool_use.name == "run_python":
+                                result_content = "Python execution not fully supported in this context."
+                            elif current_tool_use.name.startswith("action_"):
+                                action_uuid_str = current_tool_use.name.replace("action_", "").replace("_", "-")
+                                result_content = execute_agent_action(db, action_uuid_str, tool_input)
+
+                            # Append to history
+                            # We need to reconstruct the assistant message correctly
+                            # For streaming, we cheat a bit and assume single tool call per turn for simplicity in this complexity
+                            kwargs["messages"].append({
+                                "role": "assistant",
+                                "content": [
+                                    {
+                                        "type": "tool_use",
+                                        "id": current_tool_use.id,
+                                        "name": current_tool_use.name,
+                                        "input": tool_input
+                                    }
+                                ]
+                            })
+                            
+                            kwargs["messages"].append({
+                                "role": "user",
+                                "content": [
+                                    {
+                                        "type": "tool_result",
+                                        "tool_use_id": current_tool_use.id,
+                                        "content": result_content
+                                    }
+                                ]
+                            })
+                            
+                            # Stream 2
+                            with client.messages.stream(**kwargs) as stream2:
+                                for text in stream2.text_stream:
+                                    if text:
+                                        yield (json.dumps({"type": "token", "content": text}) + "\n").encode("utf-8")
+                            return
+
+                        except Exception as e:
+                            yield (json.dumps({"type": "error", "content": f"Action Error: {e}"}) + "\n").encode("utf-8")
+                            return
+
+                elif event.type == "text_delta":
+                     yield (json.dumps({"type": "token", "content": event.text}) + "\n").encode("utf-8")
         return
 
     client = get_gemini_client(api_key)
+    
     contents = []
     if history:
         for m in history:
@@ -1155,21 +2163,100 @@ def stream_response(provider: str, model: str, system_instruction: str, message:
             contents.append({"role": role, "parts": [{"text": m["content"]}]})
     contents.append({"role": "user", "parts": [{"text": message}]})
 
+    gemini_tools = []
+    
+    # --- Add Built-in Capabilities ---
     if system_instruction:
-        result = client.models.generate_content_stream(
-            model=model,
-            contents=contents,
-            config=types.GenerateContentConfig(system_instruction=system_instruction),
-        )
-    else:
-        result = client.models.generate_content_stream(
-            model=model,
-            contents=contents,
-        )
-    for chunk in result:
+        decls = []
+        if "FEATURE ENABLED: Web Search" in system_instruction:
+            decls.append({
+                "name": "web_search",
+                "description": "Search the web for real-time information.",
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "query": {"type": "string", "description": "The search query"}
+                    },
+                    "required": ["query"]
+                }
+            })
+        if "FEATURE ENABLED: Code Execution" in system_instruction:
+            decls.append({
+                "name": "run_python",
+                "description": "Execute Python code to perform calculations, data analysis, or generate files.",
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "code": {"type": "string", "description": "The Python code to execute"}
+                    },
+                    "required": ["code"]
+                }
+            })
+        if decls:
+            gemini_tools.append({"function_declarations": decls})
+
+    # --- Add Dynamic Actions ---
+    if db and agent_id:
+        db_actions = get_actions_for_agent(db, agent_id)
+        if db_actions:
+             gemini_tools.append({"function_declarations": [format_action_as_gemini_tool(a) for a in db_actions]})
+
+    config = types.GenerateContentConfig(system_instruction=system_instruction)
+    if gemini_tools:
+        config.tools = gemini_tools
+
+    response = client.models.generate_content_stream(
+        model=model,
+        contents=contents,
+        config=config,
+    )
+
+    for chunk in response:
+        # Check for function calls
+        if chunk.candidates and chunk.candidates[0].content and chunk.candidates[0].content.parts:
+             for part in chunk.candidates[0].content.parts:
+                 if part.function_call:
+                      fc = part.function_call
+                      action_uuid_str = fc.name.replace("action_", "").replace("_", "-")
+                      args = {k: v for k, v in fc.args.items()}
+                      
+                      yield (json.dumps({"type": "thought", "content": f"Executing action: {fc.name}..."}) + "\n").encode("utf-8")
+                      
+                      try:
+                          result_str = execute_agent_action(db, action_uuid_str, args)
+                          
+                          # Prepare history for second turn
+                          # 1. Add model's function call
+                          contents.append(chunk.candidates[0].content)
+                          
+                          # 2. Add tool response
+                          contents.append(types.Content(
+                              role="tool", 
+                              parts=[types.Part(function_response=types.FunctionResponse(
+                                  name=fc.name,
+                                  response={"result": result_str}
+                              ))]
+                          ))
+                          
+                          # Stream final response
+                          stream2 = client.models.generate_content_stream(
+                              model=model,
+                              contents=contents,
+                              config=config
+                          )
+                          for chunk2 in stream2:
+                              text2 = getattr(chunk2, "text", "")
+                              if text2:
+                                  yield (json.dumps({"type": "token", "content": text2}) + "\n").encode("utf-8")
+                          return # End stream after tool execution
+                          
+                      except Exception as e:
+                          yield (json.dumps({"type": "error", "content": f"Action failed: {e}"}) + "\n").encode("utf-8")
+                          return
+
         text = getattr(chunk, "text", "")
         if text:
-            yield text.encode("utf-8")
+            yield (json.dumps({"type": "token", "content": text}) + "\n").encode("utf-8")
 
 
 def build_agent_suggest_prompt(payload: dict[str, Any]) -> str:
@@ -1401,7 +2488,7 @@ def build_vector_index(db: Session) -> None:
             embedding = [float(value) for value in embedding]
         except (TypeError, ValueError):
             continue
-        VECTOR_INDEX.add(str(row.agent_id), str(row.id), embedding, row.text)
+        VECTOR_INDEX.add(str(row.agent_id), str(row.id), embedding, row.text, row.chunk_metadata)
     print(f"Vector index population complete. Added {len(rows)} chunks.")
 
 
@@ -1427,19 +2514,91 @@ def build_agent_chat(
     # Specialized System Instruction for the Architect
     system_instruction = (
         "You are the 'Agent Architect', a world-class AI expert assistant that helps users build their own AI agents on the AgentGrid platform.\n\n"
-        "Your goal is to guide the user naturally through the creation process. You should be friendly, professional, and insightful.\n\n"
-        "GUIDELINES:\n"
-        "1. Conversation: Talk to the user about their agent. Ask clarifying questions if their idea is vague. Suggest features like web search or code execution if they fit the use case.\n"
-        "2. JSON Updates: Whenever the conversation leads to a change in the agent's definition, you MUST include a JSON block at the end of your response inside a <suggestion> tag.\n"
-        "3. Fields to update: 'name', 'description', 'instruction'.\n\n"
-        "EXAMPLE JSON BLOCK:\n"
+        "Your goal is to guide users naturally through the creation process by engaging in thoughtful conversation, asking insightful questions, and providing expert recommendations. You should be friendly, professional, enthusiastic, and insightful.\n\n"
+        "CORE RESPONSIBILITIES:\n\n"
+        "1. CONVERSATIONAL GUIDANCE:\n"
+        "   - Engage users in natural dialogue about their agent concept\n"
+        "   - Ask clarifying questions when their idea is vague or incomplete\n"
+        "   - Probe for key details: purpose, target audience, tone, key features, use cases\n"
+        "   - Suggest powerful features like web search, code execution, file handling when relevant\n"
+        "   - Provide examples and inspiration to help users think bigger\n"
+        "   - Anticipate needs they might not have considered\n"
+        "   - Validate their ideas and build excitement about possibilities\n\n"
+        "2. INTELLIGENT RECOMMENDATIONS:\n"
+        "   - Suggest web search capability for agents needing current information (news, prices, research, real_time data)\n"
+        "   - Recommend code execution for agents doing calculations, data analysis, or file processing\n"
+        "   - Propose specific instruction improvements based on best practices\n"
+        "   - Identify missing elements in their agent definition\n"
+        "   - Offer tone and personality suggestions that fit the use case\n"
+        "   - Recommend edge cases and safety considerations\n\n"
+        "3. JSON CONFIGURATION UPDATES:\n"
+        "   - You MUST include a JSON block inside <suggestion> tags whenever the conversation leads to changes in the agent's definition\n"
+        "   - Update incrementally - only change fields that were discussed or refined\n"
+        "   - Keep existing content unless explicitly replacing it\n"
+        "   - Ensure all JSON is valid and properly formatted\n"
+        "   - Be thorough in instructions - include role definition, capabilities, interaction style, and specific behaviors\n\n"
+        "FIELDS TO UPDATE:\n"
+        "- 'name': Clear, memorable agent name (2-4 words typically)\n"
+        "- 'description': Concise 2-3 sentence overview of what the agent does and its value (user-facing)\n"
+        "- 'instruction': Comprehensive system prompt with role, capabilities, behavior, tone, and guidelines\n\n"
+        "INSTRUCTION WRITING BEST PRACTICES:\n"
+        "- Start with clear role definition: \"You are [Name], a [expertise] that [primary function]\"\n"
+        "- Use structured sections with clear headers\n"
+        "- Include specific behavioral guidelines, not vague directives\n"
+        "- Define interaction style and tone explicitly\n"
+        "- Specify when and how to use special capabilities\n"
+        "- Add relevant disclaimers for professional domains (legal, medical, financial)\n"
+        "- Provide examples of good responses or behaviors when helpful\n"
+        "- Make instructions actionable and unambiguous\n"
+        "- Optimize length: 200-400 words for standard agents, 400-600 for complex domains\n\n"
+        "EXAMPLE INTERACTION FLOW:\n\n"
+        "User: \"I want to make a fitness coach\"\n\n"
+        "You: \"Great idea! A fitness coach agent could be really valuable. Let me ask a few questions to make this perfect:\n\n"
+        "- What's the primary focus: workout planning, nutrition advice, or both?\n"
+        "- Who's the target user: beginners, intermediate, or advanced fitness enthusiasts?\n"
+        "- Should it create personalized workout plans, or provide general guidance?\n"
+        "- Would you like it to track progress or just give advice?\n\n"
+        "I'm thinking this agent could benefit from web search to find the latest fitness research and nutrition information. What do you think?\"\n\n"
+        "[After user responds with more details]\n\n"
+        "You: \"Perfect! I'm envisioning a comprehensive fitness and nutrition coach that creates personalized plans, provides evidence-based advice, and adapts to the user's goals and fitness level. \n\n"
+        "I'll set this up with:\n"
+        "✅ Web search enabled - for latest research, exercise techniques, and nutrition science\n"
+        "✅ Motivational yet realistic tone - encouraging without overpromising\n"
+        "✅ Personalization - adapting advice to user's experience level, goals, and constraints\n\n"
+        "Here's the configuration:\"\n\n"
         "<suggestion>\n"
         "{\n"
-        "  \"name\": \"Travel Guru\",\n"
-        "  \"description\": \"A Japanese travel expert...\",\n"
-        "  \"instruction\": \"- You are a travel expert...\"\n"
+        "  \"name\": \"FitLife Coach\",\n"
+        "  \"description\": \"Your personal AI fitness and nutrition coach that creates customized workout plans, provides evidence-based nutrition guidance, and adapts to your goals and fitness level. Combines motivation with practical, sustainable advice.\",\n"
+        "  \"instruction\": \"You are FitLife Coach, a professional fitness and nutrition expert that helps users achieve their health and fitness goals through personalized guidance and evidence-based advice.\\n\\nCORE CAPABILITIES:\\n- Create customized workout plans based on user's fitness level, goals, equipment, and time availability\\n- Provide evidence-based nutrition guidance and meal planning advice\\n- Offer exercise form corrections and technique tips\\n- Adapt recommendations for injuries, limitations, or special needs\\n- Track progress and adjust plans accordingly\\n- Motivate and encourage sustainable lifestyle changes\\n\\nWEB SEARCH USAGE:\\n- Use web search to find latest fitness research and studies\\n- Look up current nutrition science and dietary recommendations\\n- Research specific exercises, techniques, and training methods\\n- Verify safety information for exercises or dietary approaches\\n- Find evidence for or against trending fitness/nutrition claims\\n\\nINTERACTION STYLE:\\n- Be encouraging and motivational yet realistic and honest\\n- Use clear, accessible language - avoid excessive jargon\\n- Personalize all advice to the user's specific situation\\n- Ask clarifying questions about goals, experience, equipment, and constraints\\n- Celebrate progress and milestones\\n- Address setbacks with empathy and constructive solutions\\n\\nASSESSMENT APPROACH:\\n- Start by understanding user's current fitness level, goals, and lifestyle\\n- Consider injuries, medical conditions, and limitations\\n- Account for available equipment and time commitment\\n- Assess dietary preferences, restrictions, and current habits\\n- provide progressive training that builds over time\\n- Balance different training modalities (strength, cardio, flexibility, recovery)\\n- Include warm-up and cool-down guidance\\n- Offer exercise alternatives for different equipment or ability levels\\n- Specify sets, reps, rest periods, and intensity levels\\n\\nNUTRITION GUIDANCE:\\n- Focus on sustainable, balanced eating approaches\\n- Provide macronutrient guidance appropriate to goals\\n- Suggest meal ideas and timing strategies\\n- Address common nutrition questions and myths\\n- Emphasize whole foods and practical meal planning\\n\\nSAFETY & DISCLAIMERS:\\n- Always remind users you're an AI coach, not a licensed personal trainer or dietitian\\n- Recommend consulting healthcare providers for medical concerns or before starting new programs\\n- Emphasize proper form and injury prevention\\n- Advise caution with aggressive dietary restrictions or extreme training\\n\\nMOTIVATION STRATEGY:\\n- Set realistic, achievable goals with clear milestones\\n- Celebrate non_scale victories (strength gains, consistency, energy levels)\\n- Provide accountability and positive reinforcement\\n- Help users overcome mental barriers and plateaus\\n- Encourage long-term lifestyle change over quick fixes\"\n"
         "}\n"
         "</suggestion>\n\n"
+        "RESPONSE STRUCTURE:\n"
+        "1. Acknowledge user input enthusiastically\n"
+        "2. Ask 2-4 clarifying questions if needed (don't overwhelm)\n"
+        "3. Suggest relevant features or capabilities\n"
+        "4. Summarize what you're creating\n"
+        "5. Provide the <suggestion> JSON block\n\n"
+        "ADAPTIVE BEHAVIOR:\n"
+        "- If user gives minimal info (\"make a cooking bot\"), ask questions before generating JSON\n"
+        "- If user gives detailed info, generate comprehensive JSON immediately\n"
+        "- If user wants to refine existing agent, update only the discussed fields\n"
+        "- If user is exploring ideas, brainstorm with them before committing to JSON\n\n"
+        "DOMAIN-SPECIFIC KNOWLEDGE:\n"
+        "For different agent types, consider:\n"
+        "- Professional agents (legal, medical, financial): Add disclaimers, emphasize informational nature\n"
+        "- Creative agents: Encourage experimentation, provide constructive feedback frameworks\n"
+        "- Educational agents: Use Socratic method, adapt to learning pace\n"
+        "- Technical agents: Be precise, include debugging approaches, stay current via web search\n"
+        "- Personal coaches: Focus on motivation, goal-setting, accountability\n"
+        "- Business tools: Emphasize ROI, actionable insights, practical frameworks\n\n"
+        "CONVERSATION QUALITY:\n"
+        "- Be concise but thorough - don't write essays\n"
+        "- Use bullet points for clarity when listing features or questions\n"
+        "- Show enthusiasm about their agent idea\n"
+        "- Validate their concept while offering improvements\n"
+        "- Make the process feel collaborative, not prescriptive\n\n"
+        "Remember: You're not just filling out a form - you're helping users create powerful, well-designed AI agents that truly serve their needs. Every suggestion should make their agent better, smarter, and more valuable.\n\n"
         "The current agent state is provided below. Update it incrementally as the user provides more details."
     )
 

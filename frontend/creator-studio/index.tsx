@@ -273,11 +273,7 @@ const CreatorStudioApp = ({ initialView }: { initialView?: string }) => {
       )}
 
       {view === 'create-agent' && (
-        <div className="container mx-auto px-4 py-8 max-w-7xl animate-in fade-in duration-300">
-          <div className="mb-6">
-            <h1 className="text-2xl font-bold text-white mb-2">Create New Agent</h1>
-            <p className="text-slate-400">Configure your AI agent's personality, knowledge, and capabilities.</p>
-          </div>
+        <div className="absolute inset-x-0 bottom-0 top-16 animate-in fade-in duration-300 bg-slate-950 z-20">
           <AgentBuilder
             onCancel={() => setView('dashboard')}
             onSave={handleCreateAgent}
@@ -286,11 +282,7 @@ const CreatorStudioApp = ({ initialView }: { initialView?: string }) => {
       )}
 
       {view === 'edit-agent' && editingAgent && (
-        <div className="container mx-auto px-4 py-8 max-w-7xl animate-in fade-in duration-300">
-          <div className="mb-6">
-            <h1 className="text-2xl font-bold text-white mb-2">Edit Agent</h1>
-            <p className="text-slate-400">Update your agent's configuration.</p>
-          </div>
+        <div className="absolute inset-x-0 bottom-0 top-16 animate-in fade-in duration-300 bg-slate-950 z-20">
           <AgentBuilder
             initialData={editingAgent}
             onCancel={() => {

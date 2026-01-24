@@ -14,7 +14,7 @@ if TYPE_CHECKING:
     from app.models.user import User
     from app.models.execution import AgentExecution
     from app.models.review import Review
-    from app.models.creator_studio import CreatorStudioKnowledgeFile, CreatorStudioKnowledgeChunk
+    from app.models.creator_studio import CreatorStudioKnowledgeFile, CreatorStudioKnowledgeChunk, AgentAction
 
 
 class Agent(TimestampMixin, Base):
@@ -70,6 +70,9 @@ class Agent(TimestampMixin, Base):
         back_populates="agent", cascade="all, delete"
     )
     creator_studio_chunks: Mapped[List["CreatorStudioKnowledgeChunk"]] = relationship(
+        back_populates="agent", cascade="all, delete"
+    )
+    creator_studio_actions: Mapped[List["AgentAction"]] = relationship(
         back_populates="agent", cascade="all, delete"
     )
 

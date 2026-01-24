@@ -8,6 +8,7 @@ from app.models.enums import AgentCategory, AgentStatus
 if TYPE_CHECKING:
     from app.schemas.user import UserRead
 from app.schemas.user import UserRead
+from app.schemas.creator_studio import AgentActionResponse
 
 
 class AgentConfig(BaseModel):
@@ -98,6 +99,7 @@ class AgentResponse(AgentBase):
     creator: Optional[UserRead] = None
     created_at: datetime
     updated_at: datetime
+    creator_studio_actions: List[AgentActionResponse] = Field(default_factory=list)
 
     model_config = ConfigDict(from_attributes=True)
 

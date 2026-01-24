@@ -1,7 +1,7 @@
-from typing import Literal, Optional
+from datetime import datetime
 from uuid import UUID
-
-from pydantic import BaseModel, EmailStr, Field
+from typing import Literal, Optional
+from pydantic import BaseModel, EmailStr, Field, ConfigDict
 
 
 class CreatorStudioAgentCapabilities(BaseModel):
@@ -156,6 +156,35 @@ class CreatorStudioAgentBuildRequest(BaseModel):
     history: Optional[list[CreatorStudioChatMessage]] = None
 
 
+
 class CreatorStudioAgentBuildResponse(BaseModel):
     architect_message: str
     suggested_changes: Optional[dict] = None
+
+
+class AgentActionBase(BaseModel):
+    name: str = Field(..., min_length=3, max_length=50) # Technical name (snake_case)
+    description: str = Field(..., min_length=10, max_length=500) # LLM instruction
+    url: str = Field(..., min_length=10, max_length=512)
+    method: Literal["GET", "POST", "PUT", "DELETE"] = "POST"
+    headers: Optional[dict] = Field(default_factory=dict) # Auth keys
+    openapi_spec: Optional[dict] = Field(default_factory=dict) # Schema
+
+class AgentActionCreate(AgentActionBase):
+    pass
+
+class AgentActionUpdate(BaseModel):
+    name: Optional[str] = None
+    description: Optional[str] = None
+    url: Optional[str] = None
+    method: Optional[Literal["GET", "POST", "PUT", "DELETE"]] = None
+    headers: Optional[dict] = None
+    openapi_spec: Optional[dict] = None
+
+class AgentActionResponse(AgentActionBase):
+    id: UUID
+    agent_id: UUID
+    created_at: datetime
+    updated_at: datetime
+
+    model_config = ConfigDict(from_attributes=True)

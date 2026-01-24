@@ -1,4 +1,5 @@
 ﻿import { useEffect, useRef, useState } from 'react';
+import { motion, AnimatePresence } from 'framer-motion';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import { Bot, Send, FileText, Copy, RotateCcw, Square, Download, Globe, Code, Zap, Paperclip, Loader2, X } from 'lucide-react';
@@ -264,12 +265,57 @@ export const ChatInterface = ({
     const reader = response.body.getReader();
     const decoder = new TextDecoder();
     let fullText = '';
+    let buffer = '';
 
     while (true) {
       const { value, done } = await reader.read();
       if (done) break;
-      fullText += decoder.decode(value, { stream: true });
+      
+      buffer += decoder.decode(value, { stream: true });
+      const lines = buffer.split('\n');
+      
+      // Keep the last incomplete line in the buffer
+      buffer = lines.pop() || '';
+      
+      for (let line of lines) {
+        if (!line.trim()) continue;
+        
+        // Handle potential case where multiple JSON objects are on one line
+        // (sometimes happening with raw streams or windows line endings)
+        const parts = line.split('}{').map((p, i, a) => {
+            if (a.length === 1) return p;
+            if (i === 0) return p + '}';
+            if (i === a.length - 1) return '{' + p;
+            return '{' + p + '}';
+        });
+
+        for (const part of parts) {
+            try {
+              const event = JSON.parse(part);
+              if (event.type === 'token') {
+                fullText += event.content;
+              } else if (event.type === 'error') {
+                fullText += `\n[Error: ${event.content}]`;
+              }
+            } catch (e) {
+              // Not a JSON event, assume raw text
+              fullText += part;
+            }
+        }
+      }
+      
       setMessages(prev => updateMessageText(prev, botMessageId, fullText));
+    }
+    
+    // Process any remaining data in buffer
+    if (buffer.trim()) {
+        try {
+            const event = JSON.parse(buffer);
+            if (event.type === 'token') fullText += event.content;
+        } catch (e) {
+            fullText += buffer;
+        }
+        setMessages(prev => updateMessageText(prev, botMessageId, fullText));
     }
   };
 
@@ -391,10 +437,20 @@ export const ChatInterface = ({
   };
 
   return (
-    <div className="flex h-screen bg-slate-900">
+    <div className="flex h-screen bg-[#0f172a] relative overflow-hidden">
+      {/* Premium Background Elements */}
+      <div className="absolute inset-0 bg-[radial-gradient(circle_at_50%_0%,_#1e293b_0%,#0f172a_100%)]" />
+      <div 
+        className="absolute inset-0 opacity-[0.03]" 
+        style={{ 
+          backgroundImage: 'radial-gradient(#475569 1px, transparent 1px)', 
+          backgroundSize: '32px 32px' 
+        }} 
+      />
+
       {/* Sidebar Info */}
-      <div className="w-80 bg-slate-800/30 border-r border-slate-700 flex flex-col hidden lg:flex">
-        <div className="p-6 border-b border-slate-700">
+      <div className="w-80 bg-slate-900/40 backdrop-blur-xl border-r border-white/5 flex flex-col hidden lg:flex relative z-10">
+        <div className="p-6 border-b border-white/5">
           <div className="flex items-center gap-4 mb-4">
             <div className={`w-12 h-12 rounded-xl ${agent.color} flex items-center justify-center text-white shadow-lg`}>
               {agentModelOption?.icon || <Bot size={24} />}
@@ -555,7 +611,7 @@ export const ChatInterface = ({
           </div>
         ) : (
           <>
-            <div className="flex-1 overflow-y-auto p-4 md:p-8 space-y-6">
+            <div className="flex-1 overflow-y-auto p-4 md:p-8 space-y-6 relative z-10">
               {/* Mobile Back Button */}
               {/* Mobile Info Button instead of Back */}
               <div className="lg:hidden mb-4 flex items-center justify-between border-b border-slate-800 pb-4">
@@ -570,55 +626,69 @@ export const ChatInterface = ({
                  </Button>
               </div>
 
-              {messages.map((msg) => (
-                <div key={msg.id} className={`group flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
-                  <div
-                    className={`max-w-[80%] rounded-2xl px-5 py-4 shadow-sm relative break-words ${
-                      msg.role === 'user'
-                        ? 'bg-blue-600 text-white rounded-br-none'
-                        : 'bg-slate-800 border border-slate-700 text-slate-200 rounded-bl-none'
-                    }`}
+              <AnimatePresence initial={false}>
+                {messages.map((msg) => (
+                  <motion.div 
+                    key={msg.id} 
+                    initial={{ opacity: 0, y: 10, scale: 0.95 }}
+                    animate={{ opacity: 1, y: 0, scale: 1 }}
+                    transition={{ duration: 0.2, ease: "easeOut" }}
+                    className={`group flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}
                   >
-                    {msg.role === 'model' ? (
-                      <ReactMarkdown
-                        remarkPlugins={[remarkGfm]}
-                        components={{
-                          code({ className, children, ...props }) {
-                            const match = /language-(\w+)/.exec(className || '');
-                            const code = String(children).replace(/\n$/, '');
-                            if (!match) {
-                              return <code className="bg-slate-900/80 px-1 py-0.5 rounded text-slate-100" {...props}>{code}</code>;
-                            }
-                            return (
-                              <div className="relative group">
-                                <button
-                                  onClick={() => copyToClipboard(code)}
-                                  className="absolute right-2 top-2 text-xs text-slate-400 hover:text-white bg-slate-900/80 px-2 py-1 rounded opacity-0 group-hover:opacity-100 transition"
-                                >
-                                  Copy
-                                </button>
-                                <pre className="bg-slate-900/80 border border-slate-700 rounded-lg p-3 overflow-x-auto">
-                                  <code className={className}>{code}</code>
-                                </pre>
-                              </div>
-                            );
-                          }
-                        }}
-                      >
-                        {msg.text}
-                      </ReactMarkdown>
-                    ) : (
-                      <div className="whitespace-pre-wrap leading-relaxed">{msg.text}</div>
-                    )}
-                    <button
-                      onClick={() => copyToClipboard(msg.text)}
-                      className="absolute -top-3 right-2 text-xs text-slate-400 hover:text-white bg-slate-900/90 px-2 py-1 rounded opacity-0 group-hover:opacity-100 transition"
+                    <div
+                      className={`max-w-[85%] rounded-[2rem] px-6 py-4 shadow-xl relative break-words transition-all duration-300 ${
+                        msg.role === 'user'
+                          ? 'bg-gradient-to-br from-blue-600 to-indigo-700 text-white rounded-br-none ring-1 ring-white/20'
+                          : 'bg-white/5 backdrop-blur-md border border-white/10 text-slate-200 rounded-bl-none hover:bg-white/10'
+                      }`}
                     >
-                      <Copy size={12} />
-                    </button>
-                  </div>
-                </div>
-              ))}
+                      {msg.role === 'model' ? (
+                        <div className="prose prose-invert prose-slate max-w-none prose-p:leading-relaxed prose-pre:bg-slate-950/50 prose-pre:border prose-pre:border-white/5">
+                          <ReactMarkdown
+                            remarkPlugins={[remarkGfm]}
+                            components={{
+                              code({ className, children, ...props }) {
+                                const match = /language-(\w+)/.exec(className || '');
+                                const code = String(children).replace(/\n$/, '');
+                                if (!match) {
+                                  return <code className="bg-white/10 px-1 py-0.5 rounded text-blue-300 font-mono text-[0.9em]" {...props}>{code}</code>;
+                                }
+                                return (
+                                  <div className="relative group/code my-4">
+                                    <div className="absolute -top-3 left-4 px-2 py-0.5 bg-slate-800 border border-white/10 rounded text-[10px] text-slate-400 font-mono z-10">
+                                      {match[1].toUpperCase()}
+                                    </div>
+                                    <button
+                                      onClick={() => copyToClipboard(code)}
+                                      className="absolute right-3 top-3 p-2 text-slate-400 hover:text-white bg-white/5 rounded-lg opacity-0 group-hover/code:opacity-100 transition-all border border-white/5 backdrop-blur-sm"
+                                    >
+                                      <Copy size={14} />
+                                    </button>
+                                    <pre className="m-0 bg-slate-950/80 border border-white/5 rounded-2xl p-5 overflow-x-auto scrollbar-thin scrollbar-thumb-white/10">
+                                      <code className={`${className} text-sm leading-relaxed`}>{code}</code>
+                                    </pre>
+                                  </div>
+                                );
+                              }
+                            }}
+                          >
+                            {msg.text}
+                          </ReactMarkdown>
+                        </div>
+                      ) : (
+                        <div className="text-[15px] leading-relaxed font-medium">{msg.text}</div>
+                      )}
+                      
+                      <button
+                        onClick={() => copyToClipboard(msg.text)}
+                        className="absolute -top-1 -right-1 p-2 text-slate-400 hover:text-white bg-slate-800 border border-white/10 rounded-full opacity-0 group-hover:opacity-100 transition-all shadow-lg scale-90"
+                      >
+                        <Copy size={12} />
+                      </button>
+                    </div>
+                  </motion.div>
+                ))}
+              </AnimatePresence>
               {isThinking && (
                 <div className="flex justify-start animate-pulse">
                   <div className="bg-slate-800 border border-slate-700 rounded-2xl rounded-bl-none px-5 py-4">
@@ -633,8 +703,11 @@ export const ChatInterface = ({
               <div ref={messagesEndRef} />
             </div>
 
-            <div className="p-4 border-t border-slate-800 bg-slate-900/90 backdrop-blur">
-              <div className="max-w-4xl mx-auto relative flex flex-col gap-2">
+            <div className="p-6 md:p-8 pt-0 relative z-10">
+              <div className="max-w-4xl mx-auto">
+                <div className="bg-white/5 backdrop-blur-2xl border border-white/10 rounded-[2.5rem] p-3 shadow-2xl relative group/input">
+                  {/* Focus Glow */}
+                  <div className="absolute inset-0 bg-blue-500/5 rounded-[2.5rem] opacity-0 group-focus-within/input:opacity-100 transition-opacity pointer-events-none" />
                 <div className="flex items-center justify-between gap-2">
                   <div className="flex items-center gap-2">
                     <Button
@@ -685,7 +758,7 @@ export const ChatInterface = ({
                     </button>
                   </div>
                 )}
-                <div className="relative flex items-end gap-2 bg-slate-800 border border-slate-700 rounded-xl p-2 focus-within:ring-2 focus-within:ring-blue-500/50 transition-all">
+                <div className="relative flex items-end gap-2 px-2">
                   {agent.enabledCapabilities?.fileHandling && (
                     <>
                       <input 
@@ -723,18 +796,19 @@ export const ChatInterface = ({
                   <Button
                     onClick={handleSend}
                     disabled={!inputValue.trim() || isThinking}
-                    className="mb-0.5 rounded-lg w-10 h-10 p-0 flex items-center justify-center shrink-0"
+                    className="mb-0.5 rounded-[1.25rem] w-12 h-12 p-0 flex items-center justify-center shrink-0 shadow-lg"
                     aria-label="Send message"
                   >
-                    <Send size={18} />
+                    <Send size={20} />
                   </Button>
                 </div>
               </div>
-              <div className="text-center mt-2">
-                <p className="text-xs text-slate-600">AI can make mistakes. Please check important info.</p>
-              </div>
             </div>
-          </>
+            <div className="text-center mt-3 scale-95 opacity-60">
+              <p className="text-[10px] uppercase tracking-widest text-slate-400 font-medium">AI can make mistakes. Please check important info.</p>
+            </div>
+          </div>
+        </>
         )}
       </div>
       <ReviewRequestModal 

@@ -1,7 +1,9 @@
 import { useState, useRef, useEffect } from 'react';
 import { Send, Bot, Loader2, Info } from 'lucide-react';
-import { publicApi } from '../../api';
 import { AgentPayload } from '../../types';
+import { API_BASE } from '../../api';
+import ReactMarkdown from 'react-markdown';
+import remarkGfm from 'remark-gfm';
 
 interface Message {
   role: 'user' | 'model' | 'system';
@@ -10,9 +12,10 @@ interface Message {
 
 interface PreviewChatProps {
   draftAgent: AgentPayload;
+  onDebugLog?: (type: any, content: string, metadata?: any) => void;
 }
 
-export const PreviewChat = ({ draftAgent }: PreviewChatProps) => {
+export const PreviewChat = ({ draftAgent, onDebugLog }: PreviewChatProps) => {
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState('');
   const [isLoading, setIsLoading] = useState(false);
@@ -32,19 +35,82 @@ export const PreviewChat = ({ draftAgent }: PreviewChatProps) => {
     setMessages(prev => [...prev, { role: 'user', content: userMessage }]);
     setIsLoading(true);
 
+    // Initial placeholder for assistant message
+    setMessages(prev => [...prev, { role: 'model', content: '' }]);
+
+    const payload = {
+       guestId: 'preview-session',
+       agentId: 'preview',
+       message: userMessage,
+       messages: messages.map(m => ({ role: m.role, content: m.content })),
+       draftConfig: draftAgent
+    };
+
     try {
-      const data = await publicApi.publicChat({
-        guestId: 'preview-session',
-        agentId: 'preview',
-        message: userMessage,
-        messages: messages.map(m => ({ role: m.role, content: m.content as any })),
-        draftConfig: draftAgent
+      const response = await fetch(`${API_BASE}/api/public/chat/stream`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(payload)
       });
 
-      setMessages(prev => [...prev, { role: 'model', content: data.text }]);
+      if (!response.ok || !response.body) {
+         throw new Error('Stream failed');
+      }
+
+      const reader = response.body.getReader();
+      const decoder = new TextDecoder();
+      let assistantMessage = "";
+
+      if (onDebugLog) onDebugLog('info', `Sent message: "${userMessage}"`);
+
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        
+        const chunk = decoder.decode(value);
+        const lines = chunk.split('\n');
+        
+        for (const line of lines) {
+            if (!line.trim()) continue;
+            try {
+                const event = JSON.parse(line);
+                
+                if (event.type === 'token') {
+                     assistantMessage += event.content;
+                     setMessages(prev => {
+                        const newMsgs = [...prev];
+                        newMsgs[newMsgs.length - 1].content = assistantMessage;
+                        return newMsgs;
+                     });
+                } 
+                else if (event.type === 'thought') {
+                    if (onDebugLog) onDebugLog('thought', event.content);
+                }
+                else if (event.type === 'tool_call') {
+                    if (onDebugLog) onDebugLog('tool_call', `Calling ${event.name}`, event.args);
+                }
+                else if (event.type === 'tool_result') {
+                    if (onDebugLog) onDebugLog('tool_result', `Result from ${event.name}`, { result: event.result });
+                }
+                else if (event.type === 'error') {
+                     if (onDebugLog) onDebugLog('error', event.content);
+                }
+            } catch (e) {
+                console.error("Failed to parse stream chunk", line);
+            }
+        }
+      }
+
     } catch (error) {
       console.error('Preview error:', error);
-      setMessages(prev => [...prev, { role: 'model', content: "Preview requires a backend 'preview' endpoint. For now, this is a UI placeholder for the live testing experience." }]);
+      setMessages(prev => {
+         const newMsgs = [...prev];
+         newMsgs[newMsgs.length - 1].content += "\n[Error: Failed to connect to preview stream]";
+         return newMsgs;
+      });
+      if (onDebugLog) onDebugLog('error', `Stream failed: ${error}`);
     } finally {
       setIsLoading(false);
     }
@@ -94,18 +160,28 @@ export const PreviewChat = ({ draftAgent }: PreviewChatProps) => {
                   ? 'bg-slate-900 text-slate-300 border border-slate-800 rounded-tl-none' 
                   : 'bg-slate-800 text-white rounded-tr-none'
               }`}>
-                {m.content}
+                <ReactMarkdown 
+                  remarkPlugins={[remarkGfm]}
+                  components={{
+                    a: ({node, ...props}) => {
+                      const href = props.href?.startsWith('/api/files/') 
+                        ? `${API_BASE}${props.href}` 
+                        : props.href;
+                      return <a {...props} href={href} className="text-blue-400 hover:underline font-bold" target="_blank" rel="noopener noreferrer" />;
+                    },
+                    p: ({node, ...props}) => <p {...props} className="whitespace-pre-wrap" />
+                  }}
+                >
+                  {m.content}
+                </ReactMarkdown>
               </div>
             </div>
           </div>
         ))}
-        {isLoading && (
+        {isLoading && messages[messages.length - 1]?.role !== 'model' && (
           <div className="flex gap-4">
             <div className="w-8 h-8 rounded-full bg-slate-800 flex items-center justify-center shrink-0">
               <Loader2 size={14} className="animate-spin text-slate-400" />
-            </div>
-            <div className="bg-slate-900 text-slate-500 px-4 py-3 rounded-2xl rounded-tl-none text-sm italic border border-slate-800">
-              Generating response...
             </div>
           </div>
         )}

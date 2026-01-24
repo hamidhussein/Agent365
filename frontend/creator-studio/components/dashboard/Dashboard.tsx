@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Bot, Plus, Pencil, Trash2, MessageSquare, FileText, Check, X } from 'lucide-react';
+import { Bot, Pencil, Trash2, MessageSquare, FileText, Check, X, Rocket } from 'lucide-react';
 import { Button } from '../ui/Button';
 import { Agent } from '../../types';
 import { MODEL_OPTIONS } from '../../constants';
@@ -40,8 +40,8 @@ export const Dashboard = ({
                 <MessageSquare size={18} /> Reviews
               </Button>
             )}
-            <Button onClick={onCreateClick}>
-              <Plus size={18} /> Create New Agent
+            <Button className="bg-gradient-to-r from-blue-600 to-blue-500 hover:from-blue-500 hover:to-blue-400 border-0 shadow-lg shadow-blue-900/40 font-bold px-6" onClick={onCreateClick}>
+              <Rocket size={18} className="mr-2" /> Publish New Agent
             </Button>
           </div>
         </div>
@@ -70,7 +70,9 @@ export const Dashboard = ({
             </div>
             <h3 className="text-lg font-medium text-white mb-2">No agents created yet</h3>
             <p className="text-slate-500 max-w-sm mx-auto mb-6">Start building your AI assistant by clicking the create button above.</p>
-            <Button onClick={onCreateClick}>Create First Agent</Button>
+            <Button className="bg-gradient-to-r from-blue-600 to-blue-500 border-0 font-bold px-8 py-6 text-lg" onClick={onCreateClick}>
+                <Rocket size={24} className="mr-3" /> Publish First Agent
+            </Button>
           </div>
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">

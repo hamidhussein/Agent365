@@ -1,4 +1,4 @@
-import { Bot, RefreshCcw, Sparkles } from 'lucide-react';
+import { Bot, RefreshCcw, Sparkles, Zap } from 'lucide-react';
 import { Button } from '../ui/Button';
 import { Agent } from '../../types';
 import { MODEL_OPTIONS } from '../../constants';
@@ -70,6 +70,11 @@ export const Marketplace = ({
                       <span className="text-[10px] uppercase font-bold tracking-wider px-2 py-1 bg-slate-900 rounded border border-slate-700 text-slate-400">
                         {opt?.label || 'Unknown Model'}
                       </span>
+                      {(agent as any).actions && (agent as any).actions.length > 0 && (
+                        <span className="text-[10px] uppercase font-bold tracking-wider px-2 py-1 bg-purple-900/40 rounded border border-purple-700 text-purple-300 flex items-center gap-1">
+                          <Zap size={10} /> {(agent as any).actions.length} Actions
+                        </span>
+                      )}
                     </div>
                   </div>
                   <div className="p-4 border-t border-slate-700 bg-slate-800/50">

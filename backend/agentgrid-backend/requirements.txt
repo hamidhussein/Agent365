@@ -67,21 +67,25 @@ websockets
 Werkzeug
 email-validator
 beautifulsoup4
-# pandas
-# beautifulsoup4
-# lxml
-# reportlab
-# langchain_openai
-# psycopg2-binary
-# youtube-transcript-api
-# langchain-openai
-# tiktoken
-# phonenumbers
-# openai
-# anthropic
-# faiss-cpu
-# google-genai
-# numpy
-# pypdf
-# PyJWT
+pandas
+beautifulsoup4
+lxml
+reportlab
+langchain_openai
+psycopg2-binary
+youtube-transcript-api
+langchain-openai
+tiktoken
+phonenumbers
+openai
+anthropic
+faiss-cpu
+google-genai
+numpy
+pypdf
+PyJWT
+openpyxl
+matplotlib
+tabulate
 duckduckgo-search>=5.0.0
+python-docx
