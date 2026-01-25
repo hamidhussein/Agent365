@@ -13,9 +13,13 @@ This guide provides step-by-step instructions to set up and run the AgentGrid pl
 ## 🚀 Quick Start (Windows)
 
 > [!IMPORTANT]
-> **New Collaborators**: Please read the [Collaborator Guide](COLLABORATOR_GUIDE.md) before pushing any code!
+> **New Collaborators**: Please read the [**Full Setup Guide**](GETTING_STARTED.md) and the [Collaborator Guide](COLLABORATOR_GUIDE.md) before starting!
 
-1.  **Start Database**: Ensure Docker Desktop is running.
+1.  **Pull Changes**:
+    ```powershell
+    git checkout feature/hamid-agentgrid-updates
+    ```
+2.  **Start Database**: Ensure Docker Desktop is running.
     ```powershell
     docker compose up -d db
     ```
