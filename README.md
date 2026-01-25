@@ -12,7 +12,8 @@ This guide provides step-by-step instructions to set up and run the AgentGrid pl
 
 ## 🚀 Quick Start (Windows)
 
-To start the entire environment with a single command:
+> [!IMPORTANT]
+> **New Collaborators**: Please read the [Collaborator Guide](COLLABORATOR_GUIDE.md) before pushing any code!
 
 1.  **Start Database**: Ensure Docker Desktop is running.
     ```powershell
