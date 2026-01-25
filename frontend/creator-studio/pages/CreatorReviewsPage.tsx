@@ -91,11 +91,32 @@ const CreatorReviewsPage: React.FC = () => {
     return date.toLocaleDateString();
   };
 
+  const smartUnwrapSnippet = (data: any): string => {
+    if (!data) return '';
+    try {
+      if (typeof data === 'string' && /}\s*{/.test(data)) {
+        const fixed = '[' + data.replace(/}\s*{/g, '},{') + ']';
+        const parsed = JSON.parse(fixed);
+        return parsed.filter((t: any) => t.type === 'token' && t.content).map((t: any) => t.content).join('').slice(0, 100) + '...';
+      }
+      if (Array.isArray(data)) {
+        return data.filter((t: any) => t && t.type === 'token' && t.content).map((t: any) => t.content).join('').slice(0, 100) + '...';
+      }
+      if (typeof data === 'object') {
+        const text = data.response || data.result || data.text || data.content;
+        if (text) return (typeof text === 'string' ? text : JSON.stringify(text)).slice(0, 100) + '...';
+      }
+      return String(data).slice(0, 100) + '...';
+    } catch (e) {
+      return '';
+    }
+  };
+
   return (
     <div className="container mx-auto max-w-7xl px-4 py-8 animate-in fade-in duration-500">
       {/* Header */}
       <div className="mb-10">
-        <h1 className="text-4xl font-black text-foreground tracking-tight mb-2 flex items-center gap-3">
+        <h1 className="text-4xl font-black text-foreground tracking-tight mb-2 flex items-center gap-3 lowercase">
            <MessageSquare className="w-10 h-10 text-primary" /> Expert Verification
         </h1>
         <p className="text-muted-foreground text-lg font-medium">Manage and refine agent outputs to maintain the highest quality standards.</p>
@@ -130,7 +151,7 @@ const CreatorReviewsPage: React.FC = () => {
             <CheckCircle className="w-10 h-10 text-muted-foreground" />
           </div>
           <h3 className="text-2xl font-black text-foreground mb-3">All caught up!</h3>
-          <p className="text-muted-foreground max-w-sm mx-auto font-medium text-lg leading-relaxed">
+          <p className="text-muted-foreground max-w-sm mx-auto font-medium text-lg leading-relaxed lowercase">
             {activeTab === 'pending'
               ? "There are no pending review requests waiting for your expertise right now."
               : "No verification records found in this category."}
@@ -160,18 +181,30 @@ const CreatorReviewsPage: React.FC = () => {
               </h3>
               
               <div className="flex items-center gap-2 mb-6">
-                <div className="w-8 h-8 rounded-full bg-secondary overflow-hidden flex items-center justify-center">
+                <div className="w-8 h-8 rounded-full bg-secondary overflow-hidden flex items-center justify-center border border-border/50 shadow-inner">
                    <User className="w-4 h-4 text-muted-foreground" />
                 </div>
-                <span className="text-sm font-bold text-foreground/80 lowercase italic">@{review.user_username || 'anonymous'}</span>
+                <div className="flex flex-col">
+                  <span className="text-[10px] font-black text-muted-foreground uppercase leading-none mb-1">Client Requester</span>
+                  <span className="text-sm font-bold text-foreground/80 lowercase italic leading-none">@{review.user_username || 'anonymous'}</span>
+                </div>
               </div>
 
-              {/* User's Request */}
-              <div className="bg-secondary/40 rounded-2xl p-5 mb-6 w-full border border-border group-hover:bg-secondary/60 transition-colors">
-                <label className="text-[10px] font-black text-muted-foreground uppercase tracking-widest mb-3 block">User Inquiry</label>
-                <p className="text-foreground text-sm font-medium leading-relaxed italic line-clamp-4">
-                  "{review.review_request_note || 'Requested verified output optimization.'}"
-                </p>
+              {/* User's Request & Output */}
+              <div className="space-y-4 w-full mb-8">
+                <div className="bg-secondary/40 rounded-2xl p-5 w-full border border-border group-hover:bg-secondary/60 transition-colors">
+                  <label className="text-[10px] font-black text-muted-foreground uppercase tracking-widest mb-3 block">User Inquiry</label>
+                  <p className="text-foreground text-sm font-medium leading-relaxed italic line-clamp-3">
+                    "{review.review_request_note || 'Requested verified output optimization.'}"
+                  </p>
+                </div>
+
+                <div className="bg-muted/30 rounded-2xl p-5 w-full border border-border/50">
+                    <label className="text-[10px] font-black text-muted-foreground uppercase tracking-widest mb-2 block">Agent Output Preview</label>
+                    <p className="text-[11px] text-muted-foreground/60 font-mono line-clamp-2">
+                       {smartUnwrapSnippet(review.outputs)}
+                    </p>
+                </div>
               </div>
 
               {/* Response (if completed) */}
@@ -187,28 +220,28 @@ const CreatorReviewsPage: React.FC = () => {
                       </span>
                     )}
                   </div>
-                  <p className="text-foreground/70 text-sm font-medium leading-relaxed line-clamp-3 font-mono text-xs">
+                  <p className="text-foreground/70 text-sm font-medium leading-relaxed line-clamp-2 font-mono text-xs italic">
                     {review.review_response_note}
                   </p>
                 </div>
               )}
 
               {/* Actions */}
-              <div className="mt-auto w-full pt-4 border-t border-border/50 flex items-center justify-between">
+              <div className="mt-auto w-full pt-4 border-t border-border/50 flex items-center justify-between group-hover:border-primary/20">
                 {review.review_status === 'pending' ? (
                   <button
                     onClick={(e) => { e.stopPropagation(); handleRespond(review); }}
-                    className="w-full py-3 bg-primary text-primary-foreground font-black rounded-xl transition-all flex items-center justify-center gap-2 shadow-lg shadow-primary/20 active:scale-95"
+                    className="w-full py-3 bg-primary text-primary-foreground font-black rounded-xl transition-all flex items-center justify-center gap-2 shadow-lg shadow-primary/20 active:scale-95 uppercase tracking-widest text-[10px]"
                   >
-                    <MessageSquare size={18} />
-                    Begin Verification
+                    <MessageSquare size={16} />
+                    Begin Proofing
                   </button>
                 ) : (
                    <div className="flex items-center justify-between w-full text-muted-foreground">
                       <span className="text-xs font-bold uppercase tracking-widest flex items-center gap-2">
-                         <CheckCircle size={14} className="text-green-500" /> Output Verified
+                         <CheckCircle size={14} className="text-green-500 shadow-[0_0_10px_rgba(34,197,94,0.5)] rounded-full" /> Result Verified
                       </span>
-                      <ArrowRight size={18} className="group-hover:translate-x-1 transition-transform" />
+                      <ArrowRight size={18} className="group-hover:translate-x-1 transition-transform text-primary" />
                    </div>
                 )}
               </div>
