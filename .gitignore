@@ -1,0 +1,17 @@
+# Local development files
+.venv/
+venv/
+.env
+__pycache__/
+*.pyc
+.pytest_cache/
+.ruff_cache/
+
+# AgentGrid specific (root)
+/.generated_files/
+/.lancedb/
+/last_agent_code.py
+/last_agent_error.log
+/debug_pdf.py
+/test_manual.pdf
+/test_capability.py
