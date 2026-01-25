@@ -26,12 +26,23 @@ def register_user(db: Session, user_in: UserCreate) -> User:
         .first()
     )
     if existing:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="User already exists")
+        print(f"[DEBUG] Registration failed: User already exists (email={user_in.email} or username={user_in.username})")
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST, 
+            detail=f"Account with this email or username already exists"
+        )
 
-    if isinstance(user_in.role, UserRole):
-        role_enum = user_in.role
-    else:
-        role_enum = UserRole(str(user_in.role).lower())
+    # Robust role handling
+    role_enum = UserRole.USER
+    if user_in.role:
+        if isinstance(user_in.role, UserRole):
+            role_enum = user_in.role
+        else:
+            try:
+                role_enum = UserRole(str(user_in.role).lower())
+            except ValueError:
+                print(f"[WARNING] Invalid role provided: {user_in.role}, defaulting to USER")
+                role_enum = UserRole.USER
 
     user = User(
         email=user_in.email,

@@ -53,13 +53,14 @@ export function useAuth() {
     async (data: SignupFormData): Promise<AuthActionResult> => {
       try {
         // Explicitly construct payload with only the fields backend expects
-        const signupPayload = {
+        const signupPayload: any = {
           email: data.email,
           username: data.username,
           password: data.password,
         };
 
-        const response = await api.auth.signup(signupPayload as any);
+        console.log('[DEBUG] Attempting signup with payload:', { ...signupPayload, password: '***' });
+        const response = await api.auth.signup(signupPayload);
         const payload = response.data;
         const frontendUser: any = {
           ...payload.user,

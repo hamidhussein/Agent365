@@ -15,7 +15,7 @@ import { useToast } from '@/contexts/ToastContext';
 import { api } from '@/lib/api/client';
 import ReviewRequestModal from '../reviews/ReviewRequestModal';
 import { mapBackendAgent } from '@/lib/utils/agentMapper';
-import ReviewsPage from './ReviewsPage';
+import UserReviewsPage from './UserReviewsPage';
 
 interface UserDashboardPageProps {
     user: User;
@@ -565,7 +565,7 @@ const UserDashboardPage: React.FC<UserDashboardPageProps> = ({ user, activePage,
             case 'settings':
                 return <SettingsContent user={user} />;
             case 'reviews':
-                return <ReviewsPage />;
+                return <UserReviewsPage />;
             default:
                 return <OverviewContent user={user} setActivePage={setActivePage} onAddCredits={onAddCredits} />;
         }

@@ -127,30 +127,30 @@ export const AgentBuilder = ({
   const [configSection, setConfigSection] = useState<'identity' | 'behavior' | 'knowledge' | 'capabilities' | 'tools' | 'publish'>('identity');
 
   return (
-    <div className="flex flex-col h-full bg-slate-950 overflow-hidden">
+    <div className="flex flex-col h-full bg-background overflow-hidden font-sans">
       {/* Top Bar */}
-      <div className="h-14 flex items-center justify-between px-4 border-b border-slate-800 bg-slate-900 shrink-0">
+      <div className="h-14 flex items-center justify-between px-4 border-b border-border bg-card/80 backdrop-blur-md shrink-0 sticky top-0 z-30">
          <div className="flex items-center gap-4">
-             <Button variant="ghost" className="text-slate-400 hover:text-white" onClick={onCancel}>
+             <Button variant="ghost" className="text-muted-foreground hover:text-foreground" onClick={onCancel}>
                  <X size={18} />
              </Button>
-             <div className="h-6 w-px bg-slate-800" />
+             <div className="h-6 w-px bg-border" />
              <div className="flex flex-col">
-                 <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">{initialData ? 'EDITING AGENT' : 'NEW AGENT'}</span>
-                 <span className="text-sm font-bold text-white">{name || 'Untitled Agent'}</span>
+                 <span className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest">{initialData ? 'EDITING AGENT' : 'NEW AGENT'}</span>
+                 <span className="text-sm font-bold text-foreground">{name || 'Untitled Agent'}</span>
              </div>
          </div>
          
-         <div className="flex bg-slate-800/50 p-1 rounded-lg">
+         <div className="flex bg-muted/50 p-1.5 rounded-xl border border-border/50">
              <button 
                  onClick={() => setActiveTab('create')}
-                 className={`flex items-center gap-2 px-3 py-1.5 rounded-md text-xs font-bold transition-all ${activeTab === 'create' ? 'bg-emerald-600 text-white shadow-sm' : 'text-slate-400 hover:text-slate-200'}`}
+                 className={`flex items-center gap-2 px-4 py-1.5 rounded-lg text-xs font-bold transition-all ${activeTab === 'create' ? 'bg-green-600 text-white shadow-md shadow-green-600/20' : 'text-muted-foreground hover:text-foreground'}`}
              >
                  <Sparkles size={14} /> Architect
              </button>
              <button 
                  onClick={() => setActiveTab('configure')}
-                 className={`flex items-center gap-2 px-3 py-1.5 rounded-md text-xs font-bold transition-all ${activeTab === 'configure' ? 'bg-blue-600 text-white shadow-sm' : 'text-slate-400 hover:text-slate-200'}`}
+                 className={`flex items-center gap-2 px-4 py-1.5 rounded-lg text-xs font-bold transition-all ${activeTab === 'configure' ? 'bg-primary text-primary-foreground shadow-md shadow-primary/20' : 'text-muted-foreground hover:text-foreground'}`}
              >
                  <Settings size={14} /> Editor
              </button>
@@ -158,14 +158,15 @@ export const AgentBuilder = ({
 
          <div className="flex items-center gap-3">
              <Button 
-                className="bg-slate-800 hover:bg-slate-700 text-slate-300 font-bold border border-slate-700 h-9" 
+                variant="outline"
+                className="text-muted-foreground font-bold h-9 bg-transparent border-border hover:bg-muted" 
                 onClick={onCancel}
              >
                 Cancel
              </Button>
              
              <Button 
-                className="bg-gradient-to-r from-blue-600 to-blue-500 hover:from-blue-500 hover:to-blue-400 text-white font-bold shadow-lg shadow-blue-900/40 h-9 px-6 border-0" 
+                className="bg-primary text-primary-foreground hover:bg-primary/90 font-black shadow-lg shadow-primary/20 h-9 px-6 border-0 active:scale-[0.98] transition-all" 
                 onClick={handleSubmit}
              >
                 {initialData ? (
@@ -208,45 +209,45 @@ export const AgentBuilder = ({
                      </div>
                  </div>
              ) : (
-                 <div className="flex-1 flex overflow-hidden">
+                  <div className="flex-1 flex overflow-hidden">
                      {/* Sidebar Navigation */}
-                     <div className="w-64 bg-slate-900/50 flex flex-col border-r border-slate-800">
+                     <div className="w-64 bg-card/50 flex flex-col border-r border-border backdrop-blur-sm">
                          <div className="p-4 space-y-1">
-                             <button onClick={() => setConfigSection('identity')} className={`w-full flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium transition-colors ${configSection === 'identity' ? 'bg-blue-500/10 text-blue-400' : 'text-slate-400 hover:bg-slate-800 hover:text-slate-200'}`}>
+                             <button onClick={() => setConfigSection('identity')} className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-bold transition-all ${configSection === 'identity' ? 'bg-primary/10 text-primary shadow-sm' : 'text-muted-foreground hover:bg-muted hover:text-foreground'}`}>
                                  <Bot size={16} /> Identity
                              </button>
-                             <button onClick={() => setConfigSection('behavior')} className={`w-full flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium transition-colors ${configSection === 'behavior' ? 'bg-blue-500/10 text-blue-400' : 'text-slate-400 hover:bg-slate-800 hover:text-slate-200'}`}>
+                             <button onClick={() => setConfigSection('behavior')} className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-bold transition-all ${configSection === 'behavior' ? 'bg-primary/10 text-primary shadow-sm' : 'text-muted-foreground hover:bg-muted hover:text-foreground'}`}>
                                  <Cpu size={16} /> Instructions
                              </button>
-                             <button onClick={() => setConfigSection('knowledge')} className={`w-full flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium transition-colors ${configSection === 'knowledge' ? 'bg-blue-500/10 text-blue-400' : 'text-slate-400 hover:bg-slate-800 hover:text-slate-200'}`}>
+                             <button onClick={() => setConfigSection('knowledge')} className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-bold transition-all ${configSection === 'knowledge' ? 'bg-primary/10 text-primary shadow-sm' : 'text-muted-foreground hover:bg-muted hover:text-foreground'}`}>
                                  <FileText size={16} /> Knowledge
                              </button>
-                             <button onClick={() => setConfigSection('capabilities')} className={`w-full flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium transition-colors ${configSection === 'capabilities' ? 'bg-blue-500/10 text-blue-400' : 'text-slate-400 hover:bg-slate-800 hover:text-slate-200'}`}>
+                             <button onClick={() => setConfigSection('capabilities')} className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-bold transition-all ${configSection === 'capabilities' ? 'bg-primary/10 text-primary shadow-sm' : 'text-muted-foreground hover:bg-muted hover:text-foreground'}`}>
                                  <Settings size={16} /> Capabilities
                              </button>
-                             <button onClick={() => setConfigSection('tools')} className={`w-full flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium transition-colors ${configSection === 'tools' ? 'bg-blue-500/10 text-blue-400' : 'text-slate-400 hover:bg-slate-800 hover:text-slate-200'}`}>
+                             <button onClick={() => setConfigSection('tools')} className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-bold transition-all ${configSection === 'tools' ? 'bg-primary/10 text-primary shadow-sm' : 'text-muted-foreground hover:bg-muted hover:text-foreground'}`}>
                                  <Globe size={16} /> Tools & Actions
                              </button>
-                             <div className="h-px bg-slate-800 my-2 mx-3" />
-                             <button onClick={() => setConfigSection('publish')} className={`w-full flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium transition-colors ${configSection === 'publish' ? 'bg-blue-500/10 text-blue-400' : 'text-slate-400 hover:bg-slate-800 hover:text-slate-200'}`}>
+                             <div className="h-px bg-border my-3 mx-3" />
+                             <button onClick={() => setConfigSection('publish')} className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-bold transition-all ${configSection === 'publish' ? 'bg-primary/10 text-primary shadow-sm' : 'text-muted-foreground hover:bg-muted hover:text-foreground'}`}>
                                  <Upload size={16} /> Publish Settings
                              </button>
                          </div>
                      </div>
 
                      {/* Main Form Area */}
-                     <div className="flex-1 overflow-y-auto p-8 bg-slate-950">
+                     <div className="flex-1 overflow-y-auto p-8 bg-background/50">
                          <div className="max-w-2xl mx-auto space-y-8 animate-in fade-in duration-300">
                              {configSection === 'identity' && (
                                  <div className="space-y-6">
-                                     <h2 className="text-xl font-bold text-white mb-6">Agent Identity</h2>
+                                     <h2 className="text-xl font-bold text-foreground mb-6">Agent Identity</h2>
                                      <Input label="Agent Name" value={name} onChange={(e: any) => setName(e.target.value)} placeholder="e.g. Data Analyst Pro" />
                                      <Input label="Short Description" value={description} onChange={(e: any) => setDescription(e.target.value)} placeholder="A brief summary of what this agent does..." />
                                      <div>
-                                        <label className="text-xs font-semibold text-slate-500 uppercase tracking-wider block mb-3">Theme Color</label>
-                                        <div className="flex flex-wrap gap-3">
+                                        <label className="text-xs font-bold text-muted-foreground uppercase tracking-widest block mb-4">Theme Color</label>
+                                        <div className="flex flex-wrap gap-4">
                                           {COLORS.map((c) => (
-                                            <button key={c} onClick={() => setColor(c)} className={`w-8 h-8 rounded-full ${c} transition-all ${color === c ? 'ring-2 ring-white ring-offset-2 ring-offset-slate-950 scale-110 shadow-lg' : 'opacity-40 hover:opacity-100 scale-90 hover:scale-100'}`} />
+                                            <button key={c} onClick={() => setColor(c)} className={`w-10 h-10 rounded-xl ${c} transition-all ${color === c ? 'ring-2 ring-primary ring-offset-4 ring-offset-background scale-110 shadow-xl' : 'opacity-40 hover:opacity-100 scale-90 hover:scale-100'}`} />
                                           ))}
                                         </div>
                                       </div>
@@ -256,49 +257,53 @@ export const AgentBuilder = ({
                              {configSection === 'behavior' && (
                                  <div className="space-y-6 h-full flex flex-col">
                                      <div className="flex items-center justify-between">
-                                         <h2 className="text-xl font-bold text-white">System Instructions</h2>
-                                         <span className="text-xs text-slate-500">Markdown supported</span>
+                                         <h2 className="text-xl font-bold text-foreground">System Instructions</h2>
+                                         <span className="text-xs font-bold text-muted-foreground uppercase tracking-widest">Markdown supported</span>
                                      </div>
                                      <div className="flex-1 min-h-[500px]">
-                                         <TextArea label="" rows={25} value={instruction} onChange={(e: any) => setInstruction(e.target.value)} className="font-mono text-sm leading-relaxed" placeholder="You are a helpful assistant..." />
+                                         <TextArea label="" rows={25} value={instruction} onChange={(e: any) => setInstruction(e.target.value)} className="font-mono text-sm leading-relaxed bg-secondary border-border" placeholder="You are a helpful assistant..." />
                                      </div>
                                  </div>
                              )}
                              
                              {configSection === 'knowledge' && (
                                  <div className="space-y-6">
-                                     <h2 className="text-xl font-bold text-white">Knowledge Base</h2>
-                                    <div onClick={() => fileInputRef.current?.click()} className="border-2 border-dashed border-slate-800 hover:border-blue-500 hover:bg-slate-900 rounded-xl p-12 text-center cursor-pointer transition-all group">
-                                      <div className="w-12 h-12 bg-slate-900 group-hover:bg-blue-500/20 rounded-full flex items-center justify-center mx-auto mb-4 transition-colors">
-                                          <Upload className="text-slate-400 group-hover:text-blue-400" size={24} />
+                                     <h2 className="text-xl font-bold text-foreground">Knowledge Base</h2>
+                                    <div onClick={() => fileInputRef.current?.click()} className="border-2 border-dashed border-border hover:border-primary hover:bg-muted/50 rounded-2xl p-12 text-center cursor-pointer transition-all group">
+                                      <div className="w-16 h-16 bg-muted group-hover:bg-primary/10 rounded-full flex items-center justify-center mx-auto mb-4 transition-all">
+                                          <Upload className="text-muted-foreground group-hover:text-primary" size={32} />
                                       </div>
-                                      <p className="text-sm text-slate-300 font-medium">Click to upload files</p>
-                                      <p className="text-xs text-slate-500 mt-2">PDF, TXT, MD supported</p>
+                                      <p className="text-sm text-foreground font-bold">Click to upload files</p>
+                                      <p className="text-xs text-muted-foreground mt-2 font-medium">PDF, TXT, MD supported</p>
                                       <input type="file" ref={fileInputRef} className="hidden" onChange={handleFileChange} multiple accept=".txt,.md,.pdf" />
                                     </div>
                                     
                                     {showFileWarning && (
-                                      <div className="p-3 bg-amber-500/10 border border-amber-500/20 rounded-lg text-xs text-amber-200 flex items-center gap-2">
-                                        <AlertTriangle size={14} /> Large PDFs may take a few seconds to process.
+                                      <div className="p-4 bg-amber-500/10 border border-amber-500/20 rounded-xl text-xs text-amber-600 dark:text-amber-200 flex items-center gap-3 font-medium">
+                                        <AlertTriangle size={18} /> Large PDFs may take a few seconds to process.
                                       </div>
                                     )}
 
                                     <div className="flex flex-col gap-2">
                                         {existingFiles.map(f => (
-                                            <div key={f.id} className="flex items-center justify-between p-3 bg-slate-900 rounded-lg border border-slate-800 text-sm group hover:border-slate-700">
+                                            <div key={f.id} className="flex items-center justify-between p-4 bg-card rounded-xl border border-border text-sm group hover:border-primary/50 transition-all shadow-sm">
                                                 <div className="flex items-center gap-3">
-                                                    <FileText size={16} className="text-slate-500" />
-                                                    <span className="text-slate-300 font-medium">{f.name}</span>
+                                                    <div className="w-8 h-8 bg-muted rounded-lg flex items-center justify-center">
+                                                        <FileText size={16} className="text-muted-foreground" />
+                                                    </div>
+                                                    <span className="text-foreground font-bold">{f.name}</span>
                                                 </div>
-                                                <button onClick={() => handleRemoveExistingFile(f)} className="text-slate-600 hover:text-red-400 p-1"><X size={14} /></button>
+                                                <button onClick={() => handleRemoveExistingFile(f)} className="text-muted-foreground hover:text-red-500 p-2 transition-colors"><X size={16} /></button>
                                             </div>
                                         ))}
                                         {newFiles.map((f, i) => (
-                                            <div key={i} className="flex items-center justify-between p-3 bg-emerald-900/10 rounded-lg border border-emerald-500/20 text-sm">
+                                            <div key={i} className="flex items-center justify-between p-4 bg-green-500/5 rounded-xl border border-green-500/20 text-sm shadow-sm">
                                                 <div className="flex items-center gap-3">
-                                                    <FileText size={16} className="text-emerald-500" />
-                                                    <span className="text-emerald-200 font-medium">{f.name}</span>
-                                                    <span className="text-[10px] px-1.5 py-0.5 bg-emerald-500/20 text-emerald-400 rounded">NEW</span>
+                                                    <div className="w-8 h-8 bg-green-500/10 rounded-lg flex items-center justify-center">
+                                                        <FileText size={16} className="text-green-600 dark:text-green-400" />
+                                                    </div>
+                                                    <span className="text-green-700 dark:text-green-200 font-bold">{f.name}</span>
+                                                    <span className="text-[9px] px-2 py-0.5 bg-green-500 text-white font-black rounded-full shadow-sm">NEW</span>
                                                 </div>
                                             </div>
                                         ))}
@@ -338,48 +343,48 @@ export const AgentBuilder = ({
 
                              {configSection === 'publish' && (
                                  <div className="space-y-6">
-                                    <h2 className="text-xl font-bold text-white">Publish Settings</h2>
+                                    <h2 className="text-xl font-bold text-foreground">Publish Settings</h2>
                                     
-                                    <div className="p-5 bg-slate-900 rounded-xl border border-slate-800 space-y-4">
+                                    <div className="p-6 bg-card rounded-2xl border border-border shadow-sm space-y-6">
                                         <div className="flex items-center justify-between">
                                             <div>
-                                                <h4 className="text-sm font-bold text-white">Public Marketplace</h4>
-                                                <p className="text-xs text-slate-500">Make this agent discoverable by other users.</p>
+                                                <h4 className="text-sm font-black text-foreground">Public Marketplace</h4>
+                                                <p className="text-xs font-medium text-muted-foreground mt-1">Make this agent discoverable by other users.</p>
                                             </div>
                                             <label className="relative inline-flex items-center cursor-pointer">
                                                 <input type="checkbox" checked={isPublic} onChange={(e) => setIsPublic(e.target.checked)} className="sr-only peer" />
-                                                <div className="w-11 h-6 bg-slate-700 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-600"></div>
+                                                <div className="w-12 h-6.5 bg-muted peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[4px] after:left-[4px] after:bg-white after:border-border after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-primary shadow-inner"></div>
                                             </label>
                                         </div>
                                         
                                         {isPublic && (
-                                            <div className="pt-4 border-t border-slate-800 animate-in slide-in-from-top-2">
-                                                <label className="text-xs font-bold text-slate-400 block mb-2">Cost per Run (Credits)</label>
-                                                <div className="flex items-center gap-2">
-                                                    <Input type="number" min={1} value={creditsPerRun} onChange={(e: any) => setCreditsPerRun(parseInt(e.target.value) || 1)} className="w-32" />
-                                                    <span className="text-xs text-slate-500">Credits</span>
+                                            <div className="pt-6 border-t border-border animate-in slide-in-from-top-4 duration-300">
+                                                <label className="text-xs font-black text-muted-foreground uppercase tracking-widest block mb-3">Cost per Run (Credits)</label>
+                                                <div className="flex items-center gap-3">
+                                                    <Input type="number" min={1} value={creditsPerRun} onChange={(e: any) => setCreditsPerRun(parseInt(e.target.value) || 1)} className="w-32 bg-secondary border-border" />
+                                                    <span className="text-xs font-bold text-muted-foreground uppercase tracking-wider">Credits</span>
                                                 </div>
                                             </div>
                                         )}
                                     </div>
                                     
-                                    <div className="p-5 bg-slate-900 rounded-xl border border-slate-800 space-y-4">
+                                    <div className="p-6 bg-card rounded-2xl border border-border shadow-sm space-y-6">
                                         <div className="flex items-center justify-between">
                                             <div>
-                                                <h4 className="text-sm font-bold text-white">Expert Reviews</h4>
-                                                <p className="text-xs text-slate-500">Allow users to request manual review of outputs.</p>
+                                                <h4 className="text-sm font-black text-foreground">Expert Reviews</h4>
+                                                <p className="text-xs font-medium text-muted-foreground mt-1">Allow users to request manual review of outputs.</p>
                                             </div>
                                             <label className="relative inline-flex items-center cursor-pointer">
                                                 <input type="checkbox" checked={allowReviews} onChange={(e) => setAllowReviews(e.target.checked)} className="sr-only peer" />
-                                                <div className="w-11 h-6 bg-slate-700 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-emerald-600"></div>
+                                                <div className="w-12 h-6.5 bg-muted peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[4px] after:left-[4px] after:bg-white after:border-border after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-green-600 shadow-inner"></div>
                                             </label>
                                         </div>
                                          {allowReviews && (
-                                            <div className="pt-4 border-t border-slate-800 animate-in slide-in-from-top-2">
-                                                <label className="text-xs font-bold text-slate-400 block mb-2">Review Fee (Credits)</label>
-                                                <div className="flex items-center gap-2">
-                                                    <Input type="number" min={0} value={reviewCost} onChange={(e: any) => setReviewCost(parseInt(e.target.value) || 0)} className="w-32" />
-                                                    <span className="text-xs text-slate-500">Credits</span>
+                                            <div className="pt-6 border-t border-border animate-in slide-in-from-top-4 duration-300">
+                                                <label className="text-xs font-black text-muted-foreground uppercase tracking-widest block mb-3">Review Fee (Credits)</label>
+                                                <div className="flex items-center gap-3">
+                                                    <Input type="number" min={0} value={reviewCost} onChange={(e: any) => setReviewCost(parseInt(e.target.value) || 0)} className="w-32 bg-secondary border-border" />
+                                                    <span className="text-xs font-bold text-muted-foreground uppercase tracking-wider">Credits</span>
                                                 </div>
                                             </div>
                                         )}
@@ -393,18 +398,18 @@ export const AgentBuilder = ({
           </div>
 
           {/* Right Panel: Preview & Debug */}
-          <div className="w-[450px] flex flex-col border-l border-slate-800 bg-slate-950 shrink-0">
+          <div className="w-[450px] flex flex-col border-l border-border bg-background shrink-0">
              {/* Panel Tabs */}
-             <div className="h-10 flex items-center border-b border-slate-800 bg-slate-900">
-                 <button onClick={() => setRightPanelTab('preview')} className={`flex-1 h-full text-xs font-bold uppercase tracking-wider transition-colors border-b-2 ${rightPanelTab === 'preview' ? 'border-blue-500 text-blue-400 bg-slate-800' : 'border-transparent text-slate-500 hover:text-slate-300'}`}>
+             <div className="h-10 flex items-center border-b border-border bg-card/50 backdrop-blur-sm">
+                 <button onClick={() => setRightPanelTab('preview')} className={`flex-1 h-full text-[10px] font-black uppercase tracking-widest transition-all ${rightPanelTab === 'preview' ? 'text-primary bg-primary/5' : 'text-muted-foreground hover:text-foreground hover:bg-muted/30'}`}>
                      Preview Chat
                  </button>
-                 <button onClick={() => setRightPanelTab('debug')} className={`flex-1 h-full text-xs font-bold uppercase tracking-wider transition-colors border-b-2 ${rightPanelTab === 'debug' ? 'border-purple-500 text-purple-400 bg-slate-800' : 'border-transparent text-slate-500 hover:text-slate-300'}`}>
+                 <button onClick={() => setRightPanelTab('debug')} className={`flex-1 h-full text-[10px] font-black uppercase tracking-widest transition-all border-l border-border ${rightPanelTab === 'debug' ? 'text-purple-600 dark:text-purple-400 bg-purple-500/5' : 'text-muted-foreground hover:text-foreground hover:bg-muted/30'}`}>
                      Debugger
                  </button>
              </div>
              
-             <div className="flex-1 overflow-hidden p-4 relative">
+             <div className="flex-1 overflow-hidden p-4 relative bg-card/30">
                  <div className={`h-full flex flex-col ${rightPanelTab !== 'preview' ? 'hidden' : ''}`}>
                     <PreviewChat draftAgent={currentPayload} onDebugLog={addDebugLog} />
                  </div>

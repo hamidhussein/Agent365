@@ -10,6 +10,7 @@ import { LoadingSpinner as SharedLoadingSpinner } from '@/components/shared/Load
 import { SkipToContent } from '@/components/shared/SkipToContent';
 import axiosInstance from '@/lib/api/client';
 import { ToastProvider } from '@/contexts/ToastContext';
+import { ThemeProvider } from '@/contexts/ThemeContext';
 
 const HomePage = lazyWithRetry(() => import('./components/pages/HomePage'));
 const AgentsPage = lazyWithRetry(() => import('./components/pages/AgentsPage'));
@@ -120,6 +121,8 @@ const App: React.FC = () => {
   }, [isAuthenticated, currentPage]);
 
   useEffect(() => {
+    if (isAgentsLoading) return;
+
     const agentExists = selectedAgentId
       ? agents.some((a) => a.id === selectedAgentId)
       : true;
@@ -132,7 +135,7 @@ const App: React.FC = () => {
       (currentPage === 'creatorProfile' && selectedCreatorUsername && !creatorExists)) {
       navigateTo('notFound');
     }
-  }, [currentPage, selectedAgentId, selectedCreatorUsername, agents]);
+  }, [currentPage, selectedAgentId, selectedCreatorUsername, agents, isAgentsLoading]);
 
 
   const handleSelectAgent = (agentId: string) => {
@@ -374,32 +377,33 @@ const App: React.FC = () => {
     }
   };
 
-  const isCreatorStudio = currentPage === 'creatorStudio';
 
   return (
     <ToastProvider>
-      <div className={`min-h-screen flex flex-col relative ${isCreatorStudio ? 'bg-slate-900' : 'bg-gray-900 font-sans'}`}>
-        {(isLoading || isAgentsLoading) && <PageLoadingOverlay />}
-        <SkipToContent />
-        <Header
-          setCurrentPage={navigateTo}
-          currentPage={currentPage}
-          creditBalance={user?.credits || 0}
-          onSearch={handleSearch}
-        />
-        <main id="main-content" className="flex-grow">
-          <Suspense
-            fallback={
-              <div className="flex justify-center py-16">
-                <SharedLoadingSpinner size="lg" />
-              </div>
-            }
-          >
-            {renderPage()}
-          </Suspense>
-        </main>
-        <Footer />
-      </div>
+      <ThemeProvider defaultTheme="system" storageKey="vite-ui-theme">
+        <div className="min-h-screen flex flex-col relative bg-background font-sans text-foreground">
+          {(isLoading || isAgentsLoading) && <PageLoadingOverlay />}
+          <SkipToContent />
+          <Header
+            setCurrentPage={navigateTo}
+            currentPage={currentPage}
+            creditBalance={user?.credits || 0}
+            onSearch={handleSearch}
+          />
+          <main id="main-content" className="flex-grow">
+            <Suspense
+              fallback={
+                <div className="flex justify-center py-16">
+                  <SharedLoadingSpinner size="lg" />
+                </div>
+              }
+            >
+              {renderPage()}
+            </Suspense>
+          </main>
+          <Footer />
+        </div>
+      </ThemeProvider>
     </ToastProvider>
   );
 };

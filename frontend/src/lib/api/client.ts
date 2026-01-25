@@ -78,6 +78,14 @@ axiosInstance.interceptors.response.use(
       details: error.response?.data?.details,
     };
 
+    if (error.response?.status !== 401) {
+      console.error('[API Error Detail]:', {
+        status: error.response?.status,
+        data: error.response?.data,
+        error: apiError
+      });
+    }
+
     return Promise.reject(apiError);
   }
 );

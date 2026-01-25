@@ -645,23 +645,36 @@ export const ChatInterface = ({
               </div>
 
               <AnimatePresence initial={false}>
-                {messages.map((msg) => (
+                {messages.map((msg, index) => (
                   <motion.div 
                     key={msg.id} 
-                    initial={{ opacity: 0, y: 10, scale: 0.95 }}
+                    initial={{ opacity: 0, y: 20, scale: 0.95 }}
                     animate={{ opacity: 1, y: 0, scale: 1 }}
-                    transition={{ duration: 0.2, ease: "easeOut" }}
-                    className={`group flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}
+                    transition={{ 
+                      duration: 0.3, 
+                      ease: [0.4, 0, 0.2, 1],
+                      delay: index * 0.05 
+                    }}
+                    className={`group flex gap-3 ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}
                   >
+                    {/* Bot Avatar */}
+                    {msg.role === 'model' && (
+                      <div className="flex-shrink-0 mt-1">
+                        <div className={`w-8 h-8 rounded-xl ${agent.color} flex items-center justify-center text-white shadow-lg ring-2 ring-white/10`}>
+                          {agentModelOption?.icon || <Bot size={16} />}
+                        </div>
+                      </div>
+                    )}
+
                     <div
-                      className={`max-w-[85%] rounded-[1.5rem] px-5 py-3 shadow-lg relative break-words transition-all duration-300 ${
+                      className={`max-w-[75%] md:max-w-[65%] rounded-2xl px-5 py-3.5 shadow-xl relative break-words transition-all duration-300 ${
                         msg.role === 'user'
-                          ? 'bg-gradient-to-br from-blue-600 to-indigo-700 text-white rounded-br-none ring-1 ring-white/10'
-                          : 'bg-white/5 backdrop-blur-md border border-white/10 text-slate-200 rounded-bl-none hover:bg-white/10'
+                          ? 'bg-gradient-to-br from-blue-500 via-blue-600 to-indigo-600 text-white rounded-br-md ring-2 ring-blue-400/20 shadow-blue-500/20'
+                          : 'bg-gradient-to-br from-slate-800/90 to-slate-800/70 backdrop-blur-xl border border-white/10 text-slate-100 rounded-bl-md hover:border-white/20 shadow-slate-900/50'
                       }`}
                     >
                       {msg.role === 'model' ? (
-                        <div className="prose prose-invert prose-slate max-w-none prose-p:leading-relaxed prose-pre:bg-slate-950/50 prose-pre:border prose-pre:border-white/5">
+                        <div className="prose prose-invert prose-slate max-w-none prose-p:leading-relaxed prose-p:my-2 prose-headings:mt-4 prose-headings:mb-2 prose-pre:bg-slate-950/50 prose-pre:border prose-pre:border-white/5 prose-code:text-blue-300">
                           <ReactMarkdown
                             remarkPlugins={[remarkGfm]}
                             components={{
@@ -669,20 +682,21 @@ export const ChatInterface = ({
                                 const match = /language-(\w+)/.exec(className || '');
                                 const code = String(children).replace(/\n$/, '');
                                 if (!match) {
-                                  return <code className="bg-white/10 px-1 py-0.5 rounded text-blue-300 font-mono text-[0.9em]" {...props}>{code}</code>;
+                                  return <code className="bg-white/10 px-1.5 py-0.5 rounded text-blue-300 font-mono text-[0.9em]" {...props}>{code}</code>;
                                 }
                                 return (
-                                  <div className="relative group/code my-4">
-                                    <div className="absolute -top-3 left-4 px-2 py-0.5 bg-slate-800 border border-white/10 rounded text-[10px] text-slate-400 font-mono z-10">
+                                  <div className="relative group/code my-4 not-prose">
+                                    <div className="absolute -top-3 left-4 px-2.5 py-1 bg-slate-900 border border-white/10 rounded-lg text-[10px] text-slate-300 font-mono z-10 shadow-lg">
                                       {match[1].toUpperCase()}
                                     </div>
                                     <button
                                       onClick={() => copyToClipboard(code)}
-                                      className="absolute right-3 top-3 p-2 text-slate-400 hover:text-white bg-white/5 rounded-lg opacity-0 group-hover/code:opacity-100 transition-all border border-white/5 backdrop-blur-sm"
+                                      className="absolute right-3 top-3 p-2.5 text-slate-400 hover:text-white bg-slate-900/80 rounded-lg opacity-0 group-hover/code:opacity-100 transition-all border border-white/10 backdrop-blur-sm hover:bg-slate-800"
+                                      title="Copy code"
                                     >
                                       <Copy size={14} />
                                     </button>
-                                    <pre className="m-0 bg-slate-950/80 border border-white/5 rounded-2xl p-5 overflow-x-auto scrollbar-thin scrollbar-thumb-white/10">
+                                    <pre className="m-0 bg-slate-950/90 border border-white/10 rounded-2xl p-5 overflow-x-auto scrollbar-thin scrollbar-thumb-white/10 scrollbar-track-transparent">
                                       <code className={`${className} text-sm leading-relaxed`}>{code}</code>
                                     </pre>
                                   </div>
@@ -694,41 +708,77 @@ export const ChatInterface = ({
                           </ReactMarkdown>
                         </div>
                       ) : (
-                        <div className="text-[14px] leading-relaxed font-medium">{msg.text}</div>
+                        <div className="text-[15px] leading-relaxed font-medium">{msg.text}</div>
                       )}
                       
                       <button
                         onClick={() => copyToClipboard(msg.text)}
-                        className="absolute -top-1 -right-1 p-2 text-slate-400 hover:text-white bg-slate-800 border border-white/10 rounded-full opacity-0 group-hover:opacity-100 transition-all shadow-lg scale-90"
+                        className="absolute -top-2 -right-2 p-2 text-slate-400 hover:text-white bg-slate-900 border border-white/10 rounded-full opacity-0 group-hover:opacity-100 transition-all shadow-xl hover:scale-110"
+                        title="Copy message"
                       >
                         <Copy size={12} />
                       </button>
+
+                      {/* Timestamp on hover */}
+                      <div className="absolute -bottom-5 left-0 text-[10px] text-slate-500 opacity-0 group-hover:opacity-100 transition-opacity">
+                        {msg.timestamp.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                      </div>
                     </div>
+
+                    {/* User Avatar */}
+                    {msg.role === 'user' && (
+                      <div className="flex-shrink-0 mt-1">
+                        <div className="w-8 h-8 rounded-xl bg-gradient-to-br from-blue-500 to-indigo-600 flex items-center justify-center text-white shadow-lg ring-2 ring-blue-400/20 font-semibold text-sm">
+                          U
+                        </div>
+                      </div>
+                    )}
                   </motion.div>
                 ))}
               </AnimatePresence>
               {isThinking && (
-                <div className="flex justify-start">
-                  <div className="bg-white/5 backdrop-blur-md border border-white/10 rounded-[1.5rem] rounded-bl-none px-5 py-3">
-                    <div className="flex gap-1.5 items-center h-4">
-                      <motion.div 
-                        animate={{ scale: [1, 1.2, 1] }} 
-                        transition={{ repeat: Infinity, duration: 1, delay: 0 }}
-                        className="w-1.5 h-1.5 bg-blue-400 rounded-full" 
-                      />
-                      <motion.div 
-                        animate={{ scale: [1, 1.2, 1] }} 
-                        transition={{ repeat: Infinity, duration: 1, delay: 0.2 }}
-                        className="w-1.5 h-1.5 bg-blue-400 rounded-full" 
-                      />
-                      <motion.div 
-                        animate={{ scale: [1, 1.2, 1] }} 
-                        transition={{ repeat: Infinity, duration: 1, delay: 0.4 }}
-                        className="w-1.5 h-1.5 bg-blue-400 rounded-full" 
-                      />
+                <motion.div 
+                  initial={{ opacity: 0, y: 10 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  className="flex gap-3 justify-start"
+                >
+                  {/* Bot Avatar */}
+                  <div className="flex-shrink-0 mt-1">
+                    <div className={`w-8 h-8 rounded-xl ${agent.color} flex items-center justify-center text-white shadow-lg ring-2 ring-white/10`}>
+                      {agentModelOption?.icon || <Bot size={16} />}
                     </div>
                   </div>
-                </div>
+
+                  <div className="bg-gradient-to-br from-slate-800/90 to-slate-800/70 backdrop-blur-xl border border-white/10 rounded-2xl rounded-bl-md px-6 py-4 shadow-xl">
+                    <div className="flex gap-2 items-center">
+                      <motion.div 
+                        animate={{ 
+                          scale: [1, 1.3, 1],
+                          opacity: [0.5, 1, 0.5]
+                        }} 
+                        transition={{ repeat: Infinity, duration: 1.2, delay: 0, ease: "easeInOut" }}
+                        className="w-2 h-2 bg-blue-400 rounded-full shadow-lg shadow-blue-400/50" 
+                      />
+                      <motion.div 
+                        animate={{ 
+                          scale: [1, 1.3, 1],
+                          opacity: [0.5, 1, 0.5]
+                        }} 
+                        transition={{ repeat: Infinity, duration: 1.2, delay: 0.2, ease: "easeInOut" }}
+                        className="w-2 h-2 bg-blue-400 rounded-full shadow-lg shadow-blue-400/50" 
+                      />
+                      <motion.div 
+                        animate={{ 
+                          scale: [1, 1.3, 1],
+                          opacity: [0.5, 1, 0.5]
+                        }} 
+                        transition={{ repeat: Infinity, duration: 1.2, delay: 0.4, ease: "easeInOut" }}
+                        className="w-2 h-2 bg-blue-400 rounded-full shadow-lg shadow-blue-400/50" 
+                      />
+                      <span className="text-xs text-slate-400 ml-2">Thinking...</span>
+                    </div>
+                  </div>
+                </motion.div>
               )}
               <div ref={messagesEndRef} className="h-4" />
             </div>
@@ -748,112 +798,155 @@ export const ChatInterface = ({
               )}
             </AnimatePresence>
 
-            <div className="p-4 md:p-6 pt-0 relative z-10">
+            <div className="p-4 md:p-6 pt-2 relative z-10">
               <div className="max-w-4xl mx-auto">
-                <div className="bg-white/5 backdrop-blur-2xl border border-white/10 rounded-[2rem] p-2 shadow-2xl relative group/input">
-                  {/* Focus Glow */}
-                  <div className="absolute inset-0 bg-blue-500/5 rounded-[2.5rem] opacity-0 group-focus-within/input:opacity-100 transition-opacity pointer-events-none" />
-                <div className="flex items-center justify-between gap-2 px-2 pb-1">
-                  <div className="flex items-center gap-1.5">
+                {/* Action Bar */}
+                <div className="flex items-center justify-between gap-2 mb-3 px-2">
+                  <div className="flex items-center gap-2">
                     <button
                       disabled={!lastUserMessage || isThinking}
                       onClick={handleRegenerate}
-                      className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-medium text-slate-400 hover:text-white hover:bg-white/5 disabled:opacity-30 transition-all border border-transparent hover:border-white/10"
+                      className="flex items-center gap-2 px-3 py-1.5 rounded-xl text-xs font-semibold text-slate-300 hover:text-white hover:bg-white/10 disabled:opacity-30 disabled:cursor-not-allowed transition-all border border-white/5 hover:border-white/20 backdrop-blur-sm"
+                      title="Regenerate last response"
                     >
-                      <RotateCcw size={12} /> Regenerate
+                      <RotateCcw size={14} /> 
+                      <span className="hidden sm:inline">Regenerate</span>
                     </button>
                     {isThinking && (
                       <button
                         onClick={handleStop}
-                        className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-medium text-red-400 hover:text-red-300 hover:bg-red-400/10 transition-all border border-transparent hover:border-red-400/20"
+                        className="flex items-center gap-2 px-3 py-1.5 rounded-xl text-xs font-semibold text-red-400 hover:text-red-300 hover:bg-red-400/10 transition-all border border-red-400/20 hover:border-red-400/40 backdrop-blur-sm"
+                        title="Stop generation"
                       >
-                        <Square size={12} className="fill-current" /> Stop
+                        <Square size={14} className="fill-current" /> 
+                        <span className="hidden sm:inline">Stop</span>
                       </button>
                     )}
                     {agent.allow_reviews && lastExecutionId && !isThinking && (
-                        <button
-                          onClick={() => setIsReviewModalOpen(true)}
-                          disabled={reviewStatus !== 'none' && reviewStatus !== 'rejected'}
-                          className={`flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-medium transition-all border ${
-                            reviewStatus === 'pending' 
-                              ? 'text-amber-400 border-amber-400/30 bg-amber-400/5' 
-                              : 'text-slate-400 border-transparent hover:text-white hover:bg-white/5 hover:border-white/10'
-                          }`}
-                        >
-                          {reviewStatus === 'pending' ? 'Review Pending' : 'Request Review'}
-                        </button>
+                      <button
+                        onClick={() => setIsReviewModalOpen(true)}
+                        disabled={reviewStatus !== 'none' && reviewStatus !== 'rejected'}
+                        className={`flex items-center gap-2 px-3 py-1.5 rounded-xl text-xs font-semibold transition-all border backdrop-blur-sm ${
+                          reviewStatus === 'pending' 
+                            ? 'text-amber-400 border-amber-400/40 bg-amber-400/10 cursor-not-allowed' 
+                            : 'text-slate-300 border-white/5 hover:text-white hover:bg-white/10 hover:border-white/20'
+                        }`}
+                        title={reviewStatus === 'pending' ? 'Review request pending' : 'Request expert review'}
+                      >
+                        {reviewStatus === 'pending' ? (
+                          <>
+                            <Loader2 size={14} className="animate-spin" />
+                            <span className="hidden sm:inline">Review Pending</span>
+                          </>
+                        ) : (
+                          <>
+                            <span className="hidden sm:inline">Request Review</span>
+                          </>
+                        )}
+                      </button>
                     )}
                   </div>
-                  <div className="text-[10px] uppercase tracking-widest text-slate-500 font-bold opacity-50">{agentModelOption?.label || 'AI Model'}</div>
+                  <div className="flex items-center gap-2">
+                    <div className="text-[10px] uppercase tracking-widest text-slate-500 font-bold px-2 py-1 bg-slate-800/50 rounded-lg border border-white/5">
+                      {agentModelOption?.label || 'AI Model'}
+                    </div>
+                  </div>
                 </div>
 
-                {attachment && (
-                  <div className="mb-2 mx-1 flex items-center justify-between p-2 bg-slate-800 border border-slate-700 rounded-lg animate-in slide-in-from-bottom-1">
-                    <div className="flex items-center gap-2 overflow-hidden">
-                      <div className="bg-blue-500/20 p-1.5 rounded text-blue-400">
-                        <Paperclip size={14} />
-                      </div>
-                      <span className="text-xs text-slate-200 truncate font-medium max-w-[200px]">{attachment.name}</span>
-                      <span className="text-xs text-slate-500">(Context)</span>
-                    </div>
-                    <button 
-                      onClick={() => setAttachment(null)}
-                      className="text-slate-500 hover:text-red-400 transition-colors p-1"
+                {/* Input Container */}
+                <div className="bg-gradient-to-br from-slate-800/60 to-slate-900/60 backdrop-blur-2xl border-2 border-white/10 rounded-3xl p-1.5 shadow-2xl relative group/input hover:border-white/20 transition-all">
+                  {/* Focus Glow Effect */}
+                  <div className="absolute inset-0 bg-gradient-to-r from-blue-500/10 via-purple-500/10 to-blue-500/10 rounded-3xl opacity-0 group-focus-within/input:opacity-100 transition-opacity pointer-events-none blur-xl" />
+                  
+                  {attachment && (
+                    <motion.div 
+                      initial={{ opacity: 0, y: -10 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      exit={{ opacity: 0, y: -10 }}
+                      className="mb-2 mx-2 flex items-center justify-between p-3 bg-slate-800/80 border border-slate-700/50 rounded-2xl backdrop-blur-sm"
                     >
-                      <X size={14} />
-                    </button>
-                  </div>
-                )}
-                <div className="relative flex items-end gap-2 px-2">
-                  {agent.enabledCapabilities?.fileHandling && (
-                    <>
-                      <input 
-                        type="file" 
-                        ref={fileInputRef} 
-                        className="hidden" 
-                        onChange={handleFileSelect}
-                        accept=".pdf,.txt,.md,.docx,.html,.csv"
-                      />
-                      <Button
-                        onClick={() => fileInputRef.current?.click()}
-                        disabled={isUploading || isThinking || !!attachment}
-                        variant="ghost"
-                        className="mb-0.5 rounded-lg w-10 h-10 p-0 flex items-center justify-center shrink-0 text-slate-400 hover:text-white hover:bg-slate-700"
-                        title="Attach file"
+                      <div className="flex items-center gap-3 overflow-hidden">
+                        <div className="bg-blue-500/20 p-2 rounded-xl text-blue-400 ring-2 ring-blue-400/20">
+                          <Paperclip size={16} />
+                        </div>
+                        <div className="flex flex-col overflow-hidden">
+                          <span className="text-sm text-slate-200 truncate font-medium max-w-[250px]">{attachment.name}</span>
+                          <span className="text-xs text-slate-500">Attached as context</span>
+                        </div>
+                      </div>
+                      <button 
+                        onClick={() => setAttachment(null)}
+                        className="text-slate-400 hover:text-red-400 transition-colors p-2 hover:bg-red-400/10 rounded-lg"
+                        title="Remove attachment"
                       >
-                        {isUploading ? <Loader2 size={18} className="animate-spin" /> : <Paperclip size={18} />}
-                      </Button>
-                    </>
+                        <X size={16} />
+                      </button>
+                    </motion.div>
                   )}
-                  <textarea
-                    value={inputValue}
-                    onChange={(e) => setInputValue(e.target.value)}
-                    onKeyDown={(e) => {
-                      if (e.key === 'Enter' && !e.shiftKey) {
-                        e.preventDefault();
-                        handleSend();
-                      }
-                    }}
-                    placeholder={`Message ${agent.name}...`}
-                    className="w-full bg-transparent border-none text-white px-3 py-2 outline-none resize-none max-h-32 placeholder-slate-500"
-                    rows={1}
-                    style={{ minHeight: '44px' }}
-                  />
-                  <Button
-                    onClick={handleSend}
-                    disabled={!inputValue.trim() || isThinking}
-                    className="mb-0.5 rounded-[1.25rem] w-12 h-12 p-0 flex items-center justify-center shrink-0 shadow-lg"
-                    aria-label="Send message"
-                  >
-                    <Send size={20} />
-                  </Button>
+
+                  <div className="relative flex items-end gap-2 px-2">
+                    {agent.enabledCapabilities?.fileHandling && (
+                      <>
+                        <input 
+                          type="file" 
+                          ref={fileInputRef} 
+                          className="hidden" 
+                          onChange={handleFileSelect}
+                          accept=".pdf,.txt,.md,.docx,.html,.csv"
+                        />
+                        <Button
+                          onClick={() => fileInputRef.current?.click()}
+                          disabled={isUploading || isThinking || !!attachment}
+                          variant="ghost"
+                          className="mb-1 rounded-xl w-11 h-11 p-0 flex items-center justify-center shrink-0 text-slate-400 hover:text-white hover:bg-slate-700/50 transition-all disabled:opacity-30"
+                          title="Attach file"
+                        >
+                          {isUploading ? <Loader2 size={20} className="animate-spin" /> : <Paperclip size={20} />}
+                        </Button>
+                      </>
+                    )}
+                    <textarea
+                      value={inputValue}
+                      onChange={(e) => {
+                        setInputValue(e.target.value);
+                        // Auto-resize
+                        e.target.style.height = 'auto';
+                        e.target.style.height = Math.min(e.target.scrollHeight, 150) + 'px';
+                      }}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter' && !e.shiftKey) {
+                          e.preventDefault();
+                          handleSend();
+                        }
+                      }}
+                      placeholder={`Ask ${agent.name} anything...`}
+                      className="w-full bg-transparent border-none text-white px-4 py-3 outline-none resize-none max-h-[150px] placeholder-slate-500 text-[15px] leading-relaxed"
+                      rows={1}
+                      style={{ minHeight: '48px' }}
+                    />
+                    <Button
+                      onClick={handleSend}
+                      disabled={!inputValue.trim() || isThinking}
+                      className={`mb-1 rounded-2xl w-12 h-12 p-0 flex items-center justify-center shrink-0 shadow-2xl transition-all ${
+                        inputValue.trim() && !isThinking
+                          ? 'bg-gradient-to-br from-blue-500 to-indigo-600 hover:from-blue-600 hover:to-indigo-700 scale-100 hover:scale-105'
+                          : 'bg-slate-700 opacity-50 cursor-not-allowed'
+                      }`}
+                      aria-label="Send message"
+                    >
+                      {isThinking ? (
+                        <Loader2 size={20} className="animate-spin" />
+                      ) : (
+                        <Send size={20} />
+                      )}
+                    </Button>
+                  </div>
                 </div>
               </div>
+              <div className="text-center mt-4">
+                <p className="text-[11px] text-slate-500 font-medium">AI can make mistakes. Please verify important information.</p>
+              </div>
             </div>
-            <div className="text-center mt-3 scale-95 opacity-60">
-              <p className="text-[10px] uppercase tracking-widest text-slate-400 font-medium">AI can make mistakes. Please check important info.</p>
-            </div>
-          </div>
         </>
         )}
       </div>

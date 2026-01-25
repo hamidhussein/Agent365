@@ -145,43 +145,43 @@ const ReviewResponseModal: React.FC<ReviewResponseModalProps> = ({
       onClick={onClose}
     >
       <div
-        className="bg-gray-900 border border-gray-700 rounded-2xl max-w-3xl w-full max-h-[90vh] overflow-y-auto shadow-2xl animate-in fade-in slide-in-from-bottom-4 duration-300 flex flex-col"
+        className="bg-card border border-border rounded-2xl max-w-3xl w-full max-h-[90vh] overflow-y-auto shadow-2xl animate-in fade-in slide-in-from-bottom-4 duration-300 flex flex-col"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Header */}
-        <div className="px-6 py-4 bg-gray-800/50 border-b border-gray-700 flex justify-between items-center sticky top-0 z-10">
+        <div className="px-6 py-4 bg-muted/30 border-b border-border flex justify-between items-center sticky top-0 z-10 backdrop-blur-md">
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 bg-brand-primary/10 rounded-lg flex items-center justify-center">
-              <MessageSquare className="w-6 h-6 text-brand-primary" />
+            <div className="w-10 h-10 bg-primary/10 rounded-lg flex items-center justify-center">
+              <MessageSquare className="w-6 h-6 text-primary" />
             </div>
             <div>
-              <h2 className="text-xl font-bold text-white">Respond to Review</h2>
-              <p className="text-xs text-gray-400">
+              <h2 className="text-xl font-bold text-foreground">Respond to Review</h2>
+              <p className="text-xs text-muted-foreground">
                 Agent: {review.agent?.name} • User: @{review.user_username}
               </p>
             </div>
           </div>
-          <button onClick={onClose} className="text-gray-400 hover:text-white transition-colors">
+          <button onClick={onClose} className="text-muted-foreground hover:text-foreground transition-colors">
             <X size={20} />
           </button>
         </div>
 
         {/* Tabs */}
         <div className="px-6 pt-6 pb-2">
-            <div className="flex bg-gray-800 p-1 rounded-lg w-fit">
+            <div className="flex bg-secondary p-1.5 rounded-xl w-fit border border-border/50">
                 <button
                     type="button"
                     onClick={() => setActiveTab('note')}
-                    className={`px-4 py-2 rounded-md text-sm font-medium transition-all ${activeTab === 'note' ? 'bg-gray-700 text-white shadow-sm' : 'text-gray-400 hover:text-gray-200'}`}
+                    className={`px-4 py-2 rounded-lg text-sm font-bold transition-all ${activeTab === 'note' ? 'bg-card text-foreground shadow-md' : 'text-muted-foreground hover:text-foreground'}`}
                 >
                     Response Note
                 </button>
                 <button
                     type="button"
                     onClick={() => setActiveTab('refine')}
-                    className={`px-4 py-2 rounded-md text-sm font-medium transition-all ${activeTab === 'refine' ? 'bg-purple-600/20 text-purple-300 border border-purple-500/30 shadow-sm' : 'text-gray-400 hover:text-gray-200'}`}
+                    className={`px-4 py-2 rounded-lg text-sm font-bold transition-all ${activeTab === 'refine' ? 'bg-primary/10 text-primary border border-primary/20 shadow-sm' : 'text-muted-foreground hover:text-foreground'}`}
                 >
-                    Refine Output <span className="text-[9px] bg-purple-500 text-white px-1 rounded ml-1">PRO</span>
+                    Refine Output <span className="text-[9px] bg-primary text-primary-foreground px-1.5 py-0.5 rounded ml-2 shadow-sm font-black">PRO</span>
                 </button>
             </div>
         </div>
@@ -193,11 +193,11 @@ const ReviewResponseModal: React.FC<ReviewResponseModalProps> = ({
           {activeTab === 'note' && (
               <>
                 <div>
-                    <label className="block text-sm font-medium text-gray-400 mb-2">
+                    <label className="block text-sm font-bold text-muted-foreground mb-3">
                     User's Request
                     </label>
-                    <div className="bg-gray-800 border border-gray-700 rounded-lg p-4">
-                    <p className="text-white text-sm leading-relaxed">
+                    <div className="bg-muted/40 border border-border rounded-xl p-4">
+                    <p className="text-foreground text-sm leading-relaxed font-medium">
                         {review.review_request_note || 'No note provided'}
                     </p>
                     </div>
@@ -205,25 +205,23 @@ const ReviewResponseModal: React.FC<ReviewResponseModalProps> = ({
 
                 <div className="grid grid-cols-2 gap-4">
                     <div>
-                    <label className="block text-sm font-medium text-gray-400 mb-2">
+                    <label className="block text-sm font-bold text-muted-foreground mb-3">
                         User Input
                     </label>
-                    <div className="bg-gray-800 border border-gray-700 rounded-lg p-3 max-h-32 overflow-y-auto">
-                        <pre className="text-xs text-gray-300 whitespace-pre-wrap">
+                    <div className="bg-muted border border-border rounded-xl p-4 max-h-32 overflow-y-auto shadow-inner">
+                        <pre className="text-xs text-muted-foreground whitespace-pre-wrap font-mono">
                         {JSON.stringify(review.inputs, null, 2)}
                         </pre>
                     </div>
                     </div>
                     <div>
-                    <label className="block text-sm font-medium text-gray-400 mb-2">
+                    <label className="block text-sm font-bold text-muted-foreground mb-3">
                         Agent Output
                     </label>
-                    <div className="bg-gray-800 border border-gray-700 rounded-lg p-3 max-h-32 overflow-y-auto">
-                        <pre className="text-xs text-gray-300 whitespace-pre-wrap">
+                    <div className="bg-muted border border-border rounded-xl p-4 max-h-32 overflow-y-auto shadow-inner">
+                        <pre className="text-xs text-muted-foreground whitespace-pre-wrap font-mono">
                         {(() => {
                           const output = review.outputs;
-                          console.log("DEBUG: Review Outputs Raw", output);
-                          console.log("DEBUG: Type", typeof output);
                           
                           // Handle case where output is an Object/Array of tokens (common if JSON.parse happened partially or it's an array)
                           if (typeof output === 'object' && output !== null) {
@@ -236,23 +234,15 @@ const ReviewResponseModal: React.FC<ReviewResponseModalProps> = ({
                                   if (textContent) return textContent;
                               }
                               
-                              // If it's an object with numeric keys (unlikely but possible if parsed from array-like)
-                              // Or if it's a single token object
                               if (output.type === 'token' && output.content) {
-                                  // Just a single token? highly unlikely to be the whole output, but handle it
                                   return output.content;
                               }
                           }
 
-                          // Handle streaming token artifacts in STRING format (e.g. {"type":"token",...}\n{"type":"token",...})
-                          // Convert string to check for patterns like } { or }\n{
+                          // Handle streaming token artifacts in STRING format
                           if (typeof output === 'string' && /}\s*{/.test(output)) {
-                             // Try to reconstruct from tokens
                              try {
-                                // Split by the pattern and rejoin with commas
-                                // We use a split regex that captures the separator to know how many parts
                                 const tokens = output.split(/}\s*{/);
-                                // The split eats the braces, so we need to put them back
                                 const fixed = '[' + tokens.map((t, i) => {
                                     let str = t.trim();
                                     if (i > 0) str = '{' + str;
@@ -266,22 +256,17 @@ const ReviewResponseModal: React.FC<ReviewResponseModalProps> = ({
                                   .map((Item: any) => Item.content)
                                   .join('');
                                 if (textContent) return textContent;
-                             } catch (e) {
-                                // Failed to fix JSON, fall through
-                             }
+                             } catch (e) {}
                           }
 
                           if (typeof output === 'string') return output;
                           if (!output) return 'No output provided';
                           
-                          // Handle standard object response
                           if (output.result) return output.result;
                           if (output.content) return output.content;
                           if (output.response) return typeof output.response === 'object' ? JSON.stringify(output.response, null, 2) : output.response;
 
-                          // Handle Tool Calls (parse the 'text' field if it looks like JSON)
                           if (output.text) {
-                            // Check for streaming artifacts in text field too
                             if (typeof output.text === 'string' && output.text.includes('}{')) {
                                 try {
                                     const fixed = '[' + output.text.replace(/}{/g, '},{') + ']';
@@ -296,17 +281,13 @@ const ReviewResponseModal: React.FC<ReviewResponseModalProps> = ({
 
                             try {
                               const parsed = JSON.parse(output.text);
-                              if (parsed.result) return parsed.result; // Tool result inside text
+                              if (parsed.result) return parsed.result;
                               if (parsed.type === 'tool_call') return `[Tool Call: ${parsed.name}]`;
                             } catch {
                               return output.text;
                             }
                           }
                           
-                          // Handle case where it might be a raw string that got JSON.parsed into an object but is just "text"
-                          // or if it's a list of tool types.
-                          
-                          // Fallback
                           return JSON.stringify(output, null, 2);
                         })()}
                         </pre>
@@ -314,8 +295,8 @@ const ReviewResponseModal: React.FC<ReviewResponseModalProps> = ({
                     </div>
                 </div>
 
-                <div>
-                    <label className="block text-sm font-medium text-gray-300 mb-2">
+                <div className="pt-4 border-t border-border/50">
+                    <label className="block text-sm font-bold text-foreground mb-3">
                     Your Response *
                     </label>
                     <textarea
@@ -323,7 +304,7 @@ const ReviewResponseModal: React.FC<ReviewResponseModalProps> = ({
                     value={responseNote}
                     onChange={(e) => setResponseNote(e.target.value)}
                     placeholder="Explain what you've done to address their concern..."
-                    className="w-full h-40 bg-gray-800 border border-gray-700 rounded-xl px-4 py-3 text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-brand-primary/50 focus:border-brand-primary transition-all resize-none"
+                    className="w-full h-40 bg-secondary border border-border rounded-xl px-4 py-4 text-foreground placeholder-muted-foreground/60 focus:outline-none focus:ring-2 focus:ring-primary/40 transition-all resize-none shadow-sm font-medium"
                     />
                 </div>
               </>
@@ -368,28 +349,28 @@ const ReviewResponseModal: React.FC<ReviewResponseModalProps> = ({
           )}
 
           {/* Actions */}
-          <div className="flex gap-3 pt-2 mt-auto">
+          <div className="flex gap-4 pt-4 mt-auto border-t border-border/50">
             <button
               type="button"
               onClick={onClose}
-              className="flex-1 py-3 bg-gray-800 hover:bg-gray-700 text-white font-medium rounded-xl transition-colors"
+              className="flex-1 py-3.5 bg-secondary hover:bg-muted text-foreground font-bold rounded-xl border border-border transition-all active:scale-[0.98]"
             >
               Cancel
             </button>
             <button
               type="submit"
               disabled={isSubmitting || !responseNote.trim()}
-              className={`flex-[2] py-3 text-white font-bold rounded-xl transition-all shadow-lg flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed ${activeTab === 'refine' ? 'bg-purple-600 hover:bg-purple-500 hover:shadow-purple-500/20' : 'bg-brand-primary hover:bg-brand-primary/90 hover:shadow-brand-primary/20'}`}
+              className={`flex-[2] py-3.5 text-primary-foreground font-black rounded-xl transition-all shadow-xl shadow-primary/10 flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed active:scale-[0.98] ${activeTab === 'refine' ? 'bg-primary hover:bg-primary/90' : 'bg-primary hover:bg-primary/90'}`}
             >
               {isSubmitting ? (
                 <>
                   <Loader2 className="w-5 h-5 animate-spin" />
-                  Submitting...
+                  Submitting Changes...
                 </>
               ) : (
                 <>
                   <Send className="w-5 h-5" />
-                  {activeTab === 'refine' ? 'Submit Refined Version' : 'Send Response'}
+                  {activeTab === 'refine' ? 'Submit Refined Output' : 'Send Official Response'}
                 </>
               )}
             </button>

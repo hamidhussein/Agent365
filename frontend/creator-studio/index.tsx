@@ -273,7 +273,7 @@ const CreatorStudioApp = ({ initialView }: { initialView?: string }) => {
       )}
 
       {view === 'create-agent' && (
-        <div className="absolute inset-x-0 bottom-0 top-16 animate-in fade-in duration-300 bg-slate-950 z-20">
+        <div className="absolute inset-x-0 bottom-0 top-16 animate-in fade-in duration-300 bg-background z-20">
           <AgentBuilder
             onCancel={() => setView('dashboard')}
             onSave={handleCreateAgent}
@@ -282,7 +282,7 @@ const CreatorStudioApp = ({ initialView }: { initialView?: string }) => {
       )}
 
       {view === 'edit-agent' && editingAgent && (
-        <div className="absolute inset-x-0 bottom-0 top-16 animate-in fade-in duration-300 bg-slate-950 z-20">
+        <div className="absolute inset-x-0 bottom-0 top-16 animate-in fade-in duration-300 bg-background z-20">
           <AgentBuilder
             initialData={editingAgent}
             onCancel={() => {
