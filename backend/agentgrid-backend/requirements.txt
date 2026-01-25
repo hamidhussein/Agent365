@@ -89,3 +89,5 @@ matplotlib
 tabulate
 duckduckgo-search>=5.0.0
 python-docx
+fpdf2
+

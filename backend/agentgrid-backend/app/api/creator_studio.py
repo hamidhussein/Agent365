@@ -80,8 +80,9 @@ from app.services.creator_studio import (
 router = APIRouter(prefix="/creator-studio/api", tags=["creator-studio"])
 
 CREATOR_STUDIO_SOURCE = "creator_studio"
-DEFAULT_MODEL = "gemini-3-flash-preview"
+DEFAULT_MODEL = "gemini-1.5-flash-preview"
 DEFAULT_COLOR = "bg-slate-600"
+GENERATED_FILES_DIR = os.path.join(os.getcwd(), ".generated_files")
 
 
 def _coerce_uuid(value: str) -> uuid.UUID:
@@ -1402,3 +1403,24 @@ def test_agent_action(
             return result
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get("/files/{execution_id}/{filename}")
+async def download_generated_file(execution_id: str, filename: str):
+    """
+    Serves a file from the generated files directory.
+    Uses absolute paths to ensure the file is found.
+    """
+    file_path = os.path.join(GENERATED_FILES_DIR, execution_id, filename)
+    
+    if not os.path.exists(file_path):
+        # Log for debugging
+        print(f"File not found: {file_path}")
+        raise HTTPException(status_code=404, detail="File not found")
+        
+    # Return file as a download
+    return FileResponse(
+        path=file_path,
+        filename=filename,
+        media_type='application/octet-stream'
+    )

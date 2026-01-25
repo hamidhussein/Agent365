@@ -11,7 +11,7 @@ import { ChatInterface } from '../../creator-studio/components/chat/ChatInterfac
 import type { Agent as CreatorStudioAgent } from '../../creator-studio/types';
 import { publicApi } from '../../creator-studio/api';
 import { useAuthStore } from '../../src/lib/store';
-import AgentGraph from '../AgentGraph';
+
 
 interface RunAgentPageProps {
     agent: Agent;
@@ -32,7 +32,7 @@ const getGuestId = () => {
     return nextId;
 };
 
-const RunAgentPage: React.FC<RunAgentPageProps> = ({ agent, onBackToDetail, onSelectAgent }) => {
+const RunAgentPage: React.FC<RunAgentPageProps> = ({ agent, onBackToDetail }) => {
     const login = useAuthStore((state) => state.login);
     const user = useAuthStore((state) => state.user);
 
@@ -164,12 +164,7 @@ const RunAgentPage: React.FC<RunAgentPageProps> = ({ agent, onBackToDetail, onSe
                     </div>
                 </div>
 
-                <AgentGraph 
-                    currentAgentId={agent.id}
-                    creatorId={agent.creator?.id || ''}
-                    creatorName={agent.creator?.full_name || agent.creator?.username || 'the creator'}
-                    onSelectAgent={onSelectAgent}
-                />
+
             </div>
         );
     }
@@ -223,12 +218,7 @@ const RunAgentPage: React.FC<RunAgentPageProps> = ({ agent, onBackToDetail, onSe
                             guestId={guestId}
                         />
 
-                        <AgentGraph 
-                            currentAgentId={agent.id}
-                            creatorId={agent.creator?.id || ''}
-                            creatorName={agent.creator?.full_name || agent.creator?.username || 'the creator'}
-                            onSelectAgent={onSelectAgent}
-                        />
+
                     </div>
                 </div>
             );
@@ -453,12 +443,7 @@ const RunAgentPage: React.FC<RunAgentPageProps> = ({ agent, onBackToDetail, onSe
                 </div>
             </div>
 
-            <AgentGraph 
-                currentAgentId={agent.id}
-                creatorId={agent.creator?.id || ''}
-                creatorName={agent.creator?.full_name || agent.creator?.username || 'the creator'}
-                onSelectAgent={onSelectAgent}
-            />
+
         </div>
     );
 };

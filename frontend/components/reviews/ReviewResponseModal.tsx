@@ -33,10 +33,77 @@ const ReviewResponseModal: React.FC<ReviewResponseModalProps> = ({
   // Initialize refined output when modal opens
   React.useEffect(() => {
     if (isOpen && review) {
+      let initialData = review.outputs;
+
+      // Smart Unwrap: If the output is a complex agent text response (e.g. tool calls), 
+      // extract the actual user-facing result for the editor.
+      try {
+        // Handle direct string tokens (Case 0)
+        if (typeof initialData === 'string' && /}\s*{/.test(initialData)) {
+             try {
+                const tokens = initialData.split(/}\s*{/);
+                const fixed = '[' + tokens.map((t, i) => {
+                    let str = t.trim();
+                    if (i > 0) str = '{' + str;
+                    if (i < tokens.length - 1) str = str + '}';
+                    return str;
+                }).join(',') + ']';
+                const parsedList = JSON.parse(fixed);
+                const textContent = parsedList
+                  .filter((Item: any) => Item.type === 'token' && Item.content)
+                  .map((Item: any) => Item.content)
+                  .join('');
+                if (textContent) initialData = { response: textContent };
+             } catch (e) {}
+        }
+        else if (initialData && typeof initialData === 'object') {
+            // Case 0.5: Array of tokens
+            if (Array.isArray(initialData)) {
+                const textContent = initialData
+                  .filter((Item: any) => Item && Item.type === 'token' && Item.content)
+                  .map((Item: any) => Item.content)
+                  .join('');
+                if (textContent) initialData = { response: textContent };
+            }
+            // Case 1: Double-encoded JSON in 'text' (common with tool calls)
+            else if (initialData.text && typeof initialData.text === 'string') {
+                if (initialData.text.includes('}{')) {
+                    // Handle stream in text field
+                    try {
+                        const fixed = '[' + initialData.text.replace(/}{/g, '},{') + ']';
+                        const parsedList = JSON.parse(fixed);
+                        const textContent = parsedList
+                          .filter((Item: any) => Item.type === 'token' && Item.content)
+                          .map((Item: any) => Item.content)
+                          .join('');
+                        if (textContent) initialData = { response: textContent };
+                    } catch (e) {}
+                } else {
+                     try {
+                        const parsedInside = JSON.parse(initialData.text);
+                        if (parsedInside.result) {
+                            initialData = { response: parsedInside.result };
+                        } else if (parsedInside.content) {
+                             initialData = { response: parsedInside.content };
+                        } else {
+                            initialData = parsedInside;
+                        }
+                    } catch (e) {}
+                }
+            } 
+            // Case 2: Already has result/response keys
+            else if (initialData.result) {
+                initialData = { response: initialData.result };
+            }
+        }
+      } catch (e) {
+        console.error("Error formatting initial refined output", e);
+      }
+
       setRefinedOutputsStr(
-        review.outputs 
-          ? JSON.stringify(review.outputs, null, 2) 
-          : '{\n  "output": ""\n}'
+        initialData
+          ? JSON.stringify(initialData, null, 2)
+          : '{\n  "response": ""\n}'
       );
     }
   }, [isOpen, review]);
@@ -153,7 +220,95 @@ const ReviewResponseModal: React.FC<ReviewResponseModalProps> = ({
                     </label>
                     <div className="bg-gray-800 border border-gray-700 rounded-lg p-3 max-h-32 overflow-y-auto">
                         <pre className="text-xs text-gray-300 whitespace-pre-wrap">
-                        {JSON.stringify(review.outputs, null, 2)}
+                        {(() => {
+                          const output = review.outputs;
+                          console.log("DEBUG: Review Outputs Raw", output);
+                          console.log("DEBUG: Type", typeof output);
+                          
+                          // Handle case where output is an Object/Array of tokens (common if JSON.parse happened partially or it's an array)
+                          if (typeof output === 'object' && output !== null) {
+                              // If it's an array of tokens
+                              if (Array.isArray(output)) {
+                                  const textContent = output
+                                    .filter((Item: any) => Item && Item.type === 'token' && Item.content)
+                                    .map((Item: any) => Item.content)
+                                    .join('');
+                                  if (textContent) return textContent;
+                              }
+                              
+                              // If it's an object with numeric keys (unlikely but possible if parsed from array-like)
+                              // Or if it's a single token object
+                              if (output.type === 'token' && output.content) {
+                                  // Just a single token? highly unlikely to be the whole output, but handle it
+                                  return output.content;
+                              }
+                          }
+
+                          // Handle streaming token artifacts in STRING format (e.g. {"type":"token",...}\n{"type":"token",...})
+                          // Convert string to check for patterns like } { or }\n{
+                          if (typeof output === 'string' && /}\s*{/.test(output)) {
+                             // Try to reconstruct from tokens
+                             try {
+                                // Split by the pattern and rejoin with commas
+                                // We use a split regex that captures the separator to know how many parts
+                                const tokens = output.split(/}\s*{/);
+                                // The split eats the braces, so we need to put them back
+                                const fixed = '[' + tokens.map((t, i) => {
+                                    let str = t.trim();
+                                    if (i > 0) str = '{' + str;
+                                    if (i < tokens.length - 1) str = str + '}';
+                                    return str;
+                                }).join(',') + ']';
+                                
+                                const parsedList = JSON.parse(fixed);
+                                const textContent = parsedList
+                                  .filter((Item: any) => Item.type === 'token' && Item.content)
+                                  .map((Item: any) => Item.content)
+                                  .join('');
+                                if (textContent) return textContent;
+                             } catch (e) {
+                                // Failed to fix JSON, fall through
+                             }
+                          }
+
+                          if (typeof output === 'string') return output;
+                          if (!output) return 'No output provided';
+                          
+                          // Handle standard object response
+                          if (output.result) return output.result;
+                          if (output.content) return output.content;
+                          if (output.response) return typeof output.response === 'object' ? JSON.stringify(output.response, null, 2) : output.response;
+
+                          // Handle Tool Calls (parse the 'text' field if it looks like JSON)
+                          if (output.text) {
+                            // Check for streaming artifacts in text field too
+                            if (typeof output.text === 'string' && output.text.includes('}{')) {
+                                try {
+                                    const fixed = '[' + output.text.replace(/}{/g, '},{') + ']';
+                                    const parsedList = JSON.parse(fixed);
+                                    const textContent = parsedList
+                                      .filter((Item: any) => Item.type === 'token' && Item.content)
+                                      .map((Item: any) => Item.content)
+                                      .join('');
+                                    if (textContent) return textContent;
+                                } catch (e) {}
+                            }
+
+                            try {
+                              const parsed = JSON.parse(output.text);
+                              if (parsed.result) return parsed.result; // Tool result inside text
+                              if (parsed.type === 'tool_call') return `[Tool Call: ${parsed.name}]`;
+                            } catch {
+                              return output.text;
+                            }
+                          }
+                          
+                          // Handle case where it might be a raw string that got JSON.parsed into an object but is just "text"
+                          // or if it's a list of tool types.
+                          
+                          // Fallback
+                          return JSON.stringify(output, null, 2);
+                        })()}
                         </pre>
                     </div>
                     </div>

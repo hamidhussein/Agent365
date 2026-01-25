@@ -2,7 +2,7 @@
 import { motion, AnimatePresence } from 'framer-motion';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
-import { Bot, Send, FileText, Copy, RotateCcw, Square, Download, Globe, Code, Zap, Paperclip, Loader2, X } from 'lucide-react';
+import { Bot, Send, FileText, Copy, RotateCcw, Square, Download, Globe, Code, Zap, Paperclip, Loader2, X, ChevronDown } from 'lucide-react';
 import { publicApi } from '../../api';
 import { Button } from '../ui/Button';
 import { Input, TextArea } from '../ui/Input';
@@ -64,6 +64,8 @@ export const ChatInterface = ({
     const [lastExecutionId, setLastExecutionId] = useState<string | null>(null);
     const [reviewStatus, setReviewStatus] = useState<ReviewStatus>('none');
     const [isReviewModalOpen, setIsReviewModalOpen] = useState(false);
+  const [userHasScrolledUp, setUserHasScrolledUp] = useState(false);
+  const scrollContainerRef = useRef<HTMLDivElement>(null);
 
   const handleRequestReview = async (note: string) => {
     if (!lastExecutionId) return;
@@ -141,11 +143,22 @@ export const ChatInterface = ({
     ]);
   }, [agent, agentModelOption]);
 
-  const scrollToBottom = () => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+  const handleScroll = () => {
+    if (!scrollContainerRef.current) return;
+    const { scrollTop, scrollHeight, clientHeight } = scrollContainerRef.current;
+    const isAtBottom = scrollHeight - scrollTop - clientHeight < 100;
+    setUserHasScrolledUp(!isAtBottom);
   };
 
-  useEffect(scrollToBottom, [messages]);
+  const scrollToBottom = (force = false) => {
+    if (force || !userHasScrolledUp) {
+      messagesEndRef.current?.scrollIntoView({ behavior: force ? 'smooth' : 'auto' });
+    }
+  };
+
+  useEffect(() => {
+    scrollToBottom();
+  }, [messages]);
 
   const updateInputValue = (id: string, value: string | File | null) => {
     setInputValues(prev => ({ ...prev, [id]: value }));
@@ -340,6 +353,7 @@ export const ChatInterface = ({
     });
     setInputValue('');
     setIsThinking(true);
+    setUserHasScrolledUp(false);
 
     try {
       await streamResponse(messageText, botMsg.id, inputsContext);
@@ -611,7 +625,11 @@ export const ChatInterface = ({
           </div>
         ) : (
           <>
-            <div className="flex-1 overflow-y-auto p-4 md:p-8 space-y-6 relative z-10">
+            <div 
+              ref={scrollContainerRef}
+              onScroll={handleScroll}
+              className="flex-1 overflow-y-auto p-4 md:p-6 space-y-4 relative z-10"
+            >
               {/* Mobile Back Button */}
               {/* Mobile Info Button instead of Back */}
               <div className="lg:hidden mb-4 flex items-center justify-between border-b border-slate-800 pb-4">
@@ -636,9 +654,9 @@ export const ChatInterface = ({
                     className={`group flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}
                   >
                     <div
-                      className={`max-w-[85%] rounded-[2rem] px-6 py-4 shadow-xl relative break-words transition-all duration-300 ${
+                      className={`max-w-[85%] rounded-[1.5rem] px-5 py-3 shadow-lg relative break-words transition-all duration-300 ${
                         msg.role === 'user'
-                          ? 'bg-gradient-to-br from-blue-600 to-indigo-700 text-white rounded-br-none ring-1 ring-white/20'
+                          ? 'bg-gradient-to-br from-blue-600 to-indigo-700 text-white rounded-br-none ring-1 ring-white/10'
                           : 'bg-white/5 backdrop-blur-md border border-white/10 text-slate-200 rounded-bl-none hover:bg-white/10'
                       }`}
                     >
@@ -676,7 +694,7 @@ export const ChatInterface = ({
                           </ReactMarkdown>
                         </div>
                       ) : (
-                        <div className="text-[15px] leading-relaxed font-medium">{msg.text}</div>
+                        <div className="text-[14px] leading-relaxed font-medium">{msg.text}</div>
                       )}
                       
                       <button
@@ -690,55 +708,83 @@ export const ChatInterface = ({
                 ))}
               </AnimatePresence>
               {isThinking && (
-                <div className="flex justify-start animate-pulse">
-                  <div className="bg-slate-800 border border-slate-700 rounded-2xl rounded-bl-none px-5 py-4">
-                    <div className="flex gap-1">
-                      <div className="w-2 h-2 bg-slate-500 rounded-full animate-bounce" style={{ animationDelay: '0ms' }}></div>
-                      <div className="w-2 h-2 bg-slate-500 rounded-full animate-bounce" style={{ animationDelay: '150ms' }}></div>
-                      <div className="w-2 h-2 bg-slate-500 rounded-full animate-bounce" style={{ animationDelay: '300ms' }}></div>
+                <div className="flex justify-start">
+                  <div className="bg-white/5 backdrop-blur-md border border-white/10 rounded-[1.5rem] rounded-bl-none px-5 py-3">
+                    <div className="flex gap-1.5 items-center h-4">
+                      <motion.div 
+                        animate={{ scale: [1, 1.2, 1] }} 
+                        transition={{ repeat: Infinity, duration: 1, delay: 0 }}
+                        className="w-1.5 h-1.5 bg-blue-400 rounded-full" 
+                      />
+                      <motion.div 
+                        animate={{ scale: [1, 1.2, 1] }} 
+                        transition={{ repeat: Infinity, duration: 1, delay: 0.2 }}
+                        className="w-1.5 h-1.5 bg-blue-400 rounded-full" 
+                      />
+                      <motion.div 
+                        animate={{ scale: [1, 1.2, 1] }} 
+                        transition={{ repeat: Infinity, duration: 1, delay: 0.4 }}
+                        className="w-1.5 h-1.5 bg-blue-400 rounded-full" 
+                      />
                     </div>
                   </div>
                 </div>
               )}
-              <div ref={messagesEndRef} />
+              <div ref={messagesEndRef} className="h-4" />
             </div>
 
-            <div className="p-6 md:p-8 pt-0 relative z-10">
+            {/* Scroll to bottom button */}
+            <AnimatePresence>
+              {userHasScrolledUp && (
+                <motion.button
+                  initial={{ opacity: 0, scale: 0.8 }}
+                  animate={{ opacity: 1, scale: 1 }}
+                  exit={{ opacity: 0, scale: 0.8 }}
+                  onClick={() => scrollToBottom(true)}
+                  className="absolute bottom-32 right-8 p-3 bg-blue-600 hover:bg-blue-500 text-white rounded-full shadow-2xl z-20 border border-white/20 transition-colors"
+                >
+                  <ChevronDown size={20} />
+                </motion.button>
+              )}
+            </AnimatePresence>
+
+            <div className="p-4 md:p-6 pt-0 relative z-10">
               <div className="max-w-4xl mx-auto">
-                <div className="bg-white/5 backdrop-blur-2xl border border-white/10 rounded-[2.5rem] p-3 shadow-2xl relative group/input">
+                <div className="bg-white/5 backdrop-blur-2xl border border-white/10 rounded-[2rem] p-2 shadow-2xl relative group/input">
                   {/* Focus Glow */}
                   <div className="absolute inset-0 bg-blue-500/5 rounded-[2.5rem] opacity-0 group-focus-within/input:opacity-100 transition-opacity pointer-events-none" />
-                <div className="flex items-center justify-between gap-2">
-                  <div className="flex items-center gap-2">
-                    <Button
-                      variant="outline"
-                      className="text-xs"
+                <div className="flex items-center justify-between gap-2 px-2 pb-1">
+                  <div className="flex items-center gap-1.5">
+                    <button
                       disabled={!lastUserMessage || isThinking}
                       onClick={handleRegenerate}
+                      className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-medium text-slate-400 hover:text-white hover:bg-white/5 disabled:opacity-30 transition-all border border-transparent hover:border-white/10"
                     >
-                      <RotateCcw size={14} /> Regenerate
-                    </Button>
-                    <Button
-                      variant="outline"
-                      className="text-xs"
-                      disabled={!isThinking}
-                      onClick={handleStop}
-                    >
-                      <Square size={14} /> Stop
-                    </Button>
+                      <RotateCcw size={12} /> Regenerate
+                    </button>
+                    {isThinking && (
+                      <button
+                        onClick={handleStop}
+                        className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-medium text-red-400 hover:text-red-300 hover:bg-red-400/10 transition-all border border-transparent hover:border-red-400/20"
+                      >
+                        <Square size={12} className="fill-current" /> Stop
+                      </button>
+                    )}
                     {agent.allow_reviews && lastExecutionId && !isThinking && (
-                        <Button
-                        variant="outline"
-                        className={`text-xs ${reviewStatus === 'pending' ? 'text-amber-400 border-amber-400/50' : ''}`}
-                        onClick={() => setIsReviewModalOpen(true)}
-                        disabled={reviewStatus !== 'none' && reviewStatus !== 'rejected'}
-                        title={reviewStatus === 'pending' ? "Review Pending" : "Request Expert Review"}
+                        <button
+                          onClick={() => setIsReviewModalOpen(true)}
+                          disabled={reviewStatus !== 'none' && reviewStatus !== 'rejected'}
+                          className={`flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-medium transition-all border ${
+                            reviewStatus === 'pending' 
+                              ? 'text-amber-400 border-amber-400/30 bg-amber-400/5' 
+                              : 'text-slate-400 border-transparent hover:text-white hover:bg-white/5 hover:border-white/10'
+                          }`}
                         >
-                        {reviewStatus === 'pending' ? 'Review Pending' : 'Request Review'}
-                        </Button>
+                          {reviewStatus === 'pending' ? 'Review Pending' : 'Request Review'}
+                        </button>
                     )}
                   </div>
-                  <div className="text-xs text-slate-500">{agentModelOption?.label || 'AI Model'}</div>
+                  <div className="text-[10px] uppercase tracking-widest text-slate-500 font-bold opacity-50">{agentModelOption?.label || 'AI Model'}</div>
                 </div>
 
                 {attachment && (

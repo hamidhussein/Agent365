@@ -193,7 +193,13 @@ def execute_python_code(code: str, execution_id: str) -> str:
         # Write code to file
         with open(code_file, "w", encoding="utf-8") as f:
             f.write(code)
-            
+
+        # DEBUG: Log the code being executed
+        try:
+            with open("last_agent_code.py", "w", encoding="utf-8") as f:
+                f.write(code)
+        except:
+            pass
         
         try:
             # Run code with subprocess for safety
@@ -209,7 +215,15 @@ def execute_python_code(code: str, execution_id: str) -> str:
             stderr = result.stderr
             
             if result.returncode != 0:
-                return f"ERROR: Python script failed with return code {result.returncode}.\n\nSTDOUT:\n{stdout}\n\nSTDERR:\n{stderr}"
+                error_msg = f"ERROR: Python script failed (Return Code: {result.returncode}).\n\nSTDOUT:\n{stdout}\n\nSTDERR:\n{stderr}"
+                # DEBUG: Log the error
+                try:
+                    with open("last_agent_error.log", "w", encoding="utf-8") as f:
+                        f.write(error_msg)
+                        f.write(f"\n\nSYS.EXECUTABLE: {sys.executable}\n")
+                except:
+                    pass
+                return error_msg
             
             # Check for generated files
             files_before = set()
@@ -230,7 +244,7 @@ def execute_python_code(code: str, execution_id: str) -> str:
                 import shutil
                 shutil.copy(src, dst)
                 # Store reference
-                file_links.append(f"[Download {filename}](/creator-studio/api/files/{execution_id}/{filename})")
+                file_links.append(f"[Download {filename}](http://localhost:8000/creator-studio/api/files/{execution_id}/{filename})")
             
             # Store in global dict
             GENERATED_FILES[execution_id] = [os.path.join(output_dir, f) for f in all_files]
@@ -894,7 +908,8 @@ def build_system_instruction(
                 "  - **PDF generation**: Use the `fpdf2` library. **IMPORTANT**: The library is called `fpdf2` but you MUST import it as `fpdf`. Never try to `import fpdf2`. ONLY USE: `from fpdf import FPDF`. (Example: `pdf = FPDF(); pdf.add_page(); pdf.set_font('helvetica', size=12); pdf.cell(text='Hello'); pdf.output('file.pdf')`)\n"
                 "  - **Word (.docx) generation**: Use the `python-docx` library. IMPORT VIA: `import docx`. (Example: `doc = docx.Document(); doc.add_paragraph('Hello'); doc.save('file.docx')`)\n"
                 "  - **CRITICAL**: If the user asks for a 'downloadable document', 'file', 'PDF', or 'Word document', you **MUST** use this tool to generate it. If you believe you lack a library, you are WRONG. Always use `fpdf` or `docx` as shown above.\n"
-                "  - **UNICODE WARNING**: The default PDF font ('helvetica') does NOT support non-Latin characters (like Urdu or Arabic). If the content contains such characters, you MUST stick to English/ASCII in the PDF or the script will crash."
+                "  - **UNICODE WARNING**: The default PDF font ('helvetica') does NOT support non-Latin characters (like Urdu or Arabic). If the content contains such characters, you MUST stick to English/ASCII in the PDF or the script will crash.\n"
+                "  - **LINKING RULES**: You MUST use the `run_python` tool to generate any requested file. Do NOT pretend to generate it. PROHIBITED: Do not write markdown links like `[Download](...)` yourself. INSTEAD: execute the tool, and THEN say 'I have created the document.' The system will handle the link display."
             )
             cap_section.append(exec_instruction)
             
@@ -976,52 +991,29 @@ def generate_response(provider: str, model: str, system_instruction: str, messag
             tools=tools,
         )
 
-        # Handle tool calls for non-streaming response
         if response.choices[0].message.tool_calls:
             tool_call = response.choices[0].message.tool_calls[0]
-            if tool_call.function.name == "web_search":
-
-                try:
-                    decoder = json.JSONDecoder()
-                    args, _ = decoder.raw_decode(tool_call.function.arguments)
-                    query = args.get("query")
-                    
-                    search_result = perform_web_search(query, db=db)
-                    
-                    # Call again with tool results
-                    messages.append(response.choices[0].message)
-                    messages.append({
-                        "role": "tool",
-                        "tool_call_id": tool_call.id,
-                        "name": "web_search",
-                        "content": search_result
-                    })
-                    
-                    final_response = client.chat.completions.create(
-                        model=model_name,
-                        messages=messages,
-                        max_tokens=1024
-                    )
-                    return final_response.choices[0].message.content or ""
-                except Exception as e:
-                    print(f"Tool execution error: {e}")
-                    return f"Error executing tool: {e}"
-            
-            elif tool_call.function.name.startswith("action_"):
-                # Handle dynamic API action
-                action_uuid_str = tool_call.function.name.replace("action_", "").replace("_", "-")
-                try:
-
-                    decoder = json.JSONDecoder()
-                    args, _ = decoder.raw_decode(tool_call.function.arguments)
-                    
+            tool_name = tool_call.function.name
+            try:
+                decoder = json.JSONDecoder()
+                args, _ = decoder.raw_decode(tool_call.function.arguments)
+                result = ""
+                
+                if tool_name == "web_search":
+                    result = perform_web_search(args.get("query"), db=db)
+                elif tool_name == "run_python":
+                    exec_id = f"chat-{uuid.uuid4()}"
+                    result = execute_python_code(args.get("code"), exec_id)
+                elif tool_name.startswith("action_"):
+                    action_uuid_str = tool_name.replace("action_", "").replace("_", "-")
                     result = execute_agent_action(db, action_uuid_str, args)
-                    
+                
+                if result:
                     messages.append(response.choices[0].message)
                     messages.append({
                         "role": "tool",
                         "tool_call_id": tool_call.id,
-                        "name": tool_call.function.name,
+                        "name": tool_name,
                         "content": result
                     })
                     
@@ -1030,38 +1022,19 @@ def generate_response(provider: str, model: str, system_instruction: str, messag
                         messages=messages,
                         max_tokens=1024
                     )
-                    return final_response.choices[0].message.content or ""
-                except Exception as e:
-                    print(f"Dynamic action execution error: {e}")
-                    return f"Error executing action: {e}"
-            
-            elif tool_call.function.name.startswith("action_"):
-                # Handle dynamic API action
-                action_uuid_str = tool_call.function.name.replace("action_", "").replace("_", "-")
-                try:
-
-                    decoder = json.JSONDecoder()
-                    args, _ = decoder.raw_decode(tool_call.function.arguments)
+                    final_text = final_response.choices[0].message.content or ""
                     
-                    result = execute_agent_action(db, action_uuid_str, args)
+                    # Force append links if found
+                    if tool_name == "run_python" and "**Generated Files:**" in result:
+                        try:
+                            links_part = result.split("**Generated Files:**")[1].strip()
+                            final_text += f"\n\n**Generated Files:**\n{links_part}"
+                        except: pass
                     
-                    messages.append(response.choices[0].message)
-                    messages.append({
-                        "role": "tool",
-                        "tool_call_id": tool_call.id,
-                        "name": tool_call.function.name,
-                        "content": result
-                    })
-                    
-                    final_response = client.chat.completions.create(
-                        model=model_name,
-                        messages=messages,
-                        max_tokens=1024
-                    )
-                    return final_response.choices[0].message.content or ""
-                except Exception as e:
-                    print(f"Dynamic action execution error: {e}")
-                    return f"Error executing action: {e}"
+                    return final_text
+            except Exception as e:
+                print(f"Tool execution error: {e}")
+                return f"Error executing tool: {e}"
 
         return response.choices[0].message.content or ""
     if provider == "llama":
@@ -1375,14 +1348,8 @@ def generate_response(provider: str, model: str, system_instruction: str, messag
                     query = tool_input.get("query")
                     result_content = perform_web_search(query, db=db)
                 elif tool_name == "run_python":
-                    # Simple mock or real implementation if supported in shared logic
-                    # For now just strictly support actions or web search in this block
-                    # unless we duplicated code execution logic which implies execution_id context.
-                    # Since generate_response is stateless mostly, we skip code exec or mock it.
-                    # Use existing logic if any? 
-                    # Assuming we just return error if not fully supported or implement fully.
-                    # Let's support web search and actions.
-                    result_content = "Python execution not fully supported in this context."
+                    exec_id = f"chat-{uuid.uuid4()}"
+                    result_content = execute_python_code(tool_input.get("code"), exec_id)
                 elif tool_name.startswith("action_"):
                     action_uuid_str = tool_name.replace("action_", "").replace("_", "-")
                     try:
@@ -1454,24 +1421,27 @@ def generate_response(provider: str, model: str, system_instruction: str, messag
         function_responses = []
         for part in response.candidates[0].content.parts:
             if part.function_call:
-                 fc = part.function_call
-                 action_uuid_str = fc.name.replace("action_", "").replace("_", "-")
-                 args = {k: v for k, v in fc.args.items()}
-                 
-                 print(f"Gemini Action Call: {fc.name} args={args}")
-                 
-                 try:
-                     result_str = execute_agent_action(db, action_uuid_str, args)
-                     # Gemini expects function response
-                     function_responses.append({
-                         "name": fc.name,
-                         "response": {"result": result_str}
-                     })
-                 except Exception as e:
-                     function_responses.append({
-                         "name": fc.name,
-                         "response": {"error": str(e)}
-                     })
+                fc = part.function_call
+                args = {k: v for k, v in fc.args.items()}
+                
+                result_str = ""
+                if fc.name == "web_search":
+                    result_str = perform_web_search(args.get("query"), db=db)
+                elif fc.name == "run_python":
+                    exec_id = f"chat-{uuid.uuid4()}"
+                    result_str = execute_python_code(args.get("code"), exec_id)
+                elif fc.name.startswith("action_"):
+                    action_uuid_str = fc.name.replace("action_", "").replace("_", "-")
+                    result_str = execute_agent_action(db, action_uuid_str, args)
+                
+                function_responses.append({
+                    "name": fc.name,
+                    "response": {"result": result_str}
+                })
+                
+                # Store if it was code execution to force links later
+                if fc.name == "run_python":
+                    last_python_result = result_str
         
         if function_responses:
             # Send result back
@@ -1494,7 +1464,16 @@ def generate_response(provider: str, model: str, system_instruction: str, messag
                 contents=contents,
                 config=config 
             )
-            return getattr(response2, "text", "") or ""
+            final_text = getattr(response2, "text", "") or ""
+            
+            # Force append links if found
+            try:
+                if 'last_python_result' in locals() and "**Generated Files:**" in last_python_result:
+                    links_part = last_python_result.split("**Generated Files:**")[1].strip()
+                    final_text += f"\n\n**Generated Files:**\n{links_part}"
+            except: pass
+            
+            return final_text
 
     return getattr(response, "text", "") or ""
 
@@ -1659,6 +1638,15 @@ def stream_response(provider: str, model: str, system_instruction: str, message:
                     text = getattr(delta, "content", None)
                     if text:
                         yield (json.dumps({"type": "token", "content": text}) + "\n").encode("utf-8")
+
+                # --- FORCE APPEND LINKS AT THE END OF THE STREAM ---
+                if "**Generated Files:**" in result_content:
+                    try:
+                        links_part = result_content.split("**Generated Files:**")[1].strip()
+                        # Add a separator and the links
+                        yield (json.dumps({"type": "token", "content": f"\n\n**Generated Files:**\n{links_part}"}) + "\n").encode("utf-8")
+                    except:
+                        pass
 
             except Exception as e:
                 yield (json.dumps({"type": "error", "content": f"Tool error: {str(e)}"}) + "\n").encode("utf-8")
@@ -2214,45 +2202,83 @@ def stream_response(provider: str, model: str, system_instruction: str, message:
     for chunk in response:
         # Check for function calls
         if chunk.candidates and chunk.candidates[0].content and chunk.candidates[0].content.parts:
-             for part in chunk.candidates[0].content.parts:
-                 if part.function_call:
-                      fc = part.function_call
-                      action_uuid_str = fc.name.replace("action_", "").replace("_", "-")
-                      args = {k: v for k, v in fc.args.items()}
-                      
-                      yield (json.dumps({"type": "thought", "content": f"Executing action: {fc.name}..."}) + "\n").encode("utf-8")
-                      
-                      try:
-                          result_str = execute_agent_action(db, action_uuid_str, args)
-                          
-                          # Prepare history for second turn
-                          # 1. Add model's function call
-                          contents.append(chunk.candidates[0].content)
-                          
-                          # 2. Add tool response
-                          contents.append(types.Content(
-                              role="tool", 
-                              parts=[types.Part(function_response=types.FunctionResponse(
-                                  name=fc.name,
-                                  response={"result": result_str}
-                              ))]
-                          ))
-                          
-                          # Stream final response
-                          stream2 = client.models.generate_content_stream(
-                              model=model,
-                              contents=contents,
-                              config=config
-                          )
-                          for chunk2 in stream2:
-                              text2 = getattr(chunk2, "text", "")
-                              if text2:
-                                  yield (json.dumps({"type": "token", "content": text2}) + "\n").encode("utf-8")
-                          return # End stream after tool execution
-                          
-                      except Exception as e:
-                          yield (json.dumps({"type": "error", "content": f"Action failed: {e}"}) + "\n").encode("utf-8")
-                          return
+            for part in chunk.candidates[0].content.parts:
+                if part.function_call:
+                    fc = part.function_call
+                    args = {k: v for k, v in fc.args.items()}
+                    
+                    if fc.name == "web_search":
+                        try:
+                            query = args.get("query")
+                            yield (json.dumps({"type": "thought", "content": f"Searching web for: {query}"}) + "\n").encode("utf-8")
+                            result_str = perform_web_search(query, db=db)
+                            # Prepare history for second turn
+                            contents.append(chunk.candidates[0].content)
+                            contents.append(types.Content(
+                                role="tool", 
+                                parts=[types.Part(function_response=types.FunctionResponse(
+                                    name=fc.name,
+                                    response={"result": result_str}
+                                ))]
+                            ))
+                            stream2 = client.models.generate_content_stream(model=model, contents=contents, config=config)
+                            for chunk2 in stream2:
+                                if chunk2.text: yield (json.dumps({"type": "token", "content": chunk2.text}) + "\n").encode("utf-8")
+                            return
+                        except Exception as e:
+                            yield (json.dumps({"type": "error", "content": f"Search failed: {e}"}) + "\n").encode("utf-8")
+                            return
+
+                    elif fc.name == "run_python":
+                        try:
+                            code = args.get("code")
+                            yield (json.dumps({"type": "thought", "content": "Executing Python code..."}) + "\n").encode("utf-8")
+                            exec_id = f"chat-{uuid.uuid4()}"
+                            result_str = execute_python_code(code, exec_id)
+                            # Prepare history for second turn
+                            contents.append(chunk.candidates[0].content)
+                            contents.append(types.Content(
+                                role="tool", 
+                                parts=[types.Part(function_response=types.FunctionResponse(
+                                    name=fc.name,
+                                    response={"result": result_str}
+                                ))]
+                            ))
+                            stream2 = client.models.generate_content_stream(model=model, contents=contents, config=config)
+                            for chunk2 in stream2:
+                                if chunk2.text: yield (json.dumps({"type": "token", "content": chunk2.text}) + "\n").encode("utf-8")
+                            
+                            # --- FORCE APPEND LINKS ---
+                            if "**Generated Files:**" in result_str:
+                                try:
+                                    links_part = result_str.split("**Generated Files:**")[1].strip()
+                                    yield (json.dumps({"type": "token", "content": f"\n\n**Generated Files:**\n{links_part}"}) + "\n").encode("utf-8")
+                                except: pass
+                            return
+                        except Exception as e:
+                            yield (json.dumps({"type": "error", "content": f"Execution failed: {e}"}) + "\n").encode("utf-8")
+                            return
+
+                    elif fc.name.startswith("action_"):
+                        action_uuid_str = fc.name.replace("action_", "").replace("_", "-")
+                        try:
+                            result_str = execute_agent_action(db, action_uuid_str, args)
+                            # Prepare history for second turn
+                            contents.append(chunk.candidates[0].content)
+                            contents.append(types.Content(
+                                role="tool", 
+                                parts=[types.Part(function_response=types.FunctionResponse(
+                                    name=fc.name,
+                                    response={"result": result_str}
+                                ))]
+                            ))
+                            stream2 = client.models.generate_content_stream(model=model, contents=contents, config=config)
+                            for chunk2 in stream2:
+                                if chunk2.text: yield (json.dumps({"type": "token", "content": chunk2.text}) + "\n").encode("utf-8")
+                            return
+                        except Exception as e:
+                            yield (json.dumps({"type": "error", "content": f"Action failed: {e}"}) + "\n").encode("utf-8")
+                            return
 
         text = getattr(chunk, "text", "")
         if text:
