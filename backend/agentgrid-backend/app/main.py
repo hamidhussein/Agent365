@@ -41,6 +41,13 @@ def create_app() -> FastAPI:
             seed_llm_configs(db)
             print("Building vector index", flush=True)
             build_vector_index(db)
+            
+            # Initialize WebSocket notification integration
+            print("Initializing WebSocket notification service", flush=True)
+            from app.websocket.connection_manager import connection_manager
+            from app.services.notification import notification_service
+            notification_service.set_websocket_manager(connection_manager)
+            
             print("init_creator_studio completed", flush=True)
         except Exception as e:
             import traceback

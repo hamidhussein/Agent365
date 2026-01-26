@@ -67,6 +67,8 @@ const fetchAgents = async (): Promise<AgentsListResponse> => {
 
 import { useAuth } from '@/lib/hooks/useAuth';
 import { useAuthStore } from '@/lib/store';
+import { useWebSocketConnection, useWebSocketEvent } from '@/lib/websocket/hooks';
+import { useExecutionStore } from '@/lib/store';
 
 // ... imports
 
@@ -85,6 +87,26 @@ const App: React.FC = () => {
     queryFn: fetchAgents,
     staleTime: 60 * 1000,
     retry: 1,
+  });
+  
+  // Initialize WebSocket connection
+  useWebSocketConnection();
+  
+  // Listen for real-time review updates
+  useWebSocketEvent('review_completed', (message) => {
+    console.log('[WebSocket] Review completed:', message);
+    // Update execution store if needed
+    const { execution_id, review_response_note, has_refined_outputs } = message.data;
+    useExecutionStore.getState().updateExecution(execution_id, {
+      review_status: 'completed',
+      review_response_note,
+      refined_outputs: has_refined_outputs ? message.data.refined_outputs : undefined
+    });
+  });
+
+  useWebSocketEvent('review_requested', (message) => {
+    console.log('[WebSocket] New review requested:', message);
+    // Could trigger a notification or update UI here
   });
 
   const fetchedAgents = useMemo(

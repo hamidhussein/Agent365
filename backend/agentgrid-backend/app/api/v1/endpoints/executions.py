@@ -130,7 +130,7 @@ def read_execution(
 
 
 @router.post("/{execution_id}/review", response_model=AgentExecutionRead)
-def request_execution_review(
+async def request_execution_review(
     execution_id: str,
     payload: ReviewRequest,
     db: Session = Depends(get_db),
@@ -172,16 +172,16 @@ def request_execution_review(
     db.commit()
     db.refresh(execution)
 
-    # Notify creator
+    # Notify creator with real-time WebSocket update
     creator = db.get(User, execution.agent.creator_id)
     if creator:
-        notification_service.notify_creator_new_review(execution, creator)
+        await notification_service.notify_creator_new_review(execution, creator)
 
     return execution
 
 
 @router.post("/{execution_id}/respond", response_model=AgentExecutionRead)
-def respond_to_review(
+async def respond_to_review(
     execution_id: str,
     payload: ReviewResponse,
     db: Session = Depends(get_db),
@@ -219,9 +219,9 @@ def respond_to_review(
     db.commit()
     db.refresh(execution)
     
-    # Notify user
+    # Notify user with real-time WebSocket update
     user = db.get(User, execution.user_id)
     if user:
-        notification_service.notify_user_review_completed(execution, user)
+        await notification_service.notify_user_review_completed(execution, user)
 
     return execution
