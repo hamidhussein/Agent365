@@ -10,6 +10,7 @@ import type {
   PaginatedResponse,
   Review,
   User,
+  ExpertAnalytics,
 } from '@/lib/types';
 import type { LoginFormData, SignupFormData } from '@/lib/schemas/auth.schema';
 
@@ -143,18 +144,23 @@ export const api = {
     get: (id: string) =>
       axiosInstance.get<ApiResponse<AgentExecution>>(`/executions/${id}`),
     cancel: (id: string) => axiosInstance.post(`/executions/${id}/cancel`),
-    requestReview: (executionId: string, note: string) =>
+    requestReview: (executionId: string, note: string, priority?: 'standard' | 'high') =>
       axiosInstance.post<AgentExecution>(`/executions/${executionId}/review`, {
         note,
+        priority,
       }),
     getPendingReviews: () =>
       axiosInstance.get<PaginatedResponse<AgentExecution>>('/executions/reviews/pending'),
     getCreatorReviews: (status?: string) =>
       axiosInstance.get<PaginatedResponse<AgentExecution>>('/executions/reviews', { params: { status } }),
-    respondToReview: (executionId: string, responseNote: string, refinedOutputs?: Record<string, any>) =>
+    getAnalytics: () =>
+      axiosInstance.get<ExpertAnalytics>('/executions/reviews/analytics'),
+    respondToReview: (executionId: string, responseNote: string, refinedOutputs?: Record<string, any>, qualityScore?: number, internalNotes?: string) =>
       axiosInstance.post<AgentExecution>(`/executions/${executionId}/respond`, {
         response_note: responseNote,
         refined_outputs: refinedOutputs,
+        quality_score: qualityScore,
+        internal_notes: internalNotes,
       }),
   },
   reviews: {

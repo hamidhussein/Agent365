@@ -5,7 +5,7 @@ from datetime import datetime
 from typing import Any
 
 import copy
-from fastapi import APIRouter, Depends, File, HTTPException, UploadFile, BackgroundTasks, Request
+from fastapi import APIRouter, Depends, File, HTTPException, UploadFile, BackgroundTasks, Request, Query
 from fastapi.responses import StreamingResponse, FileResponse
 from pydantic import ValidationError
 from sqlalchemy.orm import Session
@@ -76,6 +76,8 @@ from app.services.creator_studio import (
     set_app_setting,
     stream_response,
 )
+from app.services.workflow import workflow_service
+from app.services.notification import notification_service
 
 router = APIRouter(prefix="/creator-studio/api", tags=["creator-studio"])
 
@@ -90,6 +92,11 @@ def _coerce_uuid(value: str) -> uuid.UUID:
         return uuid.UUID(str(value))
     except ValueError as exc:
         raise HTTPException(status_code=400, detail="Invalid identifier") from exc
+
+
+def _execution_guest_id(execution: AgentExecution) -> str | None:
+    inputs = execution.inputs if isinstance(execution.inputs, dict) else {}
+    return inputs.get("guestId") or inputs.get("guest_id")
 
 
 def _format_user(user: User) -> CreatorStudioUserOut:
@@ -626,7 +633,7 @@ def purchase_public_credits(
 
 
 @router.post("/public/executions/{execution_id}/review")
-def request_guest_review(
+async def request_guest_review(
     request: Request,
     execution_id: str,
     payload: dict,
@@ -654,10 +661,40 @@ def request_guest_review(
 
     guest_id = payload.get("guestId")
     note = payload.get("note")
+    if not note or not str(note).strip():
+        raise HTTPException(status_code=400, detail="Review note is required")
+    
+    execution_guest_id = _execution_guest_id(execution)
+    if current_user:
+        if execution.user_id and execution.user_id != current_user.id:
+            raise HTTPException(status_code=403, detail="Not authorized")
+        if not execution.user_id:
+            if not guest_id:
+                raise HTTPException(status_code=401, detail="Authentication required or guestId missing")
+            if execution_guest_id and guest_id != execution_guest_id:
+                raise HTTPException(status_code=403, detail="Guest session mismatch")
+            if not execution_guest_id:
+                raise HTTPException(status_code=403, detail="Guest session mismatch")
+    else:
+        if not guest_id:
+            raise HTTPException(status_code=401, detail="Authentication required or guestId missing")
+        if execution_guest_id and guest_id != execution_guest_id:
+            raise HTTPException(status_code=403, detail="Guest session mismatch")
+        if not execution_guest_id:
+            raise HTTPException(status_code=403, detail="Guest session mismatch")
     
     print(f"[DEBUG] request_guest_review: execution_id={execution_id}, guest_id={guest_id}, current_user={current_user.username if current_user else 'None'}", flush=True)
     
-    cost = execution.agent.review_cost
+    requested_priority = payload.get("priority")
+    if isinstance(requested_priority, str):
+        requested_priority = requested_priority.strip().lower()
+    if requested_priority == "standard":
+        requested_priority = None
+
+    cost = int(execution.agent.review_cost or 0)
+    if requested_priority == "high":
+        cost *= 2
+
     if cost > 0:
         if current_user:
             if current_user.credits < cost:
@@ -684,6 +721,12 @@ def request_guest_review(
     execution.review_request_note = note
     db.commit()
     db.refresh(execution)
+
+    await workflow_service.process_review_request(db, execution, requested_priority)
+
+    creator = db.get(User, execution.agent.creator_id)
+    if creator:
+        await notification_service.notify_creator_new_review(execution, creator)
     
     return {"status": "success", "execution_id": str(execution.id)}
 
@@ -691,7 +734,9 @@ def request_guest_review(
 @router.get("/public/executions/{execution_id}")
 def get_public_execution(
     execution_id: str,
+    guestId: str | None = Query(None),
     db: Session = Depends(get_db),
+    current_user: User | None = Depends(get_current_user_optional),
 ) -> dict:
     try:
         exec_uuid = _coerce_uuid(execution_id)
@@ -703,7 +748,27 @@ def get_public_execution(
         raise HTTPException(status_code=404, detail="Execution not found")
 
     if not execution.agent.is_public:
-         raise HTTPException(status_code=403, detail="Not authorized")
+        raise HTTPException(status_code=403, detail="Not authorized")
+
+    execution_guest_id = _execution_guest_id(execution)
+    if current_user:
+        if execution.agent.creator_id != current_user.id:
+            if execution.user_id and execution.user_id != current_user.id:
+                raise HTTPException(status_code=403, detail="Not authorized")
+            if not execution.user_id:
+                if not guestId:
+                    raise HTTPException(status_code=401, detail="Authentication required or guestId missing")
+                if execution_guest_id and guestId != execution_guest_id:
+                    raise HTTPException(status_code=403, detail="Guest session mismatch")
+                if not execution_guest_id:
+                    raise HTTPException(status_code=403, detail="Guest session mismatch")
+    else:
+        if not guestId:
+            raise HTTPException(status_code=401, detail="Authentication required or guestId missing")
+        if execution_guest_id and guestId != execution_guest_id:
+            raise HTTPException(status_code=403, detail="Guest session mismatch")
+        if not execution_guest_id:
+            raise HTTPException(status_code=403, detail="Guest session mismatch")
 
     # We return the data in a format similar to AgentExecutionRead
     return {
@@ -713,6 +778,7 @@ def get_public_execution(
         "review_request_note": execution.review_request_note,
         "review_response_note": execution.review_response_note,
         "outputs": execution.outputs,
+        "refined_outputs": execution.refined_outputs,
         "reviewed_at": execution.reviewed_at.isoformat() if execution.reviewed_at else None
     }
 

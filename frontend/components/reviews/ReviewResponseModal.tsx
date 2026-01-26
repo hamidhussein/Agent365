@@ -1,18 +1,13 @@
 import React, { useState } from 'react';
 import { X, Send, Loader2, MessageSquare, Sparkles, CheckCircle, AlertCircle, Lightbulb } from 'lucide-react';
 
+import { AgentExecution } from '@/lib/types';
+
 interface ReviewResponseModalProps {
   isOpen: boolean;
   onClose: () => void;
-  onSubmit: (responseNote: string, updatedOutputs?: any) => Promise<void>;
-  review: {
-    id: string;
-    agent: { name: string };
-    user_username: string;
-    review_request_note: string;
-    inputs: any;
-    outputs: any;
-  };
+  onSubmit: (responseNote: string, updatedOutputs?: any, qualityScore?: number, internalNotes?: string) => Promise<void>;
+  review: AgentExecution;
 }
 
 const QUICK_TEMPLATES = [
@@ -44,6 +39,8 @@ const ReviewResponseModal: React.FC<ReviewResponseModalProps> = ({
 }) => {
   const [responseNote, setResponseNote] = useState('');
   const [refinedOutputsStr, setRefinedOutputsStr] = useState('');
+  const [qualityScore, setQualityScore] = useState<number>(5);
+  const [internalNotes, setInternalNotes] = useState('');
   const [activeTab, setActiveTab] = useState<'note' | 'refine'>('note');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -130,7 +127,7 @@ const ReviewResponseModal: React.FC<ReviewResponseModalProps> = ({
           refinedData = { response: refinedOutputsStr };
       }
 
-      await onSubmit(responseNote, refinedData);
+      await onSubmit(responseNote, refinedData, qualityScore, internalNotes);
       onClose();
     } catch (err: any) {
       setError(err.message || 'Failed to submit response');
@@ -249,11 +246,46 @@ const ReviewResponseModal: React.FC<ReviewResponseModalProps> = ({
                         value={responseNote}
                         onChange={(e) => setResponseNote(e.target.value)}
                         placeholder="Detail your analysis and the improvements you've made..."
-                        className="w-full h-48 bg-muted/20 border-2 border-border rounded-2xl px-6 py-5 text-foreground placeholder-muted-foreground/40 focus:outline-none focus:border-primary/50 focus:ring-4 focus:ring-primary/5 transition-all resize-none shadow-sm font-medium text-lg leading-relaxed"
+                        className="w-full h-32 bg-muted/20 border-2 border-border rounded-2xl px-6 py-5 text-foreground placeholder-muted-foreground/40 focus:outline-none focus:border-primary/50 focus:ring-4 focus:ring-primary/5 transition-all resize-none shadow-sm font-medium text-lg leading-relaxed"
                       />
                       <div className="absolute right-4 bottom-4 text-[10px] font-black text-muted-foreground/30 uppercase">
                          markdown supported
                       </div>
+                    </div>
+                </div>
+
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+                    <div className="space-y-4">
+                        <label className="text-[10px] font-black text-muted-foreground uppercase tracking-widest flex items-center gap-2">
+                            Quality Verification Score (1-5)
+                        </label>
+                        <div className="flex items-center gap-4 bg-muted/20 border border-border rounded-2xl p-6">
+                            {[1, 2, 3, 4, 5].map((score) => (
+                                <button
+                                    key={score}
+                                    type="button"
+                                    onClick={() => setQualityScore(score)}
+                                    className={`w-10 h-10 rounded-full font-black transition-all ${qualityScore === score ? 'bg-primary text-primary-foreground scale-110 shadow-lg' : 'bg-muted hover:bg-muted/80 text-muted-foreground'}`}
+                                >
+                                    {score}
+                                </button>
+                            ))}
+                            <span className="ml-2 text-xs font-bold text-foreground/60 italic">
+                                {qualityScore === 5 ? 'Perfect' : qualityScore === 4 ? 'Good' : qualityScore === 3 ? 'Average' : 'Needs Work'}
+                            </span>
+                        </div>
+                    </div>
+
+                    <div className="space-y-4">
+                        <label className="text-[10px] font-black text-muted-foreground uppercase tracking-widest flex items-center gap-2">
+                            Internal Private Notes (Expert Only)
+                        </label>
+                        <textarea
+                            value={internalNotes}
+                            onChange={(e) => setInternalNotes(e.target.value)}
+                            placeholder="Reasoning for score, tips for other experts..."
+                            className="w-full h-24 bg-secondary/20 border border-border rounded-2xl px-4 py-3 text-sm text-foreground focus:outline-none focus:border-primary/30 transition-all resize-none italic"
+                        />
                     </div>
                 </div>
               </div>

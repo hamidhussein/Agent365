@@ -19,7 +19,8 @@ const UserReviewsPage: React.FC = () => {
       // For now, fetch all executions and filter. 
       // In a real pro app, we'd have a specific endpoint or better query params.
       const response = await api.executions.list();
-      const allExecs = response.data.data || [];
+      const payload = response.data as any;
+      const allExecs = Array.isArray(payload) ? payload : payload?.data ?? [];
       // Filter for executions that have a review status
       return allExecs.filter(e => e.review_status && e.review_status !== 'none' && (activeTab === 'all' || e.review_status === activeTab));
     },

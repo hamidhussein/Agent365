@@ -8,7 +8,7 @@ from fastapi import APIRouter, WebSocket, WebSocketDisconnect, Depends, Query
 from sqlalchemy.orm import Session
 
 from app.core.deps import get_db
-from app.core.security import decode_access_token
+from app.core.security import decode_token
 from app.models.user import User
 from app.websocket.connection_manager import connection_manager
 from app.websocket.events import WebSocketEvent, build_pong_event, build_error_event
@@ -23,17 +23,24 @@ async def get_current_user_ws(
 ) -> Optional[User]:
     """Authenticate WebSocket connection via query parameter token"""
     if not token:
+        print("[WS AUTH] No token provided", flush=True)
         return None
         
     try:
-        payload = decode_access_token(token)
+        payload = decode_token(token)
         user_id = payload.get("sub")
         if not user_id:
+            print(f"[WS AUTH] No sub in token. Payload: {payload}", flush=True)
             return None
             
         user = db.query(User).filter(User.id == user_id).first()
+        if not user:
+            print(f"[WS AUTH] User not found in DB: {user_id}", flush=True)
+        else:
+            print(f"[WS AUTH] Authenticated user: {user.username} ({user_id})", flush=True)
         return user
     except Exception as e:
+        print(f"[WS AUTH] Exception during authentication: {str(e)}", flush=True)
         logger.error(f"WebSocket authentication failed: {e}")
         return None
 
@@ -44,24 +51,20 @@ async def websocket_endpoint(
     token: Optional[str] = Query(None),
     db: Session = Depends(get_db)
 ):
-    """
-    WebSocket endpoint for real-time updates
-    
-    Usage:
-    - Connect to: ws://localhost:8001/api/v1/ws?token=YOUR_JWT_TOKEN
-    - Receive events: review updates, notifications, etc.
-    - Send ping/pong for connection health check
-    """
+    print(f"[WS] New connection attempt with token: {token[:15]}...", flush=True)
     # Authenticate user
     user = await get_current_user_ws(token, db)
     if not user:
+        print("[WS] Authentication failed, closing connection with 1008", flush=True)
         await websocket.close(code=1008, reason="Authentication required")
         return
         
     user_id = str(user.id)
+    print(f"[WS] Accepting connection for user: {user.username}", flush=True)
     
     # Accept connection
     await connection_manager.connect(websocket, user_id)
+    print(f"[WS] Connection accepted for user: {user.username}", flush=True)
     
     try:
         # Send welcome message

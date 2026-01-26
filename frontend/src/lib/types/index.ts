@@ -130,6 +130,17 @@ export interface AgentExecution {
   review_request_note?: string;
   review_response_note?: string;
   reviewed_at?: string;
+  // Phase 2: Advanced Workflow Fields
+  priority?: string;
+  assigned_to?: string;
+  sla_deadline?: string;
+  internal_notes?: string;
+  quality_score?: number;
+  user_username?: string;
+  agent?: {
+    id: string;
+    name: string;
+  };
 }
 
 export enum ExecutionStatus {
@@ -140,7 +151,7 @@ export enum ExecutionStatus {
   CANCELLED = 'cancelled',
 }
 
-export type ReviewStatus = 'none' | 'pending' | 'in_progress' | 'completed' | 'rejected';
+export type ReviewStatus = 'none' | 'pending' | 'in_progress' | 'waiting_info' | 'completed' | 'rejected' | 'cancelled';
 
 // ============= REVIEW TYPES =============
 export interface Review {
@@ -154,6 +165,34 @@ export interface Review {
   helpful_count: number;
   created_at: string;
   updated_at: string;
+}
+
+// ============= ANALYTICS TYPES =============
+export interface ReviewPerformanceMetrics {
+  total_reviews: number;
+  completed_reviews: number;
+  pending_reviews: number;
+  avg_resolution_time_hours: number;
+  resolution_rate_percent: number;
+  avg_quality_score: number;
+  sla_compliance_rate: number;
+}
+
+export interface AgentReviewStats {
+  agent_id: string;
+  agent_name: string;
+  total_requests: number;
+  avg_score: number;
+}
+
+export interface ExpertAnalytics {
+  overview: ReviewPerformanceMetrics;
+  by_agent: AgentReviewStats[];
+  recent_performance_trend: Array<{
+    date: string;
+    score: number;
+    count: number;
+  }>;
 }
 
 // ============= CREDIT & PAYMENT TYPES =============

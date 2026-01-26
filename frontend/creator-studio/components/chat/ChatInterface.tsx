@@ -126,7 +126,7 @@ export const ChatInterface = ({
   const [userHasScrolledUp, setUserHasScrolledUp] = useState(false);
   const scrollContainerRef = useRef<HTMLDivElement>(null);
 
-  const handleRequestReview = async (note: string) => {
+  const handleRequestReview = async (note: string, priority?: 'standard' | 'high') => {
     if (!lastExecutionId) return;
 
     if (isPublicMode) {
@@ -155,7 +155,7 @@ export const ChatInterface = ({
         const res = await fetch(`${API_BASE}/api/public/executions/${lastExecutionId}/review`, {
             method: 'POST',
             headers,
-            body: JSON.stringify({ note, guestId })
+            body: JSON.stringify({ note, guestId, priority })
         });
         if (!res.ok) {
             const text = await res.text();
@@ -170,7 +170,7 @@ export const ChatInterface = ({
         }
     } else {
         // Use authenticated endpoint
-        await api.executions.requestReview(lastExecutionId, note);
+        await api.executions.requestReview(lastExecutionId, note, priority);
     }
     
     setReviewStatus('pending');
@@ -445,7 +445,11 @@ export const ChatInterface = ({
             if (token) {
                 headers.set('Authorization', `Bearer ${token}`);
             }
-            const res = await fetch(`${API_BASE}/api/public/executions/${lastExecutionId}`, { headers });
+            const url = new URL(`${API_BASE}/api/public/executions/${lastExecutionId}`);
+            if (guestId) {
+              url.searchParams.set('guestId', guestId);
+            }
+            const res = await fetch(url.toString(), { headers });
             if (res.ok) {
               data = await res.json();
             }

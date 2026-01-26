@@ -1,45 +1,57 @@
-import React, { useState, useMemo } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { MessageSquare, Clock, CheckCircle, User, Loader2, ArrowRight, Zap, TrendingUp } from 'lucide-react';
+import { MessageSquare, Clock, CheckCircle, User, Loader2, ArrowRight, Zap, TrendingUp, ArrowLeft, Search, Filter, ChevronUp, ChevronDown, Eye, ChevronLeft, ChevronRight } from 'lucide-react';
 import { api } from '@/lib/api/client';
 import ReviewResponseModal from '../../components/reviews/ReviewResponseModal';
+import { useWebSocketEvent } from '@/lib/websocket/hooks';
+import { AgentExecution } from '@/lib/types';
+import ReviewAnalytics from '../components/reviews/ReviewAnalytics';
 
-interface Review {
-  id: string;
-  agent: {
-    id: string;
-    name: string;
-  };
-  user_username: string;
-  review_status: string;
-  review_request_note: string;
-  review_response_note?: string;
-  created_at: string;
-  reviewed_at?: string;
-  inputs: any;
-  outputs: any;
-}
+type TabType = 'pending' | 'completed' | 'all' | 'insights';
 
-type TabType = 'pending' | 'completed' | 'all';
-
-const CreatorReviewsPage: React.FC = () => {
+const CreatorReviewsPage: React.FC<{ onBack?: () => void }> = ({ onBack }) => {
   const [activeTab, setActiveTab] = useState<TabType>('pending');
-  const [selectedReview, setSelectedReview] = useState<Review | null>(null);
+  const [selectedReview, setSelectedReview] = useState<AgentExecution | null>(null);
   const [isResponseModalOpen, setIsResponseModalOpen] = useState(false);
+  const [detailReview, setDetailReview] = useState<AgentExecution | null>(null);
+  const [isDetailModalOpen, setIsDetailModalOpen] = useState(false);
+  const [searchTerm, setSearchTerm] = useState('');
+  const [priorityFilter, setPriorityFilter] = useState<'all' | 'urgent' | 'high' | 'normal'>('all');
+  const [sortKey, setSortKey] = useState<'created_at' | 'agent' | 'requester' | 'status' | 'sla'>('created_at');
+  const [sortDir, setSortDir] = useState<'asc' | 'desc'>('desc');
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(10);
 
-  const { data: reviews = [], isLoading, refetch } = useQuery({
+  // Listen for new review requests to auto-update dashboard
+  useWebSocketEvent('review_requested', (message) => {
+    console.log('[WebSocket] Dashboard update: New review requested', message);
+    if (activeTab === 'pending' || activeTab === 'all') {
+      refetch();
+    }
+  }, [activeTab]);
+
+  // Listen for status changes
+  useWebSocketEvent('review_status_changed', (message) => {
+    console.log('[WebSocket] Dashboard update: Review status changed', message);
+    refetch();
+  }, []);
+
+  const { data: reviewsResponse, isLoading, refetch } = useQuery({
     queryKey: ['creator-reviews', activeTab],
     queryFn: async () => {
-      const status = activeTab === 'all' ? undefined : activeTab;
+      const status = activeTab === 'all' || activeTab === 'insights' ? undefined : activeTab as any;
       const response = await api.executions.getCreatorReviews(status);
-      return response.data;
+      const payload = response.data as any;
+      return Array.isArray(payload) ? payload : payload?.data ?? [];
     },
   });
 
+  const reviews = useMemo(() => reviewsResponse ?? [], [reviewsResponse]);
+
   // Calculate quick stats
   const stats = useMemo(() => {
-    const pending = reviews.filter((r: Review) => r.review_status === 'pending').length;
-    const completedThisWeek = reviews.filter((r: Review) => {
+    const pending = reviews.filter((r) => r.review_status === 'pending').length;
+    const completedThisWeek = reviews.filter((r) => {
       if (r.review_status !== 'completed' || !r.reviewed_at) return false;
       const reviewedDate = new Date(r.reviewed_at);
       const weekAgo = new Date();
@@ -49,16 +61,20 @@ const CreatorReviewsPage: React.FC = () => {
     return { pending, completedThisWeek };
   }, [reviews]);
 
-  const handleRespond = (review: Review) => {
+  useEffect(() => {
+    setPage(1);
+  }, [searchTerm, priorityFilter, activeTab, pageSize]);
+
+  const handleRespond = (review: AgentExecution) => {
     setSelectedReview(review);
     setIsResponseModalOpen(true);
   };
 
-  const handleResponseSubmit = async (responseNote: string, refinedOutputs?: any) => {
+  const handleResponseSubmit = async (responseNote: string, refinedOutputs?: any, qualityScore?: number, internalNotes?: string) => {
     if (!selectedReview) return;
     
     try {
-      await api.executions.respondToReview(selectedReview.id, responseNote, refinedOutputs);
+      await api.executions.respondToReview(selectedReview.id, responseNote, refinedOutputs, qualityScore, internalNotes);
       
       setIsResponseModalOpen(false);
       setSelectedReview(null);
@@ -72,27 +88,50 @@ const CreatorReviewsPage: React.FC = () => {
     switch (status) {
       case 'pending':
         return (
-          <span className="inline-flex items-center gap-1.5 px-3 py-1 bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-500/20 rounded-full text-xs font-bold shadow-sm">
-            <Clock className="w-3.5 h-3.5" />
-            Pending Review
+          <span className="inline-flex items-center gap-1.5 px-2 py-1 bg-amber-500/10 text-amber-400 border border-amber-500/30 rounded-full text-[9px] font-black uppercase tracking-widest">
+            <Clock className="w-3 h-3" />
+            Pending
           </span>
         );
       case 'in_progress':
         return (
-          <span className="inline-flex items-center gap-1.5 px-3 py-1 bg-blue-500/10 text-blue-600 dark:text-blue-400 border border-blue-500/20 rounded-full text-xs font-bold shadow-sm">
-            <Zap className="w-3.5 h-3.5" />
+          <span className="inline-flex items-center gap-1.5 px-2 py-1 bg-sky-500/10 text-sky-400 border border-sky-500/30 rounded-full text-[9px] font-black uppercase tracking-widest">
+            <Zap className="w-3 h-3" />
             In Progress
           </span>
         );
       case 'completed':
         return (
-          <span className="inline-flex items-center gap-1.5 px-3 py-1 bg-green-500/10 text-green-600 dark:text-green-400 border border-green-500/20 rounded-full text-xs font-bold shadow-sm">
-            <CheckCircle className="w-3.5 h-3.5" />
+          <span className="inline-flex items-center gap-1.5 px-2 py-1 bg-emerald-500/10 text-emerald-400 border border-emerald-500/30 rounded-full text-[9px] font-black uppercase tracking-widest">
+            <CheckCircle className="w-3 h-3" />
             Completed
           </span>
         );
       default:
         return null;
+    }
+  };
+
+  const getPriorityBadge = (priority: string) => {
+    switch (priority) {
+      case 'urgent':
+        return (
+          <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-red-500 text-white rounded text-[9px] font-black uppercase tracking-tighter animate-pulse">
+            Urgent
+          </span>
+        );
+      case 'high':
+        return (
+          <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-amber-500 text-white rounded text-[9px] font-black uppercase tracking-tighter">
+            High
+          </span>
+        );
+      default:
+        return (
+          <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-gray-500/20 text-gray-500 rounded text-[9px] font-black uppercase tracking-tighter">
+            Normal
+          </span>
+        );
     }
   };
 
@@ -110,32 +149,130 @@ const CreatorReviewsPage: React.FC = () => {
     return date.toLocaleDateString();
   };
 
-  const smartUnwrapSnippet = (data: any): string => {
-    if (!data) return '';
-    try {
-      if (typeof data === 'string' && /}\s*{/.test(data)) {
-        const fixed = '[' + data.replace(/}\s*{/g, '},{') + ']';
-        const parsed = JSON.parse(fixed);
-        return parsed.filter((t: any) => t.type === 'token' && t.content).map((t: any) => t.content).join('').slice(0, 100) + '...';
-      }
-      if (Array.isArray(data)) {
-        return data.filter((t: any) => t && t.type === 'token' && t.content).map((t: any) => t.content).join('').slice(0, 100) + '...';
-      }
-      if (typeof data === 'object') {
-        const text = data.response || data.result || data.text || data.content;
-        if (text) return (typeof text === 'string' ? text : JSON.stringify(text)).slice(0, 100) + '...';
-      }
-      return String(data).slice(0, 100) + '...';
-    } catch (e) {
-      return '';
-    }
+  const statusRank: Record<string, number> = {
+    pending: 0,
+    in_progress: 1,
+    waiting_info: 2,
+    completed: 3,
+    rejected: 4,
+    cancelled: 5,
+    none: 6,
   };
+
+  const filteredReviews = useMemo(() => {
+    const query = searchTerm.trim().toLowerCase();
+    return reviews.filter((review) => {
+      if (priorityFilter !== 'all') {
+        const priority = (review.priority || 'normal').toLowerCase();
+        if (priority !== priorityFilter) return false;
+      }
+      if (!query) return true;
+      const haystack = [
+        review.agent?.name || '',
+        review.user_username || '',
+        review.review_request_note || '',
+        review.review_response_note || '',
+      ]
+        .join(' ')
+        .toLowerCase();
+      return haystack.includes(query);
+    });
+  }, [reviews, searchTerm, priorityFilter]);
+
+  const sortedReviews = useMemo(() => {
+    const list = [...filteredReviews];
+    const compareValues = (aVal: string | number, bVal: string | number) => {
+      if (typeof aVal === 'string' && typeof bVal === 'string') {
+        return aVal.localeCompare(bVal);
+      }
+      return (aVal as number) - (bVal as number);
+    };
+
+    list.sort((a, b) => {
+      let aVal: string | number = '';
+      let bVal: string | number = '';
+
+      switch (sortKey) {
+        case 'agent':
+          aVal = (a.agent?.name || '').toLowerCase();
+          bVal = (b.agent?.name || '').toLowerCase();
+          break;
+        case 'requester':
+          aVal = (a.user_username || '').toLowerCase();
+          bVal = (b.user_username || '').toLowerCase();
+          break;
+        case 'status':
+          aVal = statusRank[a.review_status || 'none'] ?? 99;
+          bVal = statusRank[b.review_status || 'none'] ?? 99;
+          break;
+        case 'sla':
+          aVal = a.sla_deadline ? new Date(a.sla_deadline).getTime() : Number.MAX_SAFE_INTEGER;
+          bVal = b.sla_deadline ? new Date(b.sla_deadline).getTime() : Number.MAX_SAFE_INTEGER;
+          break;
+        default:
+          aVal = a.created_at ? new Date(a.created_at).getTime() : 0;
+          bVal = b.created_at ? new Date(b.created_at).getTime() : 0;
+      }
+
+      const result = compareValues(aVal, bVal);
+      return sortDir === 'asc' ? result : -result;
+    });
+
+    return list;
+  }, [filteredReviews, sortKey, sortDir, statusRank]);
+
+  const totalItems = sortedReviews.length;
+  const totalPages = Math.max(1, Math.ceil(totalItems / pageSize));
+  const safePage = Math.min(page, totalPages);
+  const pagedReviews = useMemo(() => {
+    const start = (safePage - 1) * pageSize;
+    return sortedReviews.slice(start, start + pageSize);
+  }, [sortedReviews, safePage, pageSize]);
+
+  useEffect(() => {
+    if (page > totalPages) {
+      setPage(totalPages);
+    }
+  }, [page, totalPages]);
+
+  const handleSort = (key: typeof sortKey) => {
+    if (sortKey === key) {
+      setSortDir(sortDir === 'asc' ? 'desc' : 'asc');
+      return;
+    }
+    setSortKey(key);
+    setSortDir(key === 'created_at' ? 'desc' : 'asc');
+  };
+
+  const renderSortIcon = (key: typeof sortKey) => {
+    if (sortKey !== key) {
+      return <ChevronUp className="w-3 h-3 opacity-20" />;
+    }
+    return sortDir === 'asc'
+      ? <ChevronUp className="w-3 h-3" />
+      : <ChevronDown className="w-3 h-3" />;
+  };
+
+  const tabs: { id: TabType; label: string; icon?: React.ReactNode }[] = [
+    { id: 'pending', label: 'Pending' },
+    { id: 'completed', label: 'Completed' },
+    { id: 'all', label: 'All Reviews' },
+    { id: 'insights', label: 'Expert Insights', icon: <TrendingUp size={14} /> },
+  ];
 
   return (
     <div className="container mx-auto max-w-7xl px-4 py-8 animate-in fade-in duration-500">
       {/* Header */}
       <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-6 mb-10">
         <div>
+          <button
+            type="button"
+            onClick={() => (onBack ? onBack() : window.location.assign('/studio'))}
+            className="inline-flex items-center gap-2 text-[10px] font-black uppercase tracking-widest text-muted-foreground hover:text-foreground bg-muted/30 border border-border rounded-xl px-3 py-2 transition-all mb-4"
+          >
+            <ArrowLeft size={12} />
+            Back to Studio
+          </button>
           <h1 className="text-4xl font-black text-foreground tracking-tight mb-2 flex items-center gap-3">
             <MessageSquare className="w-10 h-10 text-primary" /> Expert Verification
           </h1>
@@ -163,130 +300,167 @@ const CreatorReviewsPage: React.FC = () => {
       </div>
 
       {/* Tabs */}
-      <div className="flex bg-muted/30 p-1.5 rounded-2xl border border-border w-fit mb-8 backdrop-blur-sm">
-        {(['pending', 'completed', 'all'] as TabType[]).map((tab) => (
+      <div className="flex bg-muted/30 p-1.5 rounded-2xl border border-border w-fit mb-10 backdrop-blur-sm shadow-xl">
+        {tabs.map((tab) => (
           <button
-            key={tab}
-            onClick={() => setActiveTab(tab)}
-            className={`px-8 py-2.5 rounded-xl text-xs font-black uppercase tracking-widest transition-all ${
-              activeTab === tab
+            key={tab.id}
+            onClick={() => setActiveTab(tab.id)}
+            className={`px-8 py-2.5 rounded-xl text-xs font-black uppercase tracking-widest transition-all flex items-center gap-2 ${
+              activeTab === tab.id
                 ? 'bg-primary text-primary-foreground shadow-lg shadow-primary/20 scale-105'
                 : 'text-muted-foreground hover:text-foreground'
             }`}
           >
-            {tab}
+            {tab.icon}
+            {tab.label}
           </button>
         ))}
       </div>
 
-      {/* Reviews List */}
-      {isLoading ? (
+      {activeTab !== 'insights' && (
+        <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4 mb-6">
+          <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3">
+            <div className="relative w-full sm:w-72">
+              <Search className="w-4 h-4 text-muted-foreground absolute left-3 top-1/2 -translate-y-1/2" />
+              <input
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                placeholder="Search agent, requester, or note..."
+                className="w-full pl-9 pr-3 py-2 text-xs font-semibold bg-muted/30 border border-border rounded-xl text-foreground placeholder-muted-foreground/60 focus:outline-none focus:ring-2 focus:ring-primary/30"
+              />
+            </div>
+            <div className="flex items-center gap-2 bg-muted/30 border border-border rounded-xl px-3 py-2">
+              <Filter className="w-4 h-4 text-muted-foreground" />
+              <select
+                value={priorityFilter}
+                onChange={(e) => setPriorityFilter(e.target.value as typeof priorityFilter)}
+                className="bg-transparent text-xs font-bold uppercase tracking-widest text-muted-foreground focus:outline-none"
+              >
+                <option value="all">All Priority</option>
+                <option value="urgent">Urgent</option>
+                <option value="high">High</option>
+                <option value="normal">Normal</option>
+              </select>
+            </div>
+          </div>
+          <div className="flex items-center gap-3 justify-between sm:justify-end">
+            <span className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">
+              {totalItems} reviews
+            </span>
+            <div className="flex items-center gap-2 bg-muted/30 border border-border rounded-xl px-3 py-2">
+              <span className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">Rows</span>
+              <select
+                value={pageSize}
+                onChange={(e) => setPageSize(Number(e.target.value))}
+                className="bg-transparent text-xs font-bold text-foreground focus:outline-none"
+              >
+                {[10, 20, 50].map((size) => (
+                  <option key={size} value={size}>{size}</option>
+                ))}
+              </select>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {activeTab === 'insights' ? (
+        <ReviewAnalytics />
+      ) : isLoading ? (
         <div className="flex flex-col items-center justify-center py-32 space-y-4">
           <Loader2 className="w-12 h-12 text-primary animate-spin" />
           <p className="text-muted-foreground font-black uppercase tracking-widest text-[10px]">Fetching verification requests...</p>
         </div>
-      ) : reviews.length === 0 ? (
+      ) : totalItems === 0 ? (
         <div className="text-center py-24 bg-muted/10 rounded-3xl border-2 border-dashed border-border shadow-inner">
           <div className="w-20 h-20 bg-muted/50 rounded-full flex items-center justify-center mx-auto mb-6">
             <CheckCircle className="w-10 h-10 text-muted-foreground" />
           </div>
-          <h3 className="text-2xl font-black text-foreground mb-3">All caught up!</h3>
+          <h3 className="text-2xl font-black text-foreground mb-3">
+            {searchTerm || priorityFilter !== 'all' ? 'No matches found' : 'All caught up!'}
+          </h3>
           <p className="text-muted-foreground max-w-sm mx-auto font-medium text-lg leading-relaxed lowercase">
-            {activeTab === 'pending'
-              ? "There are no pending review requests waiting for your expertise right now."
-              : "No verification records found in this category."}
+            {searchTerm || priorityFilter !== 'all'
+              ? "Try clearing your filters or search query."
+              : activeTab === 'pending'
+                ? "There are no pending review requests waiting for your expertise right now."
+                : "No verification records found in this category."}
           </p>
         </div>
       ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-2 xl:grid-cols-3 gap-6">
-          {reviews.map((review: Review) => (
-            <div
-              key={review.id}
-              className="group bg-card border border-border hover:border-primary/50 rounded-3xl p-6 transition-all hover:shadow-2xl hover:shadow-primary/5 flex flex-col items-start cursor-pointer border-t-4 active:scale-[0.99]"
-              style={{ borderTopColor: review.review_status === 'pending' ? '#f59e0b' : '#10b981' }}
-               onClick={() => review.review_status === 'pending' && handleRespond(review)}
-            >
-              <div className="flex items-center justify-between w-full mb-6">
-                <div className="flex items-center gap-2">
-                   {getStatusBadge(review.review_status)}
-                   <span className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">{formatDate(review.created_at)}</span>
-                </div>
-                <div className="w-8 h-8 bg-muted rounded-full flex items-center justify-center text-muted-foreground font-mono text-[10px]">
-                   #{review.id.slice(-4)}
-                </div>
-              </div>
-
-              <h3 className="text-xl font-black text-foreground mb-2 group-hover:text-primary transition-colors">
-                {review.agent?.name || 'Unknown Agent'}
-              </h3>
-              
-              <div className="flex items-center gap-2 mb-6">
-                <div className="w-8 h-8 rounded-full bg-secondary overflow-hidden flex items-center justify-center border border-border/50 shadow-inner">
-                   <User className="w-4 h-4 text-muted-foreground" />
-                </div>
-                <div className="flex flex-col">
-                  <span className="text-[10px] font-black text-muted-foreground uppercase leading-none mb-1">Client Requester</span>
-                  <span className="text-sm font-bold text-foreground/80 lowercase italic leading-none">@{review.user_username || 'anonymous'}</span>
-                </div>
-              </div>
-
-              {/* User's Request & Output */}
-              <div className="space-y-4 w-full mb-8">
-                <div className="bg-secondary/40 rounded-2xl p-5 w-full border border-border group-hover:bg-secondary/60 transition-colors">
-                  <label className="text-[10px] font-black text-muted-foreground uppercase tracking-widest mb-3 block">User Inquiry</label>
-                  <p className="text-foreground text-sm font-medium leading-relaxed italic line-clamp-3">
-                    "{review.review_request_note || 'Requested verified output optimization.'}"
-                  </p>
-                </div>
-
-                <div className="bg-muted/30 rounded-2xl p-5 w-full border border-border/50">
-                    <label className="text-[10px] font-black text-muted-foreground uppercase tracking-widest mb-2 block">Agent Output Preview</label>
-                    <p className="text-[11px] text-muted-foreground/60 font-mono line-clamp-2">
-                       {smartUnwrapSnippet(review.outputs)}
-                    </p>
-                </div>
-              </div>
-
-              {/* Response (if completed) */}
-              {review.review_status === 'completed' && review.review_response_note && (
-                <div className="bg-green-500/5 dark:bg-green-500/5 border border-green-500/10 rounded-2xl p-5 mb-6 w-full">
-                  <div className="flex items-center gap-2 mb-3">
-                    <p className="text-[10px] font-black text-green-600 dark:text-green-500 uppercase tracking-widest">
-                      Your Verification
-                    </p>
-                    {review.reviewed_at && (
-                      <span className="text-[10px] text-green-600/40 dark:text-green-500/40 font-bold">
-                        {formatDate(review.reviewed_at)}
-                      </span>
-                    )}
-                  </div>
-                  <p className="text-foreground/70 text-sm font-medium leading-relaxed line-clamp-2 font-mono text-xs italic">
-                    {review.review_response_note}
-                  </p>
-                </div>
-              )}
-
-              {/* Actions */}
-              <div className="mt-auto w-full pt-4 border-t border-border/50 flex items-center justify-between group-hover:border-primary/20">
-                {review.review_status === 'pending' ? (
-                  <button
-                    onClick={(e) => { e.stopPropagation(); handleRespond(review); }}
-                    className="w-full py-3 bg-primary text-primary-foreground font-black rounded-xl transition-all flex items-center justify-center gap-2 shadow-lg shadow-primary/20 active:scale-95 uppercase tracking-widest text-[10px]"
-                  >
-                    <MessageSquare size={16} />
-                    Begin Proofing
-                  </button>
-                ) : (
-                   <div className="flex items-center justify-between w-full text-muted-foreground">
-                      <span className="text-xs font-bold uppercase tracking-widest flex items-center gap-2">
-                         <CheckCircle size={14} className="text-green-500 shadow-[0_0_10px_rgba(34,197,94,0.5)] rounded-full" /> Result Verified
-                      </span>
-                      <ArrowRight size={18} className="group-hover:translate-x-1 transition-transform text-primary" />
-                   </div>
-                )}
-              </div>
-            </div>
-          ))}
+        <div className="bg-card border border-border rounded-3xl overflow-hidden shadow-xl">
+          <div className="overflow-x-auto">
+            <table className="min-w-full text-sm">
+              <thead className="bg-muted/40 text-muted-foreground uppercase tracking-widest text-[10px] font-black">
+                <tr>
+                  <th className="px-6 py-4 text-left">Status</th>
+                  <th className="px-6 py-4 text-left">Agent</th>
+                  <th className="px-6 py-4 text-left">Requester</th>
+                  <th className="px-6 py-4 text-left">Priority</th>
+                  <th className="px-6 py-4 text-left">Requested</th>
+                  <th className="px-6 py-4 text-left">SLA</th>
+                  <th className="px-6 py-4 text-right">Action</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-border">
+                {reviews.map((review) => (
+                  <tr key={review.id} className="hover:bg-muted/20 transition-colors">
+                    <td className="px-6 py-4">
+                      {getStatusBadge(review.review_status || 'none')}
+                    </td>
+                    <td className="px-6 py-4">
+                      <div className="font-bold text-foreground">{review.agent?.name || 'Unknown Agent'}</div>
+                      {review.review_status === 'completed' && review.review_response_note && (
+                        <div className="text-[11px] text-muted-foreground/70 mt-1 line-clamp-1 italic">
+                          {review.review_response_note}
+                        </div>
+                      )}
+                    </td>
+                    <td className="px-6 py-4">
+                      <div className="flex items-center gap-2">
+                        <div className="w-7 h-7 rounded-full bg-secondary flex items-center justify-center border border-border/50">
+                          <User className="w-3.5 h-3.5 text-muted-foreground" />
+                        </div>
+                        <span className="text-xs font-bold text-foreground/80 lowercase italic">@{review.user_username || 'anonymous'}</span>
+                      </div>
+                    </td>
+                    <td className="px-6 py-4">
+                      {review.review_status === 'pending'
+                        ? getPriorityBadge(review.priority || 'normal')
+                        : <span className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">—</span>}
+                    </td>
+                    <td className="px-6 py-4 text-xs text-muted-foreground font-semibold">
+                      {formatDate(review.created_at)}
+                    </td>
+                    <td className="px-6 py-4 text-xs">
+                      {review.review_status === 'pending' && review.sla_deadline ? (
+                        <span className={`${new Date(review.sla_deadline) < new Date() ? 'text-red-500' : 'text-foreground/60'} font-bold`}>
+                          {new Date(review.sla_deadline).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                        </span>
+                      ) : (
+                        <span className="text-muted-foreground">—</span>
+                      )}
+                    </td>
+                    <td className="px-6 py-4 text-right">
+                      {review.review_status === 'pending' ? (
+                        <button
+                          onClick={() => handleRespond(review)}
+                          className="inline-flex items-center gap-2 px-4 py-2 bg-primary text-primary-foreground text-[10px] font-black uppercase tracking-widest rounded-xl shadow-lg shadow-primary/20 hover:scale-[1.01] active:scale-[0.98] transition-all"
+                        >
+                          <MessageSquare size={14} />
+                          Review
+                        </button>
+                      ) : (
+                        <span className="inline-flex items-center gap-2 text-[10px] font-bold uppercase tracking-widest text-muted-foreground">
+                          <CheckCircle size={12} className="text-green-500" />
+                          Verified
+                        </span>
+                      )}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
         </div>
       )}
 

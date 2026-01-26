@@ -48,5 +48,13 @@ class AgentExecution(TimestampMixin, Base):
     review_response_note: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     reviewed_at: Mapped[Optional[datetime.datetime]] = mapped_column(DateTime, nullable=True)
 
+    # Phase 2: Advanced Workflow Fields
+    priority: Mapped[str] = mapped_column(Text, default="normal")  # low, normal, high, urgent
+    assigned_to: Mapped[Optional[uuid.UUID]] = mapped_column(Uuid, ForeignKey("users.id"), nullable=True)
+    sla_deadline: Mapped[Optional[datetime.datetime]] = mapped_column(DateTime, nullable=True)
+    internal_notes: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    quality_score: Mapped[Optional[float]] = mapped_column(Integer, nullable=True)  # Using Integer as quality score (1-5 point scale)
+
     agent: Mapped["Agent"] = relationship(back_populates="executions")
-    user: Mapped["User"] = relationship(back_populates="executions")
+    user: Mapped["User"] = relationship(back_populates="executions", foreign_keys=[user_id])
+    assignee: Mapped[Optional["User"]] = relationship(foreign_keys=[assigned_to])

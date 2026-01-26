@@ -766,14 +766,4 @@ def seed_seo_auditor_pro():
 if __name__ == "__main__":
     wait_for_db()
     seed_echo_agent()
-    seed_seo_auditor_pro()
-    # seed_seo_agent()
-    # seed_youtube_agent()
-    # seed_cold_email_agent()
-    # seed_swot_agent()
-    # seed_regex_agent()
-    # seed_brand_agent()
-    # seed_meeting_agent()
-    # seed_sql_agent()
-    # seed_data_cleanser_agent()
 

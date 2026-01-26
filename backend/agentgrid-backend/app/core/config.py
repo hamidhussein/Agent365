@@ -1,5 +1,6 @@
 from functools import lru_cache
 from pathlib import Path
+from pydantic import Field, AliasChoices
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 env_path = Path(__file__).parent.parent.parent / ".env"
@@ -13,7 +14,7 @@ class Settings(BaseSettings):
     CELERY_BROKER_URL: str = "redis://localhost:6379/1"
     CELERY_RESULT_BACKEND: str = "redis://localhost:6379/2"
     STRIPE_API_KEY: str = "sk_test_placeholder"
-    JWT_SECRET_KEY: str = "super-secret-change-me"
+    JWT_SECRET_KEY: str = Field("super-secret-change-me", validation_alias=AliasChoices("JWT_SECRET_KEY", "SECRET_KEY"))
     JWT_ALGORITHM: str = "HS256"
     OPENAI_API_KEY: str = "your_openai_api_key_here"
     SERPAPI_KEY: str | None = None

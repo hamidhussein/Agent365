@@ -33,7 +33,8 @@ const ReviewsPage: React.FC = () => {
     queryFn: async () => {
       const status = activeTab === 'all' ? undefined : activeTab;
       const response = await api.executions.getCreatorReviews(status);
-      return response.data;
+      const payload = response.data as any;
+      return Array.isArray(payload) ? payload : payload?.data ?? [];
     },
   });
 

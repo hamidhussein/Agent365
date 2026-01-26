@@ -320,7 +320,7 @@ const CreatorStudioApp = ({ initialView }: { initialView?: string }) => {
       )}
 
       {view === 'reviews' && (
-        <CreatorReviewsPage />
+        <CreatorReviewsPage onBack={() => setView('dashboard')} />
       )}
     </>
   );

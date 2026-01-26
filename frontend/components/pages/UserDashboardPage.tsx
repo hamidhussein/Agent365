@@ -135,7 +135,7 @@ const FavoritesContent: React.FC<{ user: User, onSelectAgent: (id: string) => vo
 };
 
 const SettingsContent: React.FC<{ user: User }> = ({ user }) => {
-    const { showToast } = useToast();
+    const { toast } = useToast();
     const [fullName, setFullName] = React.useState(user.full_name || '');
     const [isUpdatingProfile, setIsUpdatingProfile] = React.useState(false);
 
@@ -148,9 +148,9 @@ const SettingsContent: React.FC<{ user: User }> = ({ user }) => {
         setIsUpdatingProfile(true);
         try {
             await api.users.updateProfile({ full_name: fullName });
-            showToast('Profile updated successfully', 'success');
+            toast('Profile updated successfully', 'success');
         } catch (error: any) {
-            showToast(error.message || 'Failed to update profile', 'error');
+            toast(error.message || 'Failed to update profile', 'error');
         } finally {
             setIsUpdatingProfile(false);
         }
@@ -172,12 +172,12 @@ const SettingsContent: React.FC<{ user: User }> = ({ user }) => {
                 old_password: oldPassword, 
                 new_password: newPassword 
             });
-            showToast('Password updated successfully', 'success');
+            toast('Password updated successfully', 'success');
             setOldPassword('');
             setNewPassword('');
             setConfirmPassword('');
         } catch (error: any) {
-            showToast(error.message || 'Failed to update password', 'error');
+            toast(error.message || 'Failed to update password', 'error');
         } finally {
             setIsUpdatingPassword(false);
         }
@@ -390,13 +390,13 @@ const smartUnwrap = (data: any): string => {
 const ExecutionDetailsModal: React.FC<{ execution: any; onClose: () => void }> = ({ execution, onClose }) => {
     const [isReviewModalOpen, setIsReviewModalOpen] = React.useState(false);
     const [localReviewStatus, setLocalReviewStatus] = React.useState(execution.review_status || 'none');
-    const { showToast } = useToast();
+    const { toast } = useToast();
 
     if (!execution) return null;
 
-    const handleRequestReview = async (note: string) => {
+    const handleRequestReview = async (note: string, priority?: 'standard' | 'high') => {
         try {
-            await api.executions.requestReview(execution.id, note);
+            await api.executions.requestReview(execution.id, note, priority);
             setLocalReviewStatus('pending');
             // Update execution object in place for UI feedback
             execution.review_status = 'pending';
@@ -474,12 +474,47 @@ const ExecutionDetailsModal: React.FC<{ execution: any; onClose: () => void }> =
                             </div>
 
                             {execution.review_status === 'completed' && execution.review_response_note && (
-                                <div className="bg-blue-900/10 border border-blue-800 rounded-lg p-4">
-                                    <p className="text-xs font-semibold text-blue-400 uppercase tracking-wider mb-2">Creator's Response</p>
-                                    <p className="text-sm text-gray-100 leading-relaxed">{execution.review_response_note}</p>
+                                <div className="bg-blue-900/10 border border-blue-800 rounded-lg p-5 relative overflow-hidden group">
+                                    <div className="absolute top-0 right-0 p-3 flex flex-col items-end gap-1">
+                                        <div className="flex gap-0.5">
+                                            {[1, 2, 3, 4, 5].map((s) => (
+                                                <div key={s} className={`w-2 h-2 rounded-full ${execution.quality_score && s <= execution.quality_score ? 'bg-blue-500 shadow-[0_0_8px_rgba(59,130,246,0.6)]' : 'bg-gray-700'}`} />
+                                            ))}
+                                        </div>
+                                        <span className="text-[8px] font-black text-blue-400 uppercase tracking-widest">Quality score</span>
+                                    </div>
+
+                                    <div className="flex items-center gap-3 mb-4">
+                                        <div className="w-10 h-10 bg-blue-500/20 rounded-full flex items-center justify-center text-blue-500">
+                                            <Sparkles size={20} />
+                                        </div>
+                                        <div>
+                                            <p className="text-xs font-black text-blue-400 uppercase tracking-widest">Expert Verification</p>
+                                            <p className="text-[10px] text-blue-400/60 font-medium">Provided by original creator</p>
+                                        </div>
+                                    </div>
+
+                                    <div className="space-y-4">
+                                        <div>
+                                            <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-2 leading-none">Internal Analysis</p>
+                                            <p className="text-sm text-gray-100 leading-relaxed italic">{execution.review_response_note}</p>
+                                        </div>
+
+                                        {execution.refined_outputs && (
+                                            <div className="bg-gray-900 border border-blue-900/30 rounded-xl p-4">
+                                                <p className="text-[10px] font-black text-blue-400 uppercase tracking-widest mb-3 flex items-center gap-2">
+                                                    <CheckCircle size={10} /> Refined Verified Result
+                                                </p>
+                                                <pre className="text-xs text-blue-50 font-medium whitespace-pre-wrap font-mono leading-relaxed">
+                                                    {smartUnwrap(execution.refined_outputs)}
+                                                </pre>
+                                            </div>
+                                        )}
+                                    </div>
+
                                     {execution.reviewed_at && (
-                                        <p className="text-xs text-gray-500 mt-2">
-                                            Responded on {new Date(execution.reviewed_at).toLocaleDateString()} at {new Date(execution.reviewed_at).toLocaleTimeString()}
+                                        <p className="text-[9px] text-gray-500 mt-4 text-right italic font-medium">
+                                            Verified on {new Date(execution.reviewed_at).toLocaleDateString()} at {new Date(execution.reviewed_at).toLocaleTimeString()}
                                         </p>
                                     )}
                                 </div>
@@ -631,7 +666,7 @@ const UserDashboardPage: React.FC<UserDashboardPageProps> = ({ user, activePage,
         <div className="container mx-auto max-w-screen-2xl px-4 py-12">
             <div className="mb-8">
                 <h1 className="text-3xl font-bold tracking-tight text-white sm:text-4xl">My Dashboard</h1>
-                <p className="mt-2 text-lg text-gray-400">Welcome back, {user.name}.</p>
+                <p className="mt-2 text-lg text-gray-400">Welcome back, {user.username}.</p>
             </div>
 
             <div className="grid grid-cols-1 gap-8 lg:grid-cols-4">

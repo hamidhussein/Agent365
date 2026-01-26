@@ -279,22 +279,28 @@ DEFAULT_GUEST_CREDITS = int(os.environ.get("CREATOR_STUDIO_GUEST_CREDITS", "5"))
 
 class VectorIndex:
     def __init__(self) -> None:
-        self.db = None
-        self.table = None
+        self._db = None
+        self._table = None
+        self._initialized = False
+
+    def _initialize(self):
+        if self._initialized:
+            return
         if lancedb is not None:
             try:
                 if not os.path.exists(LANCE_DB_PATH):
                     os.makedirs(LANCE_DB_PATH)
-                self.db = lancedb.connect(LANCE_DB_PATH)
+                self._db = lancedb.connect(LANCE_DB_PATH)
                 self._ensure_table()
+                self._initialized = True
             except Exception as e:
-                print(f"Failed to initialize LanceDB: {e}")
+                print(f"Lazy initialization of LanceDB failed: {e}")
 
     def _ensure_table(self):
-        if self.db is None:
+        if self._db is None:
             return
         table_name = "knowledge_chunks"
-        if table_name not in self.db.table_names():
+        if table_name not in self._db.table_names():
             # Define schema: vector, id (chunk_id), agent_id, text
             schema = pa.schema([
                 pa.field("vector", pa.list_(pa.float32())),
@@ -303,20 +309,21 @@ class VectorIndex:
                 pa.field("text", pa.string()),
                 pa.field("metadata", pa.string()), # JSON string for flexibility
             ])
-            self.table = self.db.create_table(table_name, schema=schema)
+            self._table = self._db.create_table(table_name, schema=schema)
             # Create FTS index for keyword search
             try:
-                self.table.create_fts_index("text")
+                self._table.create_fts_index("text")
             except Exception as e:
                 print(f"Failed to create FTS index: {e}")
         else:
-            self.table = self.db.open_table(table_name)
+            self._table = self._db.open_table(table_name)
 
     def add(self, agent_id: str, chunk_id: str, embedding: list[float], text: str, metadata: dict = None) -> None:
-        if self.table is None:
+        self._initialize()
+        if self._table is None:
             return
         try:
-            self.table.add([{
+            self._table.add([{
                 "vector": embedding,
                 "id": str(chunk_id),
                 "agent_id": str(agent_id),
@@ -327,20 +334,22 @@ class VectorIndex:
             print(f"Error adding to VectorIndex: {e}")
 
     def remove(self, agent_id: str, chunk_ids: list[str]) -> None:
-        if self.table is None:
+        self._initialize()
+        if self._table is None:
             return
         try:
             # Filter by IDs and Agent ID
             ids_str = ", ".join([f"'{cid}'" for cid in chunk_ids])
-            self.table.delete(f"id IN ({ids_str}) AND agent_id = '{agent_id}'")
+            self._table.delete(f"id IN ({ids_str}) AND agent_id = '{agent_id}'")
         except Exception as e:
             print(f"Error removing from VectorIndex: {e}")
 
     def drop_agent(self, agent_id: str) -> None:
-        if self.table is None:
+        self._initialize()
+        if self._table is None:
             return
         try:
-            self.table.delete(f"agent_id = '{agent_id}'")
+            self._table.delete(f"agent_id = '{agent_id}'")
         except Exception as e:
             print(f"Error dropping agent from VectorIndex: {e}")
 
@@ -348,7 +357,8 @@ class VectorIndex:
         """
         Hybrid search: Vector + FTS
         """
-        if self.table is None:
+        self._initialize()
+        if self._table is None:
             return []
         
         try:
@@ -356,7 +366,7 @@ class VectorIndex:
             vector_results = []
             if embedding:
                 vector_results = (
-                    self.table.search(embedding)
+                    self._table.search(embedding)
                     .where(f"agent_id = '{agent_id}'")
                     .limit(top_k)
                     .to_list()
@@ -367,7 +377,7 @@ class VectorIndex:
             if query:
                 try:
                     fts_results = (
-                        self.table.search(query, query_type="fts")
+                        self._table.search(query, query_type="fts")
                         .where(f"agent_id = '{agent_id}'")
                         .limit(top_k)
                         .to_list()
@@ -397,19 +407,21 @@ class VectorIndex:
             return []
 
     def has_index(self, agent_id: str, dim: int) -> bool:
-        if self.table is None:
+        self._initialize()
+        if self._table is None:
             return False
         try:
-            count = len(self.table.search().where(f"agent_id = '{agent_id}'").limit(1).to_list())
+            count = len(self._table.search().where(f"agent_id = '{agent_id}'").limit(1).to_list())
             return count > 0
         except Exception:
             return False
 
     def is_empty(self) -> bool:
-        if self.table is None:
+        self._initialize()
+        if self._table is None:
             return True
         try:
-            return self.table.count_rows() == 0
+            return self._table.count_rows() == 0
         except Exception:
             return True
 

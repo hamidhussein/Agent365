@@ -11,9 +11,13 @@ from app.core.deps import get_current_user, get_db
 from app.models.execution import AgentExecution
 from app.models.agent import Agent
 from app.models.user import User
-from app.models.enums import ReviewStatus
+from app.models.enums import ReviewStatus, TransactionType
+from app.models.transaction import CreditTransaction
 from app.schemas.execution import AgentExecutionRead, ReviewRequest, ReviewResponse
+from app.schemas.analytics import ExpertAnalytics
 from app.services.notification import notification_service
+from app.services.workflow import workflow_service
+from app.services.analytics import analytics_service
 
 router = APIRouter(prefix="/executions", tags=["executions"])
 
@@ -102,7 +106,21 @@ def get_pending_reviews(
     """
     Legacy endpoint for pending reviews.
     """
-    return get_creator_reviews(status=ReviewStatus.PENDING, db=db, current_user=current_user)
+    return get_creator_reviews(status=ReviewStatus.PENDING.value, db=db, current_user=current_user)
+
+
+@router.get("/reviews/analytics", response_model=ExpertAnalytics)
+def get_reviewer_analytics(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """
+    Get quality and performance analytics for the expert verification dashboard.
+    """
+    if current_user.role not in ["creator", "admin"]:
+        raise HTTPException(status_code=403, detail="Not authorized")
+        
+    return analytics_service.get_expert_analytics(db, str(current_user.id))
 
 
 @router.get("/{execution_id}", response_model=AgentExecutionRead)
@@ -158,19 +176,32 @@ async def request_execution_review(
     if execution.review_status not in (ReviewStatus.NONE, ReviewStatus.REJECTED):
         raise HTTPException(status_code=400, detail="Review already requested or completed")
 
-    # Deduct cost if applicable (Future work: transaction logic)
-    cost = execution.agent.review_cost
+    # Deduct cost if applicable (include priority multiplier)
+    cost = int(execution.agent.review_cost or 0)
+    requested_priority = (payload.priority or "").strip().lower() if payload.priority else None
+    if requested_priority == "high":
+        cost *= 2
+
     if cost > 0:
         print(f"[DEBUG] Standard Review: User={current_user.username}, Credits={current_user.credits}, Cost={cost}", flush=True)
         if current_user.credits < cost:
              raise HTTPException(status_code=402, detail=f"User {current_user.username} has only {current_user.credits} credits. Review costs {cost} credits.")
         current_user.credits -= cost
-        # Log transaction... (omitted for brevity, ideally use a service)
+        db.add(current_user)
+        transaction = CreditTransaction(
+            user_id=current_user.id,
+            amount=-cost,
+            transaction_type=TransactionType.USAGE,
+            description=f"Review Request for execution {execution.id}",
+        )
+        db.add(transaction)
 
     execution.review_status = ReviewStatus.PENDING
     execution.review_request_note = payload.note
     db.commit()
     db.refresh(execution)
+
+    await workflow_service.process_review_request(db, execution, requested_priority)
 
     # Notify creator with real-time WebSocket update
     creator = db.get(User, execution.agent.creator_id)
@@ -211,6 +242,12 @@ async def respond_to_review(
     execution.review_response_note = payload.response_note
     execution.review_status = ReviewStatus.COMPLETED
     execution.reviewed_at = datetime.datetime.utcnow()
+    
+    # Phase 2: Quality & Internal Tracking
+    if payload.quality_score is not None:
+        execution.quality_score = payload.quality_score
+    if payload.internal_notes:
+        execution.internal_notes = payload.internal_notes
     
     # Update refined outputs if creator provides improved results
     if payload.refined_outputs:

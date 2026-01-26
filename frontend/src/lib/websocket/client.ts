@@ -31,7 +31,7 @@ class WebSocketClient {
   private reconnectDelay = 2000; // Start with 2 seconds
   private listeners: Map<WebSocketEventType, Set<EventCallback>> = new Map();
   private isIntentionallyClosed = false;
-  private pingInterval: NodeJS.Timeout | null = null;
+  private pingInterval: any = null;
 
   constructor() {
     // Use environment variable or default to backend port 8001
@@ -78,7 +78,10 @@ class WebSocketClient {
     this.stopPing();
 
     if (this.ws) {
-      this.ws.close();
+      // Avoid closing if already closed or closing
+      if (this.ws.readyState === WebSocket.OPEN || this.ws.readyState === WebSocket.CONNECTING) {
+        this.ws.close();
+      }
       this.ws = null;
     }
 
