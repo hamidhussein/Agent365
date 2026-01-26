@@ -27,29 +27,49 @@ const AgentCard: React.FC<AgentCardProps> = ({ agent, onSelect, onSelectCreator,
 
     return (
         <div onClick={() => onSelect(agent.id)} className="group relative overflow-hidden rounded-xl border border-border bg-card transition-all duration-300 hover:-translate-y-1 hover:border-primary hover:shadow-xl hover:shadow-primary/10 text-left cursor-pointer">
-            <div className="relative">
-                <img src={agent.imageUrl} alt={agent.name} className="h-48 w-full object-cover" />
+            <div className="relative overflow-hidden">
+                <img 
+                    src={agent.imageUrl} 
+                    alt={agent.name} 
+                    className="h-48 w-full object-cover transition-transform duration-500 group-hover:scale-110" 
+                />
+                <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
                 <button
                     onClick={handleFavoriteClick}
-                    className={`absolute top-3 right-3 z-10 flex h-8 w-8 items-center justify-center rounded-full bg-background/50 backdrop-blur-sm shadow-sm transition-colors duration-200 ${isFavorited ? 'text-red-500' : 'text-foreground'} hover:bg-background/80`}
+                    className={`absolute top-3 right-3 z-10 flex h-9 w-9 items-center justify-center rounded-xl bg-background/80 backdrop-blur-md shadow-lg transition-all duration-300 ${isFavorited ? 'text-red-500 scale-110' : 'text-foreground hover:scale-110'} border border-white/10`}
                     aria-label={isFavorited ? 'Remove from favorites' : 'Add to favorites'}
                 >
                     <HeartIcon className={`h-5 w-5 ${isFavorited ? 'fill-current' : 'fill-none'}`} />
                 </button>
             </div>
-            <div className="p-4">
-                <div className="flex items-center space-x-2">
-                    {isCreatorStudio && (<span className="rounded-full bg-primary/10 px-2 py-0.5 text-xs font-semibold text-primary">Creator Studio</span>)}
+            <div className="p-5">
+                <div className="flex items-center gap-2 flex-wrap">
+                    {isCreatorStudio && (
+                        <span className="rounded-lg bg-primary/20 px-2.5 py-1 text-[10px] font-black uppercase tracking-widest text-primary border border-primary/20 shadow-sm">
+                            Creator Studio
+                        </span>
+                    )}
                     {agent.tags.slice(0, 2).map(tag => (
-                        <span key={tag} className="rounded-full bg-primary/10 px-2 py-0.5 text-xs font-semibold text-primary">{tag}</span>
+                        <span key={tag} className="rounded-lg bg-secondary/80 px-2.5 py-1 text-[10px] font-black uppercase tracking-widest text-muted-foreground border border-border/50">
+                            {tag}
+                        </span>
                     ))}
                 </div>
-                <h3 className="mt-3 text-lg font-bold text-card-foreground leading-tight group-hover:text-primary transition-colors">{agent.name}</h3>
-                <div className="mt-2 flex items-center space-x-2 text-sm text-muted-foreground">
-                    <img src={agent.creator.avatar_url || ''} alt={agent.creator.full_name || agent.creator.username} className="h-5 w-5 rounded-full ring-1 ring-border" />
-                    <span>by <button onClick={handleCreatorClick} className="font-medium text-foreground hover:text-primary hover:underline z-10 relative">{agent.creator.full_name || agent.creator.username}</button></span>
+                <h3 className="mt-4 text-xl font-black text-card-foreground leading-tight group-hover:text-primary transition-colors tracking-tight line-clamp-1">
+                    {agent.name}
+                </h3>
+                <div className="mt-3 flex items-center space-x-2.5 text-sm">
+                    <div className="relative">
+                        <img src={agent.creator.avatar_url || ''} alt={agent.creator.username} className="h-6 w-6 rounded-full ring-2 ring-primary/20" />
+                        <div className="absolute -bottom-0.5 -right-0.5 w-2.5 h-2.5 bg-green-500 border-2 border-card rounded-full" />
+                    </div>
+                    <span className="text-xs font-medium text-muted-foreground">
+                        by <button onClick={handleCreatorClick} className="font-bold text-foreground hover:text-primary transition-colors z-10 relative lowercase">@{agent.creator.username}</button>
+                    </span>
                 </div>
-                <p className="mt-3 text-sm text-muted-foreground line-clamp-2 leading-relaxed">{agent.description}</p>
+                <p className="mt-4 text-sm text-muted-foreground/80 line-clamp-2 leading-relaxed font-medium">
+                    {agent.description}
+                </p>
             </div>
             <div className="flex items-center justify-between border-t border-border bg-muted/30 p-4">
                 <div className="flex items-center space-x-2 text-sm">

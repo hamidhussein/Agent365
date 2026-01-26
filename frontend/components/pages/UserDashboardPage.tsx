@@ -1,8 +1,5 @@
-// @ts-nocheck
-
 import React from 'react';
-import { User } from '@/lib/types';
-import { Agent } from '../../types';
+import { User, Agent, AgentExecution } from '@/lib/types';
 import UserDashboardSidebar from '../dashboard/UserDashboardSidebar';
 import AgentGrid from '../AgentGrid';
 import TransactionTable from '../dashboard/TransactionTable';
@@ -10,8 +7,8 @@ import { CreditIcon, HeartIcon, ZapIcon } from '../icons/Icons';
 import { DashboardPage } from '../../App';
 import { useQuery } from '@tanstack/react-query';
 import { fetchUserExecutions, fetchUserTransactions } from '@/lib/api/dashboard';
-import { MessageSquare } from 'lucide-react';
-import { useToast } from '@/contexts/ToastContext';
+import { MessageSquare, ArrowRight, Loader2, Sparkles, X, CheckCircle, Clock } from 'lucide-react';
+import { useToast } from '@/lib/hooks/useToast';
 import { api } from '@/lib/api/client';
 import ReviewRequestModal from '../reviews/ReviewRequestModal';
 import { mapBackendAgent } from '@/lib/utils/agentMapper';
