@@ -97,7 +97,7 @@ const ReviewRequestModal: React.FC<ReviewRequestModalProps> = ({
 
     return (
         <div className="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center p-4 z-[100]" onClick={handleClose}>
-            <div className="bg-card border border-border rounded-3xl max-w-xl w-full overflow-hidden shadow-2xl animate-in fade-in zoom-in-95 duration-300" onClick={e => e.stopPropagation()}>
+            <div className="bg-card border border-border rounded-3xl max-w-xl w-full max-h-[85vh] overflow-hidden shadow-2xl animate-in fade-in zoom-in-95 duration-300 flex flex-col" onClick={e => e.stopPropagation()}>
                 {/* Header with Stepper */}
                 <div className="px-8 py-6 bg-muted/30 border-b border-border">
                     <div className="flex items-center justify-between mb-6">
@@ -130,7 +130,7 @@ const ReviewRequestModal: React.FC<ReviewRequestModalProps> = ({
                 </div>
 
                 {/* Body */}
-                <div className="p-8 space-y-6">
+                <div className="p-6 space-y-5 overflow-y-auto flex-1">
                     {step === 1 && (
                         <div className="space-y-6 animate-in fade-in duration-300">
                             <div className="space-y-3">
@@ -142,7 +142,7 @@ const ReviewRequestModal: React.FC<ReviewRequestModalProps> = ({
                                     value={note}
                                     onChange={(e) => setNote(e.target.value)}
                                     placeholder="e.g., The calculation seems incorrect, can you verify and fix it?"
-                                    className="w-full h-40 bg-muted/30 border-2 border-border rounded-2xl px-5 py-4 text-foreground placeholder-muted-foreground/50 focus:outline-none focus:border-primary/50 focus:ring-4 focus:ring-primary/5 transition-all resize-none font-medium leading-relaxed"
+                                className="w-full h-28 bg-muted/30 border-2 border-border rounded-2xl px-5 py-3 text-foreground placeholder-muted-foreground/50 focus:outline-none focus:border-primary/50 focus:ring-4 focus:ring-primary/5 transition-all resize-none font-medium leading-relaxed text-sm"
                                 />
                                 <p className="text-[10px] text-muted-foreground/60 font-medium uppercase tracking-wider">
                                     Tip: Be specific. Include context, expected outcome, and what went wrong.
@@ -158,29 +158,29 @@ const ReviewRequestModal: React.FC<ReviewRequestModalProps> = ({
                                     <button
                                         type="button"
                                         onClick={() => setPriority('standard')}
-                                        className={`p-5 rounded-2xl border-2 text-left transition-all ${priority === 'standard' ? 'border-primary bg-primary/5 shadow-lg shadow-primary/10' : 'border-border hover:border-primary/30 bg-muted/20'}`}
+                                        className={`p-4 rounded-2xl border-2 text-left transition-all ${priority === 'standard' ? 'border-primary bg-primary/5 shadow-lg shadow-primary/10' : 'border-border hover:border-primary/30 bg-muted/20'}`}
                                     >
-                                        <div className="flex items-center gap-3 mb-3">
+                                        <div className="flex items-center gap-2 mb-2">
                                             <Clock size={20} className={priority === 'standard' ? 'text-primary' : 'text-muted-foreground'} />
                                             <span className="text-sm font-black text-foreground uppercase tracking-widest">Standard</span>
                                         </div>
                                         <p className="text-[10px] text-muted-foreground font-medium">Response within 24-48 hours</p>
-                                        <p className="text-lg font-black text-foreground mt-2">{reviewCost} Credits</p>
+                                        <p className="text-lg font-black text-foreground mt-1">{reviewCost} Credits</p>
                                     </button>
                                     <button
                                         type="button"
                                         onClick={() => setPriority('high')}
-                                        className={`p-5 rounded-2xl border-2 text-left transition-all relative overflow-hidden ${priority === 'high' ? 'border-amber-500 bg-amber-500/5 shadow-lg shadow-amber-500/10' : 'border-border hover:border-amber-500/30 bg-muted/20'}`}
+                                        className={`p-4 rounded-2xl border-2 text-left transition-all relative overflow-hidden ${priority === 'high' ? 'border-amber-500 bg-amber-500/5 shadow-lg shadow-amber-500/10' : 'border-border hover:border-amber-500/30 bg-muted/20'}`}
                                     >
                                         <div className="absolute top-2 right-2">
                                             <span className="text-[8px] bg-amber-500 text-black font-black px-2 py-0.5 rounded-full uppercase">Fast</span>
                                         </div>
-                                        <div className="flex items-center gap-3 mb-3">
+                                        <div className="flex items-center gap-2 mb-2">
                                             <Zap size={20} className={priority === 'high' ? 'text-amber-500' : 'text-muted-foreground'} />
                                             <span className="text-sm font-black text-foreground uppercase tracking-widest">High Priority</span>
                                         </div>
                                         <p className="text-[10px] text-muted-foreground font-medium">Response within 4-12 hours</p>
-                                        <p className="text-lg font-black text-foreground mt-2">{reviewCost * 2} Credits</p>
+                                        <p className="text-lg font-black text-foreground mt-1">{reviewCost * 2} Credits</p>
                                     </button>
                                 </div>
                             </div>
@@ -229,7 +229,7 @@ const ReviewRequestModal: React.FC<ReviewRequestModalProps> = ({
                 </div>
 
                 {/* Footer Actions */}
-                <div className="px-8 py-6 bg-muted/10 border-t border-border flex gap-4">
+                <div className="px-6 py-4 bg-muted/10 border-t border-border flex gap-4 shrink-0">
                     {step === 1 ? (
                         <>
                             <button 
