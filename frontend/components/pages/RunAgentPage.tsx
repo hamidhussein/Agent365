@@ -12,6 +12,65 @@ import type { Agent as CreatorStudioAgent } from '../../creator-studio/types';
 import { publicApi } from '../../creator-studio/api';
 import { useAuthStore } from '../../src/lib/store';
 
+// Parse streaming token format into clean text
+const smartUnwrap = (data: any): string => {
+  if (!data) return '';
+  try {
+    // Handle string data
+    if (typeof data === 'string') {
+      // First, try to parse newline-separated JSON objects
+      const lines = data.split('\n').filter(line => line.trim());
+      const tokens: string[] = [];
+      let allParsed = true;
+      
+      for (const line of lines) {
+        try {
+          const parsed = JSON.parse(line.trim());
+          if (parsed.type === 'token' && parsed.content !== undefined) {
+            tokens.push(parsed.content);
+          } else {
+            allParsed = false;
+            break;
+          }
+        } catch {
+          allParsed = false;
+          break;
+        }
+      }
+      
+      if (allParsed && tokens.length > 0) {
+        return tokens.join('');
+      }
+      
+      // Try concatenated JSON objects: {...}{...}
+      if (/}\s*{/.test(data)) {
+        const fixed = '[' + data.replace(/}\s*{/g, '},{') + ']';
+        const parsed = JSON.parse(fixed);
+        return parsed.filter((t: any) => t.type === 'token' && t.content).map((t: any) => t.content).join('');
+      }
+      
+      // Return as-is if no JSON pattern detected
+      return data;
+    }
+    
+    // Handle array of token objects
+    if (Array.isArray(data)) {
+      return data.filter((t: any) => t && t.type === 'token' && t.content).map((t: any) => t.content).join('');
+    }
+    
+    // Handle object with response/result/text/content property
+    if (typeof data === 'object') {
+      const textSeed = data.response || data.result || data.text || data.content;
+      if (textSeed) return typeof textSeed === 'string' ? smartUnwrap(textSeed) : JSON.stringify(textSeed);
+      return JSON.stringify(data, null, 2);
+    }
+    
+    return String(data);
+  } catch (e) {
+    return typeof data === 'string' ? data : JSON.stringify(data);
+  }
+};
+
 
 interface RunAgentPageProps {
     agent: Agent;
