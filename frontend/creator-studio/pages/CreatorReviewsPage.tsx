@@ -1,7 +1,6 @@
-// @ts-nocheck
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { MessageSquare, Clock, CheckCircle, User, Calendar, Loader2 } from 'lucide-react';
+import { MessageSquare, Clock, CheckCircle, User, Loader2, ArrowRight, Zap, TrendingUp } from 'lucide-react';
 import { api } from '@/lib/api/client';
 import ReviewResponseModal from '../../components/reviews/ReviewResponseModal';
 
@@ -37,6 +36,19 @@ const CreatorReviewsPage: React.FC = () => {
     },
   });
 
+  // Calculate quick stats
+  const stats = useMemo(() => {
+    const pending = reviews.filter((r: Review) => r.review_status === 'pending').length;
+    const completedThisWeek = reviews.filter((r: Review) => {
+      if (r.review_status !== 'completed' || !r.reviewed_at) return false;
+      const reviewedDate = new Date(r.reviewed_at);
+      const weekAgo = new Date();
+      weekAgo.setDate(weekAgo.getDate() - 7);
+      return reviewedDate >= weekAgo;
+    }).length;
+    return { pending, completedThisWeek };
+  }, [reviews]);
+
   const handleRespond = (review: Review) => {
     setSelectedReview(review);
     setIsResponseModalOpen(true);
@@ -63,6 +75,13 @@ const CreatorReviewsPage: React.FC = () => {
           <span className="inline-flex items-center gap-1.5 px-3 py-1 bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-500/20 rounded-full text-xs font-bold shadow-sm">
             <Clock className="w-3.5 h-3.5" />
             Pending Review
+          </span>
+        );
+      case 'in_progress':
+        return (
+          <span className="inline-flex items-center gap-1.5 px-3 py-1 bg-blue-500/10 text-blue-600 dark:text-blue-400 border border-blue-500/20 rounded-full text-xs font-bold shadow-sm">
+            <Zap className="w-3.5 h-3.5" />
+            In Progress
           </span>
         );
       case 'completed':
@@ -115,11 +134,32 @@ const CreatorReviewsPage: React.FC = () => {
   return (
     <div className="container mx-auto max-w-7xl px-4 py-8 animate-in fade-in duration-500">
       {/* Header */}
-      <div className="mb-10">
-        <h1 className="text-4xl font-black text-foreground tracking-tight mb-2 flex items-center gap-3 lowercase">
-           <MessageSquare className="w-10 h-10 text-primary" /> Expert Verification
-        </h1>
-        <p className="text-muted-foreground text-lg font-medium">Manage and refine agent outputs to maintain the highest quality standards.</p>
+      <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-6 mb-10">
+        <div>
+          <h1 className="text-4xl font-black text-foreground tracking-tight mb-2 flex items-center gap-3">
+            <MessageSquare className="w-10 h-10 text-primary" /> Expert Verification
+          </h1>
+          <p className="text-muted-foreground text-lg font-medium">Manage and refine agent outputs to maintain the highest quality standards.</p>
+        </div>
+
+        {/* Quick Stats */}
+        <div className="flex gap-4">
+          <div className="bg-amber-500/5 border border-amber-500/20 rounded-2xl px-5 py-3 text-center">
+            <p className="text-2xl font-black text-amber-500">{stats.pending}</p>
+            <p className="text-[10px] font-black text-muted-foreground uppercase tracking-widest">Pending</p>
+          </div>
+          <div className="bg-green-500/5 border border-green-500/20 rounded-2xl px-5 py-3 text-center">
+            <p className="text-2xl font-black text-green-500">{stats.completedThisWeek}</p>
+            <p className="text-[10px] font-black text-muted-foreground uppercase tracking-widest">This Week</p>
+          </div>
+          <div className="bg-primary/5 border border-primary/20 rounded-2xl px-5 py-3 text-center hidden sm:block">
+            <div className="flex items-center gap-1 justify-center">
+              <TrendingUp size={16} className="text-primary" />
+              <p className="text-lg font-black text-primary">Pro</p>
+            </div>
+            <p className="text-[10px] font-black text-muted-foreground uppercase tracking-widest">Expert</p>
+          </div>
+        </div>
       </div>
 
       {/* Tabs */}

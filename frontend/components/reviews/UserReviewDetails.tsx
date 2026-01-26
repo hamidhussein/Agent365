@@ -1,6 +1,5 @@
-// @ts-nocheck
-import React from 'react';
-import { X, MessageSquare, Clock, CheckCircle, FileText, Bot, User, ArrowRight } from 'lucide-react';
+import React, { useState } from 'react';
+import { X, MessageSquare, Clock, CheckCircle, Bot, ArrowRight, Download, Heart, Copy, Check, Sparkles } from 'lucide-react';
 
 interface UserReviewDetailsProps {
   execution: any;
@@ -8,6 +7,9 @@ interface UserReviewDetailsProps {
 }
 
 const UserReviewDetails: React.FC<UserReviewDetailsProps> = ({ execution, onClose }) => {
+  const [hasThanked, setHasThanked] = useState(false);
+  const [copied, setCopied] = useState(false);
+
   if (!execution) return null;
 
   const formatDate = (dateString: string) => {
@@ -17,170 +19,223 @@ const UserReviewDetails: React.FC<UserReviewDetailsProps> = ({ execution, onClos
     });
   };
 
-  const getStatusBadge = () => {
-    switch (execution.review_status) {
-      case 'pending':
-        return (
-          <span className="inline-flex items-center gap-1.5 px-3 py-1 bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-500/20 rounded-full text-xs font-bold shadow-sm">
-            <Clock className="w-3.5 h-3.5" />
-            Pending Expert Review
-          </span>
-        );
-      case 'completed':
-        return (
-          <span className="inline-flex items-center gap-1.5 px-3 py-1 bg-green-500/10 text-green-600 dark:text-green-400 border border-green-500/20 rounded-full text-xs font-bold shadow-sm">
-            <CheckCircle className="w-3.5 h-3.5" />
-            Review Completed
-          </span>
-        );
-      default:
-        return (
-          <span className="inline-flex items-center gap-1.5 px-3 py-1 bg-gray-500/10 text-gray-500 border border-gray-500/20 rounded-full text-xs font-bold shadow-sm">
-            None
-          </span>
-        );
-    }
+  const smartUnwrap = (data: any): string => {
+    if (!data) return '';
+    try {
+      if (typeof data === 'string' && /}\s*{/.test(data)) {
+        const fixed = '[' + data.replace(/}\s*{/g, '},{') + ']';
+        const parsed = JSON.parse(fixed);
+        return parsed.filter((t: any) => t.type === 'token' && t.content).map((t: any) => t.content).join('');
+      }
+      if (Array.isArray(data)) {
+        return data.filter((t: any) => t && t.type === 'token' && t.content).map((t: any) => t.content).join('');
+      }
+      if (typeof data === 'object') {
+        return data.response || data.result || data.text || JSON.stringify(data, null, 2);
+      }
+      return String(data);
+    } catch { return typeof data === 'string' ? data : JSON.stringify(data); }
   };
 
+  const handleExportMarkdown = () => {
+    const originalOutput = smartUnwrap(execution.outputs);
+    const refinedOutput = execution.refined_outputs ? smartUnwrap(execution.refined_outputs) : null;
+
+    let markdown = `# Expert Review Result\n\n`;
+    markdown += `**Agent:** ${execution.agent?.name || 'Unknown'}\n`;
+    markdown += `**Requested:** ${formatDate(execution.created_at)}\n`;
+    if (execution.reviewed_at) markdown += `**Completed:** ${formatDate(execution.reviewed_at)}\n`;
+    markdown += `\n## Your Request\n> ${execution.review_request_note || 'No note provided.'}\n\n`;
+    if (execution.review_response_note) markdown += `## Expert's Response\n> ${execution.review_response_note}\n\n`;
+    markdown += `## Original Output\n\`\`\`\n${originalOutput}\n\`\`\`\n\n`;
+    if (refinedOutput) markdown += `## Verified Output\n\`\`\`\n${refinedOutput}\n\`\`\`\n`;
+
+    const blob = new Blob([markdown], { type: 'text/markdown' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `review-${execution.id.slice(-6)}.md`;
+    a.click();
+    URL.revokeObjectURL(url);
+  };
+
+  const handleCopyVerified = () => {
+    const text = smartUnwrap(execution.refined_outputs || execution.outputs);
+    navigator.clipboard.writeText(text);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
+  };
+
+  // Timeline Steps
+  const timelineSteps = [
+    { label: 'Requested', date: execution.created_at, completed: true, icon: <MessageSquare size={16} /> },
+    { label: 'In Review', date: null, completed: execution.review_status === 'in_progress' || execution.review_status === 'completed', icon: <Clock size={16} /> },
+    { label: 'Completed', date: execution.reviewed_at, completed: execution.review_status === 'completed', icon: <CheckCircle size={16} /> },
+  ];
+
   return (
-    <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 z-[100]" onClick={onClose}>
+    <div className="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center p-4 z-[100]" onClick={onClose}>
       <div 
-        className="bg-card border border-border rounded-2xl max-w-5xl w-full max-h-[90vh] overflow-hidden shadow-2xl animate-in fade-in slide-in-from-bottom-4 duration-300 flex flex-col"
+        className="bg-card border border-border rounded-3xl max-w-5xl w-full max-h-[90vh] overflow-hidden shadow-2xl animate-in fade-in zoom-in-95 duration-300 flex flex-col"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Header */}
-        <div className="px-6 py-4 bg-muted/30 border-b border-border flex justify-between items-center shrink-0">
+        <div className="px-8 py-6 bg-muted/30 border-b border-border flex justify-between items-center shrink-0">
           <div className="flex items-center gap-4">
-            <div className="w-12 h-12 bg-primary/10 rounded-xl flex items-center justify-center">
-              <MessageSquare className="w-6 h-6 text-primary" />
+            <div className="w-14 h-14 bg-primary/10 rounded-2xl flex items-center justify-center ring-4 ring-primary/5">
+              <MessageSquare className="w-7 h-7 text-primary" />
             </div>
             <div>
-              <h2 className="text-xl font-bold text-foreground">Expert Review Result</h2>
+              <h2 className="text-2xl font-black text-foreground tracking-tight">Expert Review Result</h2>
               <div className="flex items-center gap-2 mt-1">
-                <span className="text-xs text-muted-foreground">Agent: <span className="text-foreground font-semibold">{execution.agent?.name}</span></span>
-                <span className="text-border">|</span>
-                <span className="text-xs text-muted-foreground">{formatDate(execution.created_at)}</span>
+                <span className="text-xs text-muted-foreground font-bold uppercase tracking-widest">Agent:</span>
+                <span className="text-xs text-foreground font-black">{execution.agent?.name}</span>
               </div>
             </div>
           </div>
-          <button onClick={onClose} className="text-muted-foreground hover:text-foreground transition-all hover:bg-muted p-2 rounded-lg">
+          <button onClick={onClose} className="text-muted-foreground hover:text-foreground transition-all hover:bg-muted p-3 rounded-2xl">
             <X size={24} />
           </button>
         </div>
 
-        <div className="flex-1 overflow-y-auto p-6 space-y-8">
-          {/* Status and Expert Note */}
-          <div className="bg-muted/40 rounded-2xl p-6 border border-border flex flex-col md:flex-row gap-6">
-            <div className="md:w-1/3 flex flex-col gap-4 border-b md:border-b-0 md:border-r border-border pb-6 md:pb-0 md:pr-6">
-              <div>
-                <label className="text-[10px] font-black text-muted-foreground uppercase tracking-widest mb-2 block">Status</label>
-                {getStatusBadge()}
-              </div>
-              <div className="mt-4">
-                <label className="text-[10px] font-black text-muted-foreground uppercase tracking-widest mb-2 block">Requested On</label>
-                <p className="text-sm font-medium text-foreground">{formatDate(execution.created_at)}</p>
-              </div>
-              {execution.reviewed_at && (
-                <div>
-                  <label className="text-[10px] font-black text-muted-foreground uppercase tracking-widest mb-2 block">Responded On</label>
-                  <p className="text-sm font-medium text-foreground">{formatDate(execution.reviewed_at)}</p>
+        <div className="flex-1 overflow-y-auto p-8 space-y-8">
+          {/* Timeline */}
+          <div className="flex items-center justify-between bg-muted/30 rounded-2xl p-6 border border-border">
+            {timelineSteps.map((step, index) => (
+              <React.Fragment key={step.label}>
+                <div className="flex flex-col items-center text-center">
+                  <div className={`w-12 h-12 rounded-full flex items-center justify-center mb-2 transition-all ${step.completed ? 'bg-primary text-primary-foreground shadow-lg shadow-primary/20' : 'bg-muted text-muted-foreground'}`}>
+                    {step.icon}
+                  </div>
+                  <span className={`text-xs font-black uppercase tracking-widest ${step.completed ? 'text-foreground' : 'text-muted-foreground'}`}>{step.label}</span>
+                  {step.date && <span className="text-[10px] text-muted-foreground mt-1">{formatDate(step.date)}</span>}
                 </div>
-              )}
-            </div>
-
-            <div className="flex-1">
-              <label className="text-[10px] font-black text-muted-foreground uppercase tracking-widest mb-3 block">Expert's Response Note</label>
-              {execution.review_status === 'completed' ? (
-                <div className="relative">
-                  <div className="absolute -left-2 top-0 bottom-0 w-1 bg-primary rounded-full"></div>
-                  <p className="text-foreground text-base leading-relaxed font-medium pl-4 italic">
-                    "{execution.review_response_note || 'The expert has verified this output.'}"
-                  </p>
-                </div>
-              ) : (
-                <div className="flex items-center gap-3 text-muted-foreground italic">
-                  <div className="w-2 h-2 bg-amber-400 rounded-full animate-pulse"></div>
-                  <p>The expert is currently reviewing your request...</p>
-                </div>
-              )}
-            </div>
+                {index < timelineSteps.length - 1 && (
+                  <div className={`flex-1 h-1 mx-4 rounded-full transition-all ${step.completed ? 'bg-primary' : 'bg-border'}`} />
+                )}
+              </React.Fragment>
+            ))}
           </div>
 
-          {/* User's Original Request */}
+          {/* Expert's Note */}
           <div className="space-y-3">
-             <label className="text-xs font-black text-muted-foreground uppercase tracking-widest">Your Request Clarification</label>
-             <div className="bg-secondary/50 border border-border rounded-xl p-4">
-               <p className="text-sm text-foreground font-medium">{execution.review_request_note || 'No additional note provided.'}</p>
-             </div>
+            <label className="text-xs font-black text-muted-foreground uppercase tracking-widest">Expert's Response</label>
+            {execution.review_status === 'completed' ? (
+              <div className="bg-primary/5 border border-primary/20 rounded-2xl p-6 relative">
+                <div className="absolute -left-1 top-6 bottom-6 w-1.5 bg-primary rounded-full" />
+                <p className="text-foreground text-lg leading-relaxed font-medium pl-4 italic">
+                  "{execution.review_response_note || 'The expert has verified this output.'}"
+                </p>
+                {!hasThanked && (
+                  <button
+                    onClick={() => setHasThanked(true)}
+                    className="mt-4 ml-4 flex items-center gap-2 px-4 py-2 bg-pink-500/10 text-pink-500 rounded-xl border border-pink-500/20 text-xs font-black uppercase tracking-widest hover:bg-pink-500/20 transition-all"
+                  >
+                    <Heart size={14} /> Thank Expert
+                  </button>
+                )}
+                {hasThanked && (
+                  <div className="mt-4 ml-4 flex items-center gap-2 text-pink-500 text-xs font-bold">
+                    <Heart size={14} className="fill-current" /> Thanks sent!
+                  </div>
+                )}
+              </div>
+            ) : (
+              <div className="bg-amber-500/5 border border-amber-500/20 rounded-2xl p-6 flex items-center gap-4">
+                <div className="w-3 h-3 bg-amber-400 rounded-full animate-pulse" />
+                <p className="text-amber-600 dark:text-amber-400 font-medium">The expert is currently reviewing your request...</p>
+              </div>
+            )}
           </div>
 
-          {/* Pro Level Side-by-Side Comparison */}
+          {/* Your Request */}
+          <div className="space-y-3">
+            <label className="text-xs font-black text-muted-foreground uppercase tracking-widest">Your Request</label>
+            <div className="bg-secondary/50 border border-border rounded-2xl p-5">
+              <p className="text-sm text-foreground font-medium leading-relaxed">{execution.review_request_note || 'No additional note provided.'}</p>
+            </div>
+          </div>
+
+          {/* Side-by-Side Comparison */}
           {execution.review_status === 'completed' && execution.refined_outputs && (
             <div className="space-y-4">
               <div className="flex items-center justify-between">
-                <label className="text-xs font-black text-muted-foreground uppercase tracking-widest">Output Comparison (Verified Result)</label>
-                <span className="text-[10px] bg-primary/10 text-primary px-2 py-0.5 rounded-full font-black uppercase">PRO Feature</span>
+                <label className="text-xs font-black text-muted-foreground uppercase tracking-widest flex items-center gap-2">
+                  <Sparkles size={14} className="text-primary" /> Output Comparison
+                </label>
+                <span className="text-[10px] bg-primary/10 text-primary px-3 py-1 rounded-lg font-black uppercase tracking-widest">Pro Feature</span>
               </div>
               
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 relative">
-                 {/* Original Side */}
-                 <div className="flex flex-col border border-border rounded-2xl overflow-hidden bg-muted/20">
-                    <div className="px-4 py-2.5 bg-muted border-b border-border flex items-center justify-between">
-                       <span className="text-xs font-black text-muted-foreground uppercase tracking-widest">Original Output</span>
-                       <Bot size={14} className="text-muted-foreground" />
-                    </div>
-                    <div className="p-5 font-medium text-sm text-foreground/70 overflow-y-auto max-h-[400px]">
-                       <pre className="whitespace-pre-wrap font-sans leading-relaxed">
-                         {typeof execution.outputs === 'string' 
-                            ? execution.outputs 
-                            : (execution.outputs?.response || execution.outputs?.result || JSON.stringify(execution.outputs, null, 2))}
-                       </pre>
-                    </div>
-                 </div>
+                {/* Original Side */}
+                <div className="flex flex-col border border-border rounded-2xl overflow-hidden bg-muted/20">
+                  <div className="px-5 py-3 bg-muted border-b border-border flex items-center justify-between">
+                    <span className="text-xs font-black text-muted-foreground uppercase tracking-widest">Original Output</span>
+                    <Bot size={16} className="text-muted-foreground" />
+                  </div>
+                  <div className="p-6 font-medium text-sm text-foreground/60 overflow-y-auto max-h-[400px]">
+                    <pre className="whitespace-pre-wrap font-sans leading-relaxed">
+                      {smartUnwrap(execution.outputs)}
+                    </pre>
+                  </div>
+                </div>
 
-                 {/* Desktop Decorator Arrow */}
-                 <div className="hidden lg:flex absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 w-10 h-10 bg-card border border-border rounded-full items-center justify-center z-10 shadow-lg">
-                    <ArrowRight size={20} className="text-primary" />
-                 </div>
+                {/* Desktop Arrow */}
+                <div className="hidden lg:flex absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 w-12 h-12 bg-card border-2 border-primary rounded-full items-center justify-center z-10 shadow-xl shadow-primary/10">
+                  <ArrowRight size={20} className="text-primary" />
+                </div>
 
-                 {/* Refined Side */}
-                 <div className="flex flex-col border-2 border-primary/30 rounded-2xl overflow-hidden bg-primary/5 shadow-xl shadow-primary/5">
-                    <div className="px-4 py-2.5 bg-primary/10 border-b border-primary/20 flex items-center justify-between">
-                       <span className="text-xs font-black text-primary uppercase tracking-widest">Expert Verified Output</span>
-                       <CheckCircle size={14} className="text-primary" />
+                {/* Refined Side */}
+                <div className="flex flex-col border-2 border-primary/30 rounded-2xl overflow-hidden bg-primary/5 shadow-xl shadow-primary/5">
+                  <div className="px-5 py-3 bg-primary/10 border-b border-primary/20 flex items-center justify-between">
+                    <span className="text-xs font-black text-primary uppercase tracking-widest">Expert Verified</span>
+                    <div className="flex items-center gap-2">
+                      <button
+                        onClick={handleCopyVerified}
+                        className="p-1.5 hover:bg-primary/20 rounded-lg transition-colors"
+                        title="Copy to clipboard"
+                      >
+                        {copied ? <Check size={14} className="text-green-500" /> : <Copy size={14} className="text-primary" />}
+                      </button>
+                      <CheckCircle size={16} className="text-primary" />
                     </div>
-                    <div className="p-5 font-bold text-sm text-foreground overflow-y-auto max-h-[400px]">
-                       <pre className="whitespace-pre-wrap font-sans leading-relaxed">
-                         {typeof execution.refined_outputs === 'string'
-                            ? execution.refined_outputs
-                            : (execution.refined_outputs?.response || execution.refined_outputs?.result || JSON.stringify(execution.refined_outputs, null, 2))}
-                       </pre>
-                    </div>
-                 </div>
+                  </div>
+                  <div className="p-6 font-bold text-sm text-foreground overflow-y-auto max-h-[400px]">
+                    <pre className="whitespace-pre-wrap font-sans leading-relaxed">
+                      {smartUnwrap(execution.refined_outputs)}
+                    </pre>
+                  </div>
+                </div>
               </div>
             </div>
           )}
 
-          {/* Simple output view if not completed or no refined output */}
+          {/* Simple output if not completed */}
           {(execution.review_status !== 'completed' || !execution.refined_outputs) && (
-             <div className="space-y-4">
-                <label className="text-xs font-black text-muted-foreground uppercase tracking-widest">Run Execution Output</label>
-                <div className="bg-card border border-border rounded-2xl p-6 shadow-inner">
-                  <pre className="text-sm text-foreground font-medium whitespace-pre-wrap font-mono leading-relaxed">
-                    {JSON.stringify(execution.outputs, null, 2)}
-                  </pre>
-                </div>
-             </div>
+            <div className="space-y-4">
+              <label className="text-xs font-black text-muted-foreground uppercase tracking-widest">Run Execution Output</label>
+              <div className="bg-card border border-border rounded-2xl p-6 shadow-inner">
+                <pre className="text-sm text-foreground font-medium whitespace-pre-wrap font-mono leading-relaxed">
+                  {smartUnwrap(execution.outputs)}
+                </pre>
+              </div>
+            </div>
           )}
         </div>
 
         {/* Footer Actions */}
-        <div className="px-6 py-4 bg-muted/10 border-t border-border flex justify-end shrink-0">
+        <div className="px-8 py-5 bg-muted/10 border-t border-border flex items-center justify-between shrink-0">
+          <button 
+            onClick={handleExportMarkdown}
+            className="flex items-center gap-2 px-5 py-3 bg-secondary hover:bg-muted text-foreground font-black rounded-xl border border-border transition-all active:scale-[0.98] uppercase tracking-widest text-[10px]"
+          >
+            <Download size={16} /> Export Markdown
+          </button>
           <button 
             onClick={onClose}
-            className="px-6 py-2.5 bg-secondary hover:bg-muted text-foreground font-black rounded-xl border border-border transition-all active:scale-[0.98]"
+            className="px-8 py-3 bg-primary hover:bg-primary/90 text-primary-foreground font-black rounded-xl transition-all shadow-lg shadow-primary/20 active:scale-[0.98] uppercase tracking-widest text-xs"
           >
-            Close Details
+            Close
           </button>
         </div>
       </div>
@@ -189,3 +244,4 @@ const UserReviewDetails: React.FC<UserReviewDetailsProps> = ({ execution, onClos
 };
 
 export default UserReviewDetails;
+

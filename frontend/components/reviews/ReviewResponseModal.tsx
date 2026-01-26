@@ -1,6 +1,5 @@
-// @ts-nocheck
 import React, { useState } from 'react';
-import { X, Send, Loader2, MessageSquare } from 'lucide-react';
+import { X, Send, Loader2, MessageSquare, Sparkles, CheckCircle, AlertCircle, Lightbulb } from 'lucide-react';
 
 interface ReviewResponseModalProps {
   isOpen: boolean;
@@ -15,6 +14,27 @@ interface ReviewResponseModalProps {
     outputs: any;
   };
 }
+
+const QUICK_TEMPLATES = [
+  {
+    icon: <CheckCircle size={16} />,
+    label: 'Verified Correct',
+    text: 'I have reviewed this output and verified that it is correct as generated. The agent performed as expected for your use case.',
+    color: 'text-green-500 bg-green-500/10 border-green-500/20 hover:bg-green-500/20'
+  },
+  {
+    icon: <AlertCircle size={16} />,
+    label: 'Minor Fix Applied',
+    text: 'I found a minor issue and have applied a correction. Please see the refined output for the updated result.',
+    color: 'text-amber-500 bg-amber-500/10 border-amber-500/20 hover:bg-amber-500/20'
+  },
+  {
+    icon: <Lightbulb size={16} />,
+    label: 'Optimization Tip',
+    text: 'The output is accurate, but I noticed an opportunity for improvement. Consider the following suggestion for better results next time:',
+    color: 'text-blue-500 bg-blue-500/10 border-blue-500/20 hover:bg-blue-500/20'
+  },
+];
 
 const ReviewResponseModal: React.FC<ReviewResponseModalProps> = ({
   isOpen,
@@ -33,41 +53,25 @@ const ReviewResponseModal: React.FC<ReviewResponseModalProps> = ({
   const smartUnwrap = (data: any): string => {
     if (!data) return '';
     try {
-      // Case 1: Raw String Token Stream (JSON artifacts concatenated)
       if (typeof data === 'string' && /}\s*{/.test(data)) {
         const fixed = '[' + data.replace(/}\s*{/g, '},{') + ']';
         const parsed = JSON.parse(fixed);
-        return parsed
-          .filter((t: any) => t.type === 'token' && t.content)
-          .map((t: any) => t.content)
-          .join('');
+        return parsed.filter((t: any) => t.type === 'token' && t.content).map((t: any) => t.content).join('');
       }
-
-      // Case 2: Array of Token Objects
       if (Array.isArray(data)) {
-        return data
-          .filter((t: any) => t && t.type === 'token' && t.content)
-          .map((t: any) => t.content)
-          .join('');
+        return data.filter((t: any) => t && t.type === 'token' && t.content).map((t: any) => t.content).join('');
       }
-
-      // Case 3: Object with potential text keys
       if (typeof data === 'object') {
         const textSeed = data.response || data.result || data.text || data.content;
         if (textSeed) return typeof textSeed === 'string' ? textSeed : JSON.stringify(textSeed);
-        
-        // If it's a tool call or something else, stringify properly
         return JSON.stringify(data, null, 2);
       }
-
       return String(data);
     } catch (e) {
-      console.error("Smart unwrap failed:", e);
       return typeof data === 'string' ? data : JSON.stringify(data);
     }
   };
 
-  // Initialize refined output when modal opens
   React.useEffect(() => {
     if (isOpen && review) {
       const cleanText = smartUnwrap(review.outputs);
@@ -86,7 +90,6 @@ const ReviewResponseModal: React.FC<ReviewResponseModalProps> = ({
     setError(null);
     try {
       let refinedData = undefined;
-      // If we are in refine tab, we wrap the plain text into a JSON object for the backend
       if (activeTab === 'refine' || refinedOutputsStr.trim()) {
           refinedData = { response: refinedOutputsStr };
       }
@@ -98,6 +101,10 @@ const ReviewResponseModal: React.FC<ReviewResponseModalProps> = ({
     } finally {
       setIsSubmitting(false);
     }
+  };
+
+  const applyTemplate = (templateText: string) => {
+    setResponseNote(templateText);
   };
 
   return (
@@ -173,6 +180,26 @@ const ReviewResponseModal: React.FC<ReviewResponseModalProps> = ({
                               {smartUnwrap(review.outputs)}
                             </p>
                         </div>
+                    </div>
+                </div>
+
+                {/* Quick Templates */}
+                <div className="space-y-3">
+                    <label className="text-[10px] font-black text-muted-foreground uppercase tracking-widest flex items-center gap-2">
+                        <Sparkles size={12} className="text-primary" /> Quick Templates
+                    </label>
+                    <div className="flex flex-wrap gap-3">
+                        {QUICK_TEMPLATES.map((template, idx) => (
+                            <button
+                                key={idx}
+                                type="button"
+                                onClick={() => applyTemplate(template.text)}
+                                className={`flex items-center gap-2 px-4 py-2 rounded-xl border text-xs font-bold transition-all active:scale-95 ${template.color}`}
+                            >
+                                {template.icon}
+                                {template.label}
+                            </button>
+                        ))}
                     </div>
                 </div>
 
