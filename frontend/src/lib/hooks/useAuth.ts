@@ -53,13 +53,14 @@ export function useAuth() {
     async (data: SignupFormData): Promise<AuthActionResult> => {
       try {
         // Explicitly construct payload with only the fields backend expects
-        const signupPayload = {
+        const signupPayload: any = {
           email: data.email,
           username: data.username,
           password: data.password,
         };
 
-        const response = await api.auth.signup(signupPayload as any);
+        console.log('[DEBUG] Attempting signup with payload:', { ...signupPayload, password: '***' });
+        const response = await api.auth.signup(signupPayload);
         const payload = response.data;
         const frontendUser: any = {
           ...payload.user,
@@ -111,10 +112,14 @@ export function useAuth() {
   const fetchUserProfile = useCallback(async () => {
     try {
       const response = await api.auth.getCurrentUser();
-      const payload = response.data.data; // Response is wrapped in ApiResponse
+      const raw = (response.data as any) ?? {};
+      const payload = raw.data ?? raw; // handle both wrapped and unwrapped responses
+      if (!payload) {
+        throw new Error('Empty user profile payload');
+      }
       const frontendUser: any = {
         ...payload,
-        name: payload.full_name || payload.username || 'User',
+        name: payload.full_name || payload.username || payload.email || 'User',
         credits: payload.credits || 0,
         favoriteAgentIds: (payload as any).favoriteAgentIds || [],
       };

@@ -9,6 +9,9 @@ services:
     environment:
       - DATABASE_URL=postgresql://postgres:postgres@db:5432/agentgrid
       - OPENAI_API_KEY=${OPENAI_API_KEY}
+      - RELOAD=true
+    volumes:
+      - ./backend/agentgrid-backend:/code
     depends_on:
       - redis
       - db
@@ -17,12 +20,14 @@ services:
   frontend:
     build:
       context: ./frontend
-      dockerfile: Dockerfile
+      dockerfile: Dockerfile.dev
     ports:
       - "3000:3000"
-    command: npm run dev -- --host
     environment:
       - VITE_API_URL=http://localhost:8001/api/v1
+    volumes:
+      - ./frontend:/app
+      - /app/node_modules
     depends_on:
       - backend
 
@@ -42,7 +47,7 @@ services:
       - POSTGRES_PASSWORD=postgres
       - POSTGRES_DB=agentgrid
     ports:
-      - "5432:5432"
+      - "5435:5432"
 
 volumes:
   postgres_data:

@@ -6,7 +6,9 @@ from app.models.agent import Agent
 from app.models.user import User
 from app.models.enums import AgentStatus, AgentCategory
 from app.agents.examples import ECHO_AGENT_ID
-from app.agents.seo_agent import SEO_AGENT_ID
+from app.core.security import get_password_hash
+# from app.agents.seo_agent import SEO_AGENT_ID
+# from app.agents.seo_auditor_pro import SEO_AUDITOR_PRO_ID
 
 # Database URL
 DATABASE_URL = os.getenv("DATABASE_URL", "sqlite:///./agentgrid.db")
@@ -38,8 +40,11 @@ def seed_echo_agent():
     # (We call this once in main)
     db = SessionLocal()
     try:
+        print("DEBUG: Staring seed_echo_agent")
         # 1. Get a creator (or create one)
         creator = db.query(User).filter(User.email == "admin@agentgrid.ai").first()
+        print(f"DEBUG: Creator found: {creator}")
+        
         if not creator:
             print("Creating default admin user...")
             from app.core.security import get_password_hash
@@ -49,19 +54,26 @@ def seed_echo_agent():
                 email="admin@agentgrid.ai",
                 username="admin",
                 full_name="Axeecom",
-                hashed_password=get_password_hash("admin123"),
+                hashed_password=get_password_hash("Monday!00"),
                 role=UserRole.ADMIN.value if hasattr(UserRole.ADMIN, 'value') else UserRole.ADMIN,
                 credits=100
             )
             db.add(creator)
             db.commit()
             db.refresh(creator)
+            print("DEBUG: Creator created")
         else:
              # Force update name if changed
              if creator.full_name != "Axeecom":
                  print(f"Updating Admin Name from {creator.full_name} to Axeecom")
                  creator.full_name = "Axeecom"
-                 db.commit()
+            
+             # Update password - Always update to ensure consistency
+             print("DEBUG: Updating password for existing creator")
+             from app.core.security import get_password_hash
+             creator.hashed_password = get_password_hash("Monday!00")
+             db.commit()
+             print("DEBUG: Password updated")
 
         # 2. Check if agent exists
         existing_agent = db.query(Agent).filter(Agent.id == uuid.UUID(ECHO_AGENT_ID)).first()
@@ -74,6 +86,7 @@ def seed_echo_agent():
             return
 
         # 3. Create Agent
+        print("DEBUG: Creating Echo Agent")
         echo_agent = Agent(
             id=uuid.UUID(ECHO_AGENT_ID),
             name="Echo Agent",
@@ -107,11 +120,13 @@ def seed_echo_agent():
 
     except Exception as e:
         print(f"Error seeding agent: {e}")
+        import traceback
+        traceback.print_exc()
         db.rollback()
     finally:
         db.close()
 
-from app.agents.seo_agent import SEO_AGENT_ID
+# from app.agents.seo_agent import SEO_AGENT_ID
 
 # ... (existing imports)
 
@@ -697,15 +712,72 @@ def seed_data_cleanser_agent():
         db.rollback()
     finally: db.close()
 
+
+SEO_AUDITOR_PRO_DESCRIPTION = "Crawls up to N pages on the same domain and reports common SEO issues (titles, meta descriptions, headings, alt text, speed hints)."
+
+def seed_seo_auditor_pro():
+    db = SessionLocal()
+    try:
+        creator = db.query(User).filter(User.email == "admin@agentgrid.ai").first() or db.query(User).first()
+        if not creator:
+            print("No users found. Please seed an admin/user first.")
+            return
+
+        existing = db.query(Agent).filter(Agent.id == uuid.UUID(SEO_AUDITOR_PRO_ID)).first()
+        config = {
+            "model": "gpt-4o-mini",
+            "temperature": 0.2,
+            "timeout_seconds": 180,
+            "required_inputs": [
+                {
+                    "name": "url",
+                    "type": "string",
+                    "description": "Starting URL to audit (include https://)",
+                    "required": True,
+                },
+                {
+                    "name": "max_pages",
+                    "type": "number",
+                    "description": "Maximum pages to crawl (default 12)",
+                    "required": False,
+                },
+            ],
+        }
+
+        if existing:
+            existing.config = config
+            existing.creator_id = creator.id
+            existing.price_per_run = 6.0
+            existing.status = AgentStatus.ACTIVE
+            db.commit()
+            print(f"Updated SEO Auditor Pro agent {SEO_AUDITOR_PRO_ID}")
+            return
+
+        agent = Agent(
+            id=uuid.UUID(SEO_AUDITOR_PRO_ID),
+            name="SEO Auditor Pro",
+            description="Lightweight crawler that audits on-page SEO, link health, and performance hints.",
+            long_description=SEO_AUDITOR_PRO_DESCRIPTION,
+            category=AgentCategory.ANALYSIS.value,
+            tags=["seo", "audit", "performance"],
+            price_per_run=6.0,
+            status=AgentStatus.ACTIVE,
+            config=config,
+            capabilities=["SEO audit", "Site crawl", "Performance hints"],
+            limitations=["Requires publicly accessible URLs", "Lightweight parser (no JS rendering)"],
+            demo_available=True,
+            creator_id=creator.id,
+            version="1.0.0",
+        )
+        db.add(agent)
+        db.commit()
+        print(f"Seeded SEO Auditor Pro agent: {SEO_AUDITOR_PRO_ID}")
+    except Exception as e:
+        print(f"Error seeding SEO Auditor Pro: {e}")
+        db.rollback()
+    finally:
+        db.close()
 if __name__ == "__main__":
     wait_for_db()
     seed_echo_agent()
-    # seed_seo_agent()
-    seed_youtube_agent()
-    seed_cold_email_agent()
-    seed_swot_agent()
-    seed_regex_agent()
-    seed_brand_agent()
-    seed_meeting_agent()
-    seed_sql_agent()
-    seed_data_cleanser_agent()
+

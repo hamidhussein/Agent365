@@ -10,6 +10,7 @@ import type {
   PaginatedResponse,
   Review,
   User,
+  ExpertAnalytics,
 } from '@/lib/types';
 import type { LoginFormData, SignupFormData } from '@/lib/schemas/auth.schema';
 
@@ -73,10 +74,18 @@ axiosInstance.interceptors.response.use(
 
     const apiError: ApiError = {
       // FastAPI returns 'detail', custom errors might return 'message'
-      message: error.response?.data?.message ?? error.response?.data?.detail ?? error.message,
+      message: error.response?.data?.message ?? (error.response?.data as any)?.detail ?? error.message,
       code: error.response?.data?.code ?? 'UNKNOWN_ERROR',
       details: error.response?.data?.details,
     };
+
+    if (error.response?.status !== 401) {
+      console.error('[API Error Detail]:', {
+        status: error.response?.status,
+        data: error.response?.data,
+        error: apiError
+      });
+    }
 
     return Promise.reject(apiError);
   }
@@ -100,7 +109,7 @@ export const api = {
   },
 
   agents: {
-    list: (params?: AgentFilters) => {
+    list: (params?: AgentFilters & { favorited_by?: string }) => {
       // Clean undefined params
       const cleanParams: Record<string, any> = {};
       if (params) {
@@ -135,6 +144,24 @@ export const api = {
     get: (id: string) =>
       axiosInstance.get<ApiResponse<AgentExecution>>(`/executions/${id}`),
     cancel: (id: string) => axiosInstance.post(`/executions/${id}/cancel`),
+    requestReview: (executionId: string, note: string, priority?: 'standard' | 'high') =>
+      axiosInstance.post<AgentExecution>(`/executions/${executionId}/review`, {
+        note,
+        priority,
+      }),
+    getPendingReviews: () =>
+      axiosInstance.get<PaginatedResponse<AgentExecution>>('/executions/reviews/pending'),
+    getCreatorReviews: (status?: string) =>
+      axiosInstance.get<PaginatedResponse<AgentExecution>>('/executions/reviews', { params: { status } }),
+    getAnalytics: () =>
+      axiosInstance.get<ExpertAnalytics>('/executions/reviews/analytics'),
+    respondToReview: (executionId: string, responseNote: string, refinedOutputs?: Record<string, any>, qualityScore?: number, internalNotes?: string) =>
+      axiosInstance.post<AgentExecution>(`/executions/${executionId}/respond`, {
+        response_note: responseNote,
+        refined_outputs: refinedOutputs,
+        quality_score: qualityScore,
+        internal_notes: internalNotes,
+      }),
   },
   reviews: {
     listByAgent: (agentId: string) =>
@@ -171,6 +198,10 @@ export const api = {
   users: {
     toggleFavorite: (agentId: string) =>
       axiosInstance.post<ApiResponse<User>>(`/users/me/favorites/${agentId}`),
+    updateProfile: (data: { full_name: string }) =>
+      axiosInstance.patch<User>('/users/me', data),
+    updatePassword: (data: { old_password: string, new_password: string }) =>
+      axiosInstance.post<{ message: string }>('/users/me/password', data),
   },
 };
 

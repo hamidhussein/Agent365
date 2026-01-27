@@ -30,15 +30,21 @@ def test_endpoint():
 @router.post("/register", response_model=AuthResponse, status_code=status.HTTP_201_CREATED)
 def register(user_in: UserCreate, db: Session = Depends(get_db)):
     try:
-        print(f"[DEBUG] Registering user: {user_in.email}")
+        print(f"[DEBUG] Registration request received for email: {user_in.email}, username: {user_in.username}")
         user = register_user(db, user_in)
-        print(f"[DEBUG] User registered successfully: {user.id}")
+        print(f"[DEBUG] User {user.id} registered successfully with role: {user.role}")
         return _build_auth_response(user)
+    except HTTPException:
+        # Re-raise HTTPExceptions as-is (e.g. 400 User already exists)
+        raise
     except Exception as e:
-        print(f"[ERROR] Registration failed: {e}")
+        print(f"[ERROR] Registration failed with unexpected error: {type(e).__name__}: {e}")
         import traceback
         traceback.print_exc()
-        raise
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Registration failed: {str(e)}"
+        )
 
 
 @router.post("/login", response_model=AuthResponse)

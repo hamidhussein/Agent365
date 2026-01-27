@@ -7,4 +7,5 @@ __all__ = [
     "mixins",
     "review",
     "associations",
+    "creator_studio",
 ]

@@ -2,158 +2,116 @@
 
 This guide provides step-by-step instructions to set up and run the AgentGrid platform locally.
 
-## Prerequisites
+## ✨ New Features
+### Advanced Creator Studio
+- **Agent Architect**: Conversational builder that helps you create agents using natural language.
+- **Live Preview**: Real-time side-by-side chat to test your agent before saving.
+- **Enhanced Skills**: Dynamic integration of Web Search and Code Execution.
 
-Ensure you have the following installed on your machine:
+---
+
+## 🚀 Quick Start (Windows)
+
+> [!IMPORTANT]
+> **New Collaborators**: Please read the [**Full Setup Guide**](GETTING_STARTED.md) and the [Collaborator Guide](COLLABORATOR_GUIDE.md) before starting!
+
+1.  **Pull Changes**:
+    ```powershell
+    git checkout feature/hamid-agentgrid-updates
+    ```
+2.  **Start Database**: Ensure Docker Desktop is running.
+    ```powershell
+    docker compose up -d db
+    ```
+2.  **Run Services**: Open PowerShell in the project root and run:
+    ```powershell
+    .\run-app.ps1
+    ```
+    This will open two terminal windows: one for the backend (port 8000) and one for the frontend (port 3000).
+
+---
+
+## 🛠 Manual Setup
+
+### 1. Prerequisites
 - **Python 3.10+**
 - **Node.js 18+** & **npm**
-- **Git**
-- **SQLite** (included with Python, but a viewer like DB Browser for SQLite is recommended)
+- **Docker** (for PostgreSQL)
+- **PostgreSQL 15+** (if not using Docker)
 
-## 1. Clone the Repository
+### 2. Backend Setup
+The backend is located in `backend/agentgrid-backend`.
 
-```bash
-git clone <repository-url>
-cd AgentGrid
-```
-
-## 2. Backend Setup
-
-The backend is built with FastAPI and uses SQLite as the database.
-
-### Navigate to the backend directory
-```bash
+```powershell
 cd backend/agentgrid-backend
-```
-
-### Create and Activate Virtual Environment
-```bash
-# Windows
 python -m venv venv
-.\venv\Scripts\activate
-
-# macOS/Linux
-python3 -m venv venv
-source venv/bin/activate
-```
-
-### Install Dependencies
-```bash
+.\venv\Scripts\activate  # Windows
 pip install -r requirements.txt
-# Install additional dependencies for SEO Agent
-pip install pandas beautifulsoup4 lxml reportlab langchain_openai
 ```
 
-### Environment Configuration
-Create a `.env` file in `backend/agentgrid-backend` with the following content:
+#### Environment Config (`backend/agentgrid-backend/.env`)
 ```ini
-DATABASE_URL=sqlite:///./agentgrid.db
+DATABASE_URL=postgresql://postgres:postgres@localhost:5432/agentgrid
 SECRET_KEY=your_secret_key_here
 ALGORITHM=HS256
-ACCESS_TOKEN_EXPIRE_MINUTES=30
 OPENAI_API_KEY=your_openai_api_key_here
 ```
 
-### Database Setup
-Initialize the database and apply migrations:
-```bash
-# Apply migrations
+#### Database Initialization
+```powershell
+# Start the Postgres container (if using Docker)
+docker compose up -d db
+
+# Run Alembic migrations to set up the schema
 alembic upgrade head
 
-# Seed initial data (Users and Agents)
+# Seed initial agents
 python seed_agents.py
 ```
 
-### Run the Backend Server
-```bash
-python -m uvicorn app.main:app --reload --port 8001
+#### Start Backend
+From the **project root**:
+```powershell
+$env:PYTHONPATH="backend/agentgrid-backend"; $env:DATABASE_URL="postgresql://postgres:postgres@localhost:5432/agentgrid"; .\backend\agentgrid-backend\venv\Scripts\python.exe -m uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
 ```
-The API will be available at `http://localhost:8001`.
-API Documentation: `http://localhost:8001/docs`
 
-## 3. Frontend Setup
+### 3. Frontend Setup
+The frontend is located in `frontend`.
 
-The frontend is built with React, Vite, and Tailwind CSS.
-
-### Navigate to the frontend directory
-Open a new terminal window and run:
-```bash
+```powershell
 cd frontend
-```
-
-### Install Dependencies
-```bash
 npm install
 ```
 
-### Environment Configuration
-Create a `.env` file in `frontend` (optional, defaults are usually fine for local dev):
+#### Environment Config (`frontend/.env`)
 ```ini
-VITE_API_URL=http://localhost:8001/api/v1
+VITE_API_URL=http://localhost:8000/api/v1
 ```
 
-### Run the Frontend Server
-```bash
+#### Start Frontend
+```powershell
 npm run dev
 ```
-The application will be available at `http://localhost:3000` (or the port shown in the terminal).
 
-## 4. Verification
+---
 
-1.  Open `http://localhost:3000` in your browser.
-2.  **Login** with the seeded test user:
-    *   **Email:** `testclient_user@example.com`
-    *   **Password:** `Password123!`
-3.  Navigate to the **Marketplace**.
-4.  You should see the **Echo Agent** and **SEO Audit Agent**.
-5.  Click on **SEO Audit Agent** and try running it with a valid URL and OpenAI API Key.
+## 🔑 Default Credentials
 
-## Troubleshooting
+| Role | Email | Password |
+| :--- | :--- | :--- |
+| **Admin** | `admin@agentgrid.ai` | `admin123` |
+| **Test User** | `testclient_user@example.com` | `Password123!` |
 
-*   **Backend 500 Errors:** Check the terminal running `uvicorn` for tracebacks.
-*   **Database Issues:** If you encounter DB errors, try deleting `agentgrid.db` and re-running `alembic upgrade head` and `seed_agents.py`.
-*   **Frontend Connection Refused:** Ensure the backend is running on port 8001. Check `VITE_API_URL` in `.env`.
+---
 
-## 5. How to Add New Agents
+## 🔍 Verification
 
-To add a new agent to the platform (like the SEO Audit Agent), follow these steps:
+1.  **Frontend**: [http://localhost:3000](http://localhost:3000)
+2.  **Backend API Docs**: [http://localhost:8000/docs](http://localhost:8000/docs)
+3.  **Creator Studio**: Go to the "Creator Studio" tab to try the new **Agent Architect**.
 
-### Step 1: Create the Agent File
-Create a new Python file in `backend/agentgrid-backend/app/agents/` (e.g., `my_new_agent.py`).
-Implement your agent class inheriting from `BaseAgent` and decorate it with `@register_agent`.
+## 📌 Troubleshooting
 
-```python
-from app.agents.base import BaseAgent, AgentInput, AgentOutput
-from app.agents.registry import register_agent
-import uuid
-
-MY_AGENT_ID = "your-uuid-here"
-
-@register_agent(MY_AGENT_ID)
-class MyNewAgent(BaseAgent):
-    # Implement name, description, inputs, outputs, and run() method
-    ...
-```
-
-### Step 2: Register the Agent
-Open `backend/agentgrid-backend/app/agents/__init__.py` and import your new agent class. This ensures it gets registered when the app starts.
-
-```python
-from app.agents.my_new_agent import MyNewAgent
-```
-
-### Step 3: Seed the Agent
-Open `backend/agentgrid-backend/seed_agents.py`.
-1.  Import your agent ID.
-2.  Create a `seed_my_agent()` function that checks if the agent exists and adds it to the DB if not.
-3.  Call this function in the `if __name__ == "__main__":` block.
-
-### Step 4: Install Dependencies
-If your agent requires new Python packages:
-1.  Install them: `pip install <package_name>`
-2.  Add them to `requirements.txt`: `pip freeze > requirements.txt`
-
-### Step 5: Verify
-1.  Restart the backend server.
-2.  Run the seed script: `python seed_agents.py`
-3.  Check the Marketplace in the frontend to see your new agent!
+- **Database Connection**: If the backend fails to start, ensure Docker is running and the `db` container is up (`docker ps`).
+- **Migrations**: If you see `no such table` errors, run `alembic upgrade head`.
+- **Unique Constraint Errors**: If you encounter errors during your first run, ensure your `agentgrid` database in Postgres is empty before running migrations.

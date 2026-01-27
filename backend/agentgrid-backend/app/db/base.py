@@ -18,4 +18,4 @@ engine = create_engine(
 
 
 # Import models so Alembic can discover metadata
-from app.models import agent, execution, review, transaction, user, associations  # noqa: F401
+from app.models import agent, execution, review, transaction, user, associations, creator_studio  # noqa: F401

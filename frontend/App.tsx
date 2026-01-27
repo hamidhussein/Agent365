@@ -8,13 +8,15 @@ import { lazyWithRetry, sanitizeInput } from '@/lib/utils';
 import PageLoadingOverlay from './components/common/LoadingSpinner';
 import { LoadingSpinner as SharedLoadingSpinner } from '@/components/shared/LoadingSpinner';
 import { SkipToContent } from '@/components/shared/SkipToContent';
-import { mockAgents } from './constants';
 import axiosInstance from '@/lib/api/client';
+import { ToastProvider } from '@/contexts/ToastContext';
+import { ThemeProvider } from '@/contexts/ThemeContext';
 
 const HomePage = lazyWithRetry(() => import('./components/pages/HomePage'));
 const AgentsPage = lazyWithRetry(() => import('./components/pages/AgentsPage'));
 const AgentDetailPage = lazyWithRetry(() => import('./components/pages/AgentDetailPage'));
 const CreatorDashboardPage = lazyWithRetry(() => import('./components/pages/CreatorDashboardPage'));
+const CreatorStudioPage = lazyWithRetry(() => import('./components/pages/CreatorStudioPage'));
 const CreateAgentPage = lazyWithRetry(() => import('./components/pages/CreateAgentPage'));
 const RunAgentPage = lazyWithRetry(() => import('./components/pages/RunAgentPage'));
 const CreatorProfilePage = lazyWithRetry(() => import('./components/pages/CreatorProfilePage'));
@@ -30,6 +32,7 @@ export type Page =
   'marketplace' |
   'agentDetail' |
   'creatorDashboard' |
+  'creatorStudio' |
   'createAgent' |
   'runAgent' |
   'creatorProfile' |
@@ -38,9 +41,10 @@ export type Page =
   'search' |
   'login' |
   'signup' |
+  'adminSettings' |
   'notFound';
 
-export type DashboardPage = 'overview' | 'runs' | 'favorites' | 'transactions' | 'settings';
+export type DashboardPage = 'overview' | 'runs' | 'favorites' | 'transactions' | 'settings' | 'reviews';
 
 import { mapBackendAgent, BackendAgent } from '@/lib/utils/agentMapper';
 
@@ -53,8 +57,8 @@ interface AgentsListResponse {
 }
 
 const fetchAgents = async (): Promise<AgentsListResponse> => {
-  const response = await axiosInstance.get<AgentsListResponse>('/agents', {
-    params: { limit: 50 },
+  const response = await axiosInstance.get<AgentsListResponse>('/agents/', {
+    params: { limit: 50, include_creator_studio_public: true },
   });
   return response.data;
 };
@@ -63,6 +67,8 @@ const fetchAgents = async (): Promise<AgentsListResponse> => {
 
 import { useAuth } from '@/lib/hooks/useAuth';
 import { useAuthStore } from '@/lib/store';
+import { useWebSocketConnection, useWebSocketEvent } from '@/lib/websocket/hooks';
+import { useExecutionStore } from '@/lib/store';
 
 // ... imports
 
@@ -81,6 +87,26 @@ const App: React.FC = () => {
     queryFn: fetchAgents,
     staleTime: 60 * 1000,
     retry: 1,
+  });
+  
+  // Initialize WebSocket connection
+  useWebSocketConnection();
+  
+  // Listen for real-time review updates
+  useWebSocketEvent('review_completed', (message) => {
+    console.log('[WebSocket] Review completed:', message);
+    // Update execution store if needed
+    const { execution_id, review_response_note, has_refined_outputs } = message.data;
+    useExecutionStore.getState().updateExecution(execution_id, {
+      review_status: 'completed',
+      review_response_note,
+      refined_outputs: has_refined_outputs ? message.data.refined_outputs : undefined
+    });
+  });
+
+  useWebSocketEvent('review_requested', (message) => {
+    console.log('[WebSocket] New review requested:', message);
+    // Could trigger a notification or update UI here
   });
 
   const fetchedAgents = useMemo(
@@ -110,13 +136,15 @@ const App: React.FC = () => {
 
   // Protected routes - redirect to login if not authenticated
   useEffect(() => {
-    const protectedPages: Page[] = ['dashboard', 'creatorDashboard', 'createAgent'];
+    const protectedPages: Page[] = ['dashboard', 'creatorDashboard', 'createAgent', 'creatorStudio'];
     if (!isAuthenticated && protectedPages.includes(currentPage)) {
       setCurrentPage('login');
     }
   }, [isAuthenticated, currentPage]);
 
   useEffect(() => {
+    if (isAgentsLoading) return;
+
     const agentExists = selectedAgentId
       ? agents.some((a) => a.id === selectedAgentId)
       : true;
@@ -129,7 +157,7 @@ const App: React.FC = () => {
       (currentPage === 'creatorProfile' && selectedCreatorUsername && !creatorExists)) {
       navigateTo('notFound');
     }
-  }, [currentPage, selectedAgentId, selectedCreatorUsername, agents]);
+  }, [currentPage, selectedAgentId, selectedCreatorUsername, agents, isAgentsLoading]);
 
 
   const handleSelectAgent = (agentId: string) => {
@@ -138,6 +166,15 @@ const App: React.FC = () => {
   };
 
   const handleRunAgent = (agentId: string) => {
+    const targetAgent = agents.find((a) => a.id === agentId);
+    const isCreatorStudio = targetAgent?.source === 'creator_studio';
+    const isOwner = isCreatorStudio && user?.id && targetAgent?.creator?.id === user.id;
+
+    if (isCreatorStudio && isOwner) {
+      navigateTo('creatorStudio');
+      return;
+    }
+
     setSelectedAgentId(agentId);
     navigateTo('runAgent', undefined, agentId);
   };
@@ -154,6 +191,7 @@ const App: React.FC = () => {
       case 'marketplace': return '/agents';
       case 'agentDetail': return agentId ? `/agents/${agentId}` : '/agents';
       case 'creatorDashboard': return '/creator/dashboard';
+      case 'creatorStudio': return '/studio';
       case 'createAgent': return '/creator/new';
       case 'runAgent': return agentId ? `/agents/${agentId}/run` : '/agents';
       case 'creatorProfile': return username ? `/creator/${username}` : '/agents';
@@ -162,6 +200,7 @@ const App: React.FC = () => {
       case 'search': return '/search';
       case 'login': return '/login';
       case 'signup': return '/signup';
+      case 'adminSettings': return '/admin-settings';
       case 'notFound': return '/404';
       default: return '/';
     }
@@ -180,6 +219,7 @@ const App: React.FC = () => {
       return { page: 'agentDetail', agentId: parts[2] };
     }
     if (path === '/creator/dashboard') return { page: 'creatorDashboard' };
+    if (path === '/studio') return { page: 'creatorStudio' };
     if (path === '/creator/new') return { page: 'createAgent' };
     if (path.startsWith('/creator/')) {
       const parts = path.split('/');
@@ -194,6 +234,7 @@ const App: React.FC = () => {
     if (path === '/search') return { page: 'search' };
     if (path === '/login') return { page: 'login' };
     if (path === '/signup') return { page: 'signup' };
+    if (path === '/admin-settings') return { page: 'adminSettings' };
     return { page: 'notFound' };
   };
 
@@ -313,13 +354,17 @@ const App: React.FC = () => {
       case 'marketplace':
         return <AgentsPage agents={agents} {...sharedAgentProps} />;
       case 'agentDetail':
-        return agent ? <AgentDetailPage agent={agent} onRunAgent={handleRunAgent} onSelectCreator={handleSelectCreator} isFavorited={user?.favoriteAgentIds?.includes(agent.id) || false} onToggleFavorite={toggleFavorite} /> : null;
+        return agent ? <AgentDetailPage agent={agent} onRunAgent={handleRunAgent} onSelectCreator={handleSelectCreator} onSelectAgent={handleSelectAgent} isFavorited={user?.favoriteAgentIds?.includes(agent.id) || false} onToggleFavorite={toggleFavorite} /> : null;
       case 'creatorDashboard':
         return <CreatorDashboardPage setCurrentPage={navigateTo} onSelectAgent={handleSelectAgent} />;
+      case 'creatorStudio':
+        return <CreatorStudioPage />;
+      case 'adminSettings':
+        return <CreatorStudioPage initialView="admin-dashboard" />;
       case 'createAgent':
         return <CreateAgentPage setCurrentPage={navigateTo} />;
       case 'runAgent':
-        return agent ? <RunAgentPage agent={agent} onBackToDetail={handleBackToDetail} /> : null;
+        return agent ? <RunAgentPage agent={agent} onBackToDetail={handleBackToDetail} onSelectAgent={handleSelectAgent} /> : null;
       case 'creatorProfile':
         return (creator && creatorAgents.length > 0) ? <CreatorProfilePage creator={creator} agents={creatorAgents} onSelectAgent={handleSelectAgent} favoriteAgentIds={new Set(user?.favoriteAgentIds || [])} onToggleFavorite={toggleFavorite} /> : null;
       case 'pricing':
@@ -333,6 +378,7 @@ const App: React.FC = () => {
           onSelectAgent={handleSelectAgent}
           onToggleFavorite={toggleFavorite}
           agents={agents}
+          onAddCredits={() => navigateTo('pricing')}
         />;
       case 'search':
         return (
@@ -353,29 +399,34 @@ const App: React.FC = () => {
     }
   };
 
+
   return (
-    <div className="min-h-screen bg-gray-900 font-sans flex flex-col relative">
-      {(isLoading || isAgentsLoading) && <PageLoadingOverlay />}
-      <SkipToContent />
-      <Header
-        setCurrentPage={navigateTo}
-        currentPage={currentPage}
-        creditBalance={user?.credits || 0}
-        onSearch={handleSearch}
-      />
-      <main id="main-content" className="flex-grow">
-        <Suspense
-          fallback={
-            <div className="flex justify-center py-16">
-              <SharedLoadingSpinner size="lg" />
-            </div>
-          }
-        >
-          {renderPage()}
-        </Suspense>
-      </main>
-      <Footer />
-    </div>
+    <ToastProvider>
+      <ThemeProvider defaultTheme="system" storageKey="vite-ui-theme">
+        <div className="min-h-screen flex flex-col relative bg-background font-sans text-foreground">
+          {(isLoading || isAgentsLoading) && <PageLoadingOverlay />}
+          <SkipToContent />
+          <Header
+            setCurrentPage={navigateTo}
+            currentPage={currentPage}
+            creditBalance={user?.credits || 0}
+            onSearch={handleSearch}
+          />
+          <main id="main-content" className="flex-grow">
+            <Suspense
+              fallback={
+                <div className="flex justify-center py-16">
+                  <SharedLoadingSpinner size="lg" />
+                </div>
+              }
+            >
+              {renderPage()}
+            </Suspense>
+          </main>
+          <Footer />
+        </div>
+      </ThemeProvider>
+    </ToastProvider>
   );
 };
 

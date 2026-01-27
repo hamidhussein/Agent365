@@ -8,6 +8,7 @@ from app.models.enums import AgentCategory, AgentStatus
 if TYPE_CHECKING:
     from app.schemas.user import UserRead
 from app.schemas.user import UserRead
+from app.schemas.creator_studio import AgentActionResponse
 
 
 class AgentConfig(BaseModel):
@@ -30,6 +31,8 @@ class AgentBase(BaseModel):
     capabilities: List[str] = Field(default_factory=list)
     limitations: Optional[List[str]] = None
     demo_available: bool = False
+    allow_reviews: bool = False
+    review_cost: int = Field(default=5, ge=0)
 
     @field_validator("tags", mode="after")
     @classmethod
@@ -63,6 +66,8 @@ class AgentUpdate(BaseModel):
     demo_available: Optional[bool] = None
     status: Optional[AgentStatus] = None
     thumbnail_url: Optional[str] = Field(None, max_length=512)
+    allow_reviews: Optional[bool] = None
+    review_cost: Optional[int] = Field(None, ge=0)
 
     @field_validator("tags", mode="after")
     @classmethod
@@ -78,6 +83,7 @@ class AgentUpdate(BaseModel):
 
 
 class AgentResponse(AgentBase):
+    config: dict
     id: UUID
     creator_id: UUID
     version: str
@@ -85,10 +91,15 @@ class AgentResponse(AgentBase):
     total_runs: int
     total_reviews: int
     status: AgentStatus
+    is_public: bool
+    source: str
+    allow_reviews: bool = False
+    review_cost: int = 5
     thumbnail_url: Optional[str]
     creator: Optional[UserRead] = None
     created_at: datetime
     updated_at: datetime
+    creator_studio_actions: List[AgentActionResponse] = Field(default_factory=list)
 
     model_config = ConfigDict(from_attributes=True)
 

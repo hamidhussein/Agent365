@@ -36,7 +36,9 @@ class User(TimestampMixin, Base):
 
     agents: Mapped[List["Agent"]] = relationship(back_populates="creator", cascade="all, delete")
     executions: Mapped[List["AgentExecution"]] = relationship(
-        back_populates="user", cascade="all, delete"
+        back_populates="user",
+        cascade="all, delete",
+        foreign_keys="AgentExecution.user_id",
     )
     transactions: Mapped[List["CreditTransaction"]] = relationship(
         back_populates="user", cascade="all, delete"

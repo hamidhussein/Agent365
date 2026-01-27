@@ -13,6 +13,7 @@ from app.services.execution import ExecutionService
 from app.schemas.execution import AgentExecutionRead
 from typing import Dict, Any
 
+
 router = APIRouter(tags=["agents"])
 
 
@@ -36,6 +37,9 @@ def list_agents(
     tags: Optional[List[str]] = Query(None),
     sort_by: str = Query("newest", pattern="^(popular|rating|newest|price_low|price_high)$"),
     creator_id: Optional[str] = None,
+    source: str = Query("manual", pattern="^(manual|creator_studio|all)$"),
+    include_creator_studio_public: bool = Query(False),
+    favorited_by: Optional[str] = Query(None),
     db: Session = Depends(get_db),
     current_user: Optional[User] = Depends(get_current_user_optional),
 ):
@@ -55,6 +59,9 @@ def list_agents(
         tags=tags,
         sort_by=sort_by,
         creator_id=creator_id,
+        source=source,
+        include_creator_studio_public=include_creator_studio_public,
+        favorited_by=favorited_by,
     )
 
     return {
@@ -67,8 +74,8 @@ def list_agents(
 
 
 @router.get("/{agent_id}", response_model=AgentResponse)
-def get_agent(agent_id: str, db: Session = Depends(get_db)):
-    agent = AgentService.get_agent(db, agent_id)
+def get_agent(agent_id: str, include_creator_studio_public: bool = Query(False), db: Session = Depends(get_db)):
+    agent = AgentService.get_agent(db, agent_id, include_creator_studio_public=include_creator_studio_public)
     if not agent:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Agent not found")
     return agent
@@ -84,6 +91,12 @@ def update_agent(
     return AgentService.update_agent(db, agent_id, agent_data, current_user)
 
 
+@router.delete("/{agent_id}", status_code=status.HTTP_204_NO_CONTENT)
+def delete_agent(
+    agent_id: str,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_creator),
+):
     AgentService.delete_agent(db, agent_id, current_user)
     return None
 
@@ -104,3 +117,5 @@ def execute_agent(
         execution_inputs = inputs
 
     return ExecutionService.execute_agent(db, agent_id, execution_inputs, current_user)
+
+

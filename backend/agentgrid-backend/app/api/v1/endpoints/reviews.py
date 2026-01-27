@@ -8,6 +8,7 @@ from app.core import deps
 from app.core.deps import get_db
 from app.models.review import Review
 from app.models.user import User
+from app.models.enums import UserRole
 from app.schemas import review as review_schemas
 
 router = APIRouter()
@@ -88,7 +89,7 @@ def update_review(
     review = db.query(Review).filter(Review.id == id).first()
     if not review:
         raise HTTPException(status_code=404, detail="Review not found")
-    if review.user_id != current_user.id and not current_user.is_superuser:
+    if review.user_id != current_user.id and current_user.role != UserRole.ADMIN:
         raise HTTPException(status_code=400, detail="Not enough permissions")
     
     update_data = review_in.model_dump(exclude_unset=True)
@@ -113,7 +114,7 @@ def delete_review(
     review = db.query(Review).filter(Review.id == id).first()
     if not review:
         raise HTTPException(status_code=404, detail="Review not found")
-    if review.user_id != current_user.id and not current_user.is_superuser:
+    if review.user_id != current_user.id and current_user.role != UserRole.ADMIN:
         raise HTTPException(status_code=400, detail="Not enough permissions")
         
     db.delete(review)
