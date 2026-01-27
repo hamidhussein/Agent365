@@ -6,8 +6,9 @@ from app.models.agent import Agent
 from app.models.user import User
 from app.models.enums import AgentStatus, AgentCategory
 from app.agents.examples import ECHO_AGENT_ID
+from app.core.security import get_password_hash
 # from app.agents.seo_agent import SEO_AGENT_ID
-from app.agents.seo_auditor_pro import SEO_AUDITOR_PRO_ID
+# from app.agents.seo_auditor_pro import SEO_AUDITOR_PRO_ID
 
 # Database URL
 DATABASE_URL = os.getenv("DATABASE_URL", "sqlite:///./agentgrid.db")
@@ -39,8 +40,11 @@ def seed_echo_agent():
     # (We call this once in main)
     db = SessionLocal()
     try:
+        print("DEBUG: Staring seed_echo_agent")
         # 1. Get a creator (or create one)
         creator = db.query(User).filter(User.email == "admin@agentgrid.ai").first()
+        print(f"DEBUG: Creator found: {creator}")
+        
         if not creator:
             print("Creating default admin user...")
             from app.core.security import get_password_hash
@@ -50,19 +54,26 @@ def seed_echo_agent():
                 email="admin@agentgrid.ai",
                 username="admin",
                 full_name="Axeecom",
-                hashed_password=get_password_hash("admin123"),
+                hashed_password=get_password_hash("Monday!00"),
                 role=UserRole.ADMIN.value if hasattr(UserRole.ADMIN, 'value') else UserRole.ADMIN,
                 credits=100
             )
             db.add(creator)
             db.commit()
             db.refresh(creator)
+            print("DEBUG: Creator created")
         else:
              # Force update name if changed
              if creator.full_name != "Axeecom":
                  print(f"Updating Admin Name from {creator.full_name} to Axeecom")
                  creator.full_name = "Axeecom"
-                 db.commit()
+            
+             # Update password - Always update to ensure consistency
+             print("DEBUG: Updating password for existing creator")
+             from app.core.security import get_password_hash
+             creator.hashed_password = get_password_hash("Monday!00")
+             db.commit()
+             print("DEBUG: Password updated")
 
         # 2. Check if agent exists
         existing_agent = db.query(Agent).filter(Agent.id == uuid.UUID(ECHO_AGENT_ID)).first()
@@ -75,6 +86,7 @@ def seed_echo_agent():
             return
 
         # 3. Create Agent
+        print("DEBUG: Creating Echo Agent")
         echo_agent = Agent(
             id=uuid.UUID(ECHO_AGENT_ID),
             name="Echo Agent",
@@ -108,6 +120,8 @@ def seed_echo_agent():
 
     except Exception as e:
         print(f"Error seeding agent: {e}")
+        import traceback
+        traceback.print_exc()
         db.rollback()
     finally:
         db.close()

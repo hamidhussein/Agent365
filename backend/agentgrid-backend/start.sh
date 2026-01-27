@@ -16,7 +16,12 @@ alembic upgrade head
 python seed_agents.py
 
 # Upgrade SEO Agent inputs (remove API key)
-python upgrade_seo_agent.py
+# python upgrade_seo_agent.py
 
 # Start the server
-uvicorn app.main:app --host 0.0.0.0 --port ${PORT:-8001} --proxy-headers --forwarded-allow-ips '*'
+if [ "$RELOAD" = "true" ]; then
+    echo "Starting with reload..."
+    uvicorn app.main:app --host 0.0.0.0 --port ${PORT:-8001} --reload --proxy-headers --forwarded-allow-ips '*'
+else
+    uvicorn app.main:app --host 0.0.0.0 --port ${PORT:-8001} --proxy-headers --forwarded-allow-ips '*'
+fi
