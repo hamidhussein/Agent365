@@ -8,4 +8,5 @@ __all__ = [
     "review",
     "associations",
     "creator_studio",
+    "code_execution_log",
 ]

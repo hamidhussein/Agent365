@@ -1327,14 +1327,14 @@ def get_generated_file(
     """
     Serve generated files from code execution.
     """
-    file_path = os.path.join(os.getcwd(), ".generated_files", execution_id, filename)
+    file_path = os.path.join(GENERATED_FILES_DIR, execution_id, filename)
     
     if not os.path.exists(file_path):
         raise HTTPException(status_code=404, detail="File not found")
     
     # Security check: ensure path is within .generated_files
     real_path = os.path.realpath(file_path)
-    base_path = os.path.realpath(os.path.join(os.getcwd(), ".generated_files"))
+    base_path = os.path.realpath(GENERATED_FILES_DIR)
     if not real_path.startswith(base_path):
         raise HTTPException(status_code=403, detail="Access denied")
     
@@ -1471,22 +1471,4 @@ def test_agent_action(
         raise HTTPException(status_code=500, detail=str(e))
 
 
-@router.get("/files/{execution_id}/{filename}")
-async def download_generated_file(execution_id: str, filename: str):
-    """
-    Serves a file from the generated files directory.
-    Uses absolute paths to ensure the file is found.
-    """
-    file_path = os.path.join(GENERATED_FILES_DIR, execution_id, filename)
-    
-    if not os.path.exists(file_path):
-        # Log for debugging
-        print(f"File not found: {file_path}")
-        raise HTTPException(status_code=404, detail="File not found")
-        
-    # Return file as a download
-    return FileResponse(
-        path=file_path,
-        filename=filename,
-        media_type='application/octet-stream'
-    )
+ 
