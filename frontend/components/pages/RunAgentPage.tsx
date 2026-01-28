@@ -14,61 +14,61 @@ import { useAuthStore } from '../../src/lib/store';
 
 // Parse streaming token format into clean text
 const smartUnwrap = (data: any): string => {
-  if (!data) return '';
-  try {
-    // Handle string data
-    if (typeof data === 'string') {
-      // First, try to parse newline-separated JSON objects
-      const lines = data.split('\n').filter(line => line.trim());
-      const tokens: string[] = [];
-      let allParsed = true;
-      
-      for (const line of lines) {
-        try {
-          const parsed = JSON.parse(line.trim());
-          if (parsed.type === 'token' && parsed.content !== undefined) {
-            tokens.push(parsed.content);
-          } else {
-            allParsed = false;
-            break;
-          }
-        } catch {
-          allParsed = false;
-          break;
+    if (!data) return '';
+    try {
+        // Handle string data
+        if (typeof data === 'string') {
+            // First, try to parse newline-separated JSON objects
+            const lines = data.split('\n').filter(line => line.trim());
+            const tokens: string[] = [];
+            let allParsed = true;
+
+            for (const line of lines) {
+                try {
+                    const parsed = JSON.parse(line.trim());
+                    if (parsed.type === 'token' && parsed.content !== undefined) {
+                        tokens.push(parsed.content);
+                    } else {
+                        allParsed = false;
+                        break;
+                    }
+                } catch {
+                    allParsed = false;
+                    break;
+                }
+            }
+
+            if (allParsed && tokens.length > 0) {
+                return tokens.join('');
+            }
+
+            // Try concatenated JSON objects: {...}{...}
+            if (/}\s*{/.test(data)) {
+                const fixed = '[' + data.replace(/}\s*{/g, '},{') + ']';
+                const parsed = JSON.parse(fixed);
+                return parsed.filter((t: any) => t.type === 'token' && t.content).map((t: any) => t.content).join('');
+            }
+
+            // Return as-is if no JSON pattern detected
+            return data;
         }
-      }
-      
-      if (allParsed && tokens.length > 0) {
-        return tokens.join('');
-      }
-      
-      // Try concatenated JSON objects: {...}{...}
-      if (/}\s*{/.test(data)) {
-        const fixed = '[' + data.replace(/}\s*{/g, '},{') + ']';
-        const parsed = JSON.parse(fixed);
-        return parsed.filter((t: any) => t.type === 'token' && t.content).map((t: any) => t.content).join('');
-      }
-      
-      // Return as-is if no JSON pattern detected
-      return data;
+
+        // Handle array of token objects
+        if (Array.isArray(data)) {
+            return data.filter((t: any) => t && t.type === 'token' && t.content).map((t: any) => t.content).join('');
+        }
+
+        // Handle object with response/result/text/content property
+        if (typeof data === 'object') {
+            const textSeed = data.response || data.result || data.text || data.content;
+            if (textSeed) return typeof textSeed === 'string' ? smartUnwrap(textSeed) : JSON.stringify(textSeed);
+            return JSON.stringify(data, null, 2);
+        }
+
+        return String(data);
+    } catch (e) {
+        return typeof data === 'string' ? data : JSON.stringify(data);
     }
-    
-    // Handle array of token objects
-    if (Array.isArray(data)) {
-      return data.filter((t: any) => t && t.type === 'token' && t.content).map((t: any) => t.content).join('');
-    }
-    
-    // Handle object with response/result/text/content property
-    if (typeof data === 'object') {
-      const textSeed = data.response || data.result || data.text || data.content;
-      if (textSeed) return typeof textSeed === 'string' ? smartUnwrap(textSeed) : JSON.stringify(textSeed);
-      return JSON.stringify(data, null, 2);
-    }
-    
-    return String(data);
-  } catch (e) {
-    return typeof data === 'string' ? data : JSON.stringify(data);
-  }
 };
 
 
@@ -121,8 +121,8 @@ const RunAgentPage: React.FC<RunAgentPageProps> = ({ agent, onBackToDetail }) =>
             // Optimistically update result or show toast
             alert('Review request sent! The creator has been notified.');
         } catch (err: any) {
-             const msg = err?.response?.data?.detail || err.message || 'Failed to request review';
-             alert(msg);
+            const msg = err?.response?.data?.detail || err.message || 'Failed to request review';
+            alert(msg);
         }
     };
 
@@ -162,11 +162,11 @@ const RunAgentPage: React.FC<RunAgentPageProps> = ({ agent, onBackToDetail }) =>
                 try {
                     const response = await api.executions.get(executionId);
                     const data = (response.data as any).data || response.data;
-                    
+
                     if (data && data.review_status === 'completed') {
                         setReviewStatus('completed');
                         setResultObj(data.outputs);
-                        
+
                         // Check for refined outputs
                         if (data.refined_outputs) {
                             setRefinedResultObj(data.refined_outputs);
@@ -431,33 +431,34 @@ const RunAgentPage: React.FC<RunAgentPageProps> = ({ agent, onBackToDetail }) =>
     return (
         <div className="container mx-auto max-w-screen-2xl px-4 py-12">
             <div className="mb-8">
-                <button onClick={() => onBackToDetail(agent.id)} className="text-sm text-gray-400 hover:text-white mb-2">
+                <button onClick={() => onBackToDetail(agent.id)} className="text-sm text-muted-foreground hover:text-foreground mb-2">
                     &larr; Back to Agent Details
                 </button>
-                <h1 className="text-3xl font-bold tracking-tight text-white sm:text-4xl">{agent.name}</h1>
-                <p className="mt-2 text-lg text-gray-400">Provide the required inputs below to run the agent.</p>
+                <h1 className="text-3xl font-bold tracking-tight text-foreground sm:text-4xl">{agent.name}</h1>
+                <p className="mt-2 text-lg text-muted-foreground">Provide the required inputs below to run the agent.</p>
             </div>
 
             <div className="grid grid-cols-1 gap-8 lg:grid-cols-2 lg:gap-12">
-                <div className="rounded-lg border border-gray-700 bg-gray-800/50 p-6 h-fit">
+                {/* Left Column: Input/Status */}
+                <div className="rounded-lg border border-border bg-card p-6 h-fit shadow-sm">
                     {status === 'idle' && (
                         <DynamicForm schema={agent.inputSchema} onSubmit={handleRunSubmit} price={agent.price} />
                     )}
                     {(status === 'running' || status === 'completed') && (
                         <div>
-                            <h2 className="text-xl font-semibold text-white mb-4">Inputs</h2>
-                            <div className="space-y-3 rounded-md bg-gray-900/50 p-4">
+                            <h2 className="text-xl font-semibold text-foreground mb-4">Inputs</h2>
+                            <div className="space-y-3 rounded-md bg-secondary/50 p-4">
                                 {Object.entries(formData).map(([key, value]) => (
                                     <div key={key}>
-                                        <label className="block text-sm font-medium text-gray-400 capitalize">{key.replace(/_/g, ' ')}</label>
-                                        <p className="mt-1 text-white whitespace-pre-wrap">{String(value)}</p>
+                                        <label className="block text-sm font-medium text-muted-foreground capitalize">{key.replace(/_/g, ' ')}</label>
+                                        <p className="mt-1 text-foreground whitespace-pre-wrap">{String(value)}</p>
                                     </div>
                                 ))}
                             </div>
                             {status === 'completed' && (
                                 <button
                                     onClick={handleRunAgain}
-                                    className="mt-6 w-full rounded-md bg-gray-700 px-4 py-2 text-sm font-semibold text-white hover:bg-gray-600"
+                                    className="mt-6 w-full rounded-md bg-secondary px-4 py-2 text-sm font-semibold text-secondary-foreground hover:bg-secondary/80"
                                 >
                                     Run Again
                                 </button>
@@ -466,14 +467,11 @@ const RunAgentPage: React.FC<RunAgentPageProps> = ({ agent, onBackToDetail }) =>
                     )}
                 </div>
 
-                <div
-                    className={`rounded-lg border border-gray-700 bg-gray-800/50 p-6 min-h-[400px] ${
-                        (agent.id === SEO_AGENT_ID || agent.id === SEO_AUDITOR_PRO_ID ) && resultObj ? 'lg:col-span-2' : ''
-                    }`}
-                >
+                {/* Right Column: Output/Result */}
+                <div className={`rounded-lg border border-border bg-card p-6 min-h-[400px] shadow-sm ${agent.id === SEO_AGENT_ID && resultObj ? 'lg:col-span-2' : ''}`}>
                     {status === 'idle' && (
-                        <div className="flex flex-col items-center justify-center h-full text-center text-gray-500">
-                            <h3 className="text-lg font-semibold text-gray-400">Awaiting Input</h3>
+                        <div className="flex flex-col items-center justify-center h-full text-center text-muted-foreground">
+                            <h3 className="text-lg font-semibold text-foreground">Awaiting Input</h3>
                             <p>The agent's results will appear here.</p>
                         </div>
                     )}

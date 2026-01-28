@@ -12,20 +12,20 @@ const LoginPage: React.FC<LoginPageProps> = ({ setCurrentPage }) => {
     return (
         <div className="flex min-h-full flex-col justify-center py-12 sm:px-6 lg:px-8">
             <div className="sm:mx-auto sm:w-full sm:max-w-md">
-                <BotIcon className="mx-auto h-12 w-auto text-brand-primary" />
-                <h2 className="mt-6 text-center text-3xl font-bold tracking-tight text-white">
+                <BotIcon className="mx-auto h-12 w-auto text-primary" />
+                <h2 className="mt-6 text-center text-3xl font-bold tracking-tight text-foreground">
                     Sign in to your account
                 </h2>
-                <p className="mt-2 text-center text-sm text-gray-400">
+                <p className="mt-2 text-center text-sm text-muted-foreground">
                     Or{' '}
-                    <button onClick={() => setCurrentPage('signup')} className="font-medium text-brand-primary hover:text-brand-secondary">
+                    <button onClick={() => setCurrentPage('signup')} className="font-medium text-primary hover:text-primary/80">
                         create a new account
                     </button>
                 </p>
             </div>
 
             <div className="mt-8 sm:mx-auto sm:w-full sm:max-w-md">
-                <div className="rounded-lg border border-gray-700 bg-gray-800/50 px-4 py-8 shadow sm:px-10">
+                <div className="rounded-lg border border-border bg-card px-4 py-8 shadow sm:px-10">
                     <LoginForm onSuccess={() => setCurrentPage('marketplace')} />
                 </div>
             </div>

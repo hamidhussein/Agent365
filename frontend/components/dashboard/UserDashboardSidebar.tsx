@@ -25,11 +25,10 @@ const UserDashboardSidebar: React.FC<UserDashboardSidebarProps> = ({ activePage,
                 <button
                     key={item.id}
                     onClick={() => setActivePage(item.id as DashboardPage)}
-                    className={`flex items-center gap-3 rounded-md px-3 py-2 text-sm font-medium transition-colors ${
-                        activePage === item.id 
-                        ? 'bg-brand-primary text-white' 
-                        : 'text-gray-300 hover:bg-gray-800 hover:text-white'
-                    }`}
+                    className={`flex items-center gap-3 rounded-md px-3 py-2 text-sm font-medium transition-colors ${activePage === item.id
+                            ? 'bg-primary text-primary-foreground'
+                            : 'text-muted-foreground hover:bg-secondary hover:text-foreground'
+                        }`}
                 >
                     {item.icon}
                     <span>{item.label}</span>

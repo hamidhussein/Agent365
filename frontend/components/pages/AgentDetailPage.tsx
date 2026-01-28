@@ -21,12 +21,12 @@ interface AgentDetailPageProps {
 }
 
 const StatCard: React.FC<{ icon: React.ReactNode; label: string; value: string }> = ({ icon, label, value }) => (
-    <div className="rounded-lg border border-gray-700 bg-gray-800/50 p-6">
+    <div className="rounded-lg border border-border bg-card p-6 shadow-sm">
         <div className="flex items-center space-x-3">
-            <div className="text-brand-primary">{icon}</div>
+            <div className="text-primary">{icon}</div>
             <div>
-                <p className="text-sm text-gray-400">{label}</p>
-                <p className="mt-1 text-2xl font-bold text-white">{value}</p>
+                <p className="text-sm text-muted-foreground">{label}</p>
+                <p className="mt-1 text-2xl font-bold text-foreground">{value}</p>
             </div>
         </div>
     </div>
@@ -62,14 +62,14 @@ const AgentDetailPage: React.FC<AgentDetailPageProps> = ({ agent, onRunAgent, on
                     )}
 
                     <div className="mt-8">
-                        <h2 className="text-xl font-bold text-white">Description</h2>
-                        <p className="mt-4 whitespace-pre-wrap text-gray-300 leading-relaxed">
+                        <h2 className="text-xl font-bold text-foreground">Description</h2>
+                        <p className="mt-4 whitespace-pre-wrap text-muted-foreground leading-relaxed">
                             {agent.longDescription}
                         </p>
                     </div>
 
                     <div className="mt-10">
-                        <h2 className="mb-4 text-xl font-bold text-white">Agent Stats</h2>
+                        <h2 className="mb-4 text-xl font-bold text-foreground">Agent Stats</h2>
                         <div className="mt-8 grid grid-cols-1 gap-6 sm:grid-cols-3">
                             <StatCard icon={<ZapIcon className="h-6 w-6" />} label="Total Runs" value={agent.runs.toString()} />
                             <StatCard icon={<TrendingUpIcon className="h-6 w-6" />} label="Success Rate" value={`${agent.successRate}%`} />
@@ -77,25 +77,25 @@ const AgentDetailPage: React.FC<AgentDetailPageProps> = ({ agent, onRunAgent, on
                         </div>
                     </div>
 
-                    <div className="mt-10 rounded-lg border border-gray-700 bg-gray-800/50 p-6">
-                        <h2 className="text-xl font-bold text-white">About the Creator</h2>
+                    <div className="mt-10 rounded-lg border border-border bg-card p-6 shadow-sm">
+                        <h2 className="text-xl font-bold text-foreground">About the Creator</h2>
                         <div className="mt-4 flex items-start space-x-4">
-                            <div className="flex h-12 w-12 items-center justify-center rounded-full bg-brand-primary text-lg font-bold text-white">
+                            <div className="flex h-12 w-12 items-center justify-center rounded-full bg-primary text-lg font-bold text-primary-foreground">
                                 {(agent.creator.full_name || agent.creator.username).charAt(0)}
                             </div>
                             <div>
-                                <button onClick={() => onSelectCreator(agent.creator.username || '')} className="text-lg font-semibold text-white hover:underline">{agent.creator.full_name || agent.creator.username}</button>
-                                <p className="mt-1 text-gray-400">{agent.creator.bio || ''}</p>
+                                <button onClick={() => onSelectCreator(agent.creator.username || '')} className="text-lg font-semibold text-foreground hover:underline">{agent.creator.full_name || agent.creator.username}</button>
+                                <p className="mt-1 text-muted-foreground">{agent.creator.bio || ''}</p>
                             </div>
                         </div>
                     </div>
 
                     <div className="mt-10">
-                        <h2 className="mb-4 text-xl font-bold text-white">Reviews ({reviews.length})</h2>
+                        <h2 className="mb-4 text-xl font-bold text-foreground">Reviews ({reviews.length})</h2>
                         <div className="space-y-8">
                             <ReviewForm agentId={agent.id} />
                             {reviewsLoading ? (
-                                <div className="text-center py-8 text-gray-400">Loading reviews...</div>
+                                <div className="text-center py-8 text-muted-foreground">Loading reviews...</div>
                             ) : (
                                 <ReviewList reviews={reviews} totalReviews={reviews.length} />
                             )}

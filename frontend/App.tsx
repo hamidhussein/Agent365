@@ -88,10 +88,10 @@ const App: React.FC = () => {
     staleTime: 60 * 1000,
     retry: 1,
   });
-  
+
   // Initialize WebSocket connection
   useWebSocketConnection();
-  
+
   // Listen for real-time review updates
   useWebSocketEvent('review_completed', (message) => {
     console.log('[WebSocket] Review completed:', message);
@@ -402,7 +402,7 @@ const App: React.FC = () => {
 
   return (
     <ToastProvider>
-      <ThemeProvider defaultTheme="system" storageKey="vite-ui-theme">
+      <ThemeProvider defaultTheme="light" storageKey="vite-ui-theme">
         <div className="min-h-screen flex flex-col relative bg-background font-sans text-foreground">
           {(isLoading || isAgentsLoading) && <PageLoadingOverlay />}
           <SkipToContent />

@@ -6,17 +6,17 @@ const Hero: React.FC = () => {
     return (
         <section className="relative overflow-hidden bg-background py-20 sm:py-32">
             <div
-                className="absolute inset-0 bg-center bg-no-repeat opacity-30 pointer-events-none"
+                className="absolute inset-0 bg-center bg-no-repeat opacity-50"
                 style={{
-                    backgroundImage: 'radial-gradient(circle at center, hsl(var(--primary) / 0.15) 0%, transparent 70%)',
+                    backgroundImage: 'radial-gradient(circle at center, rgba(2, 211, 72, 0.05) 0%, rgba(255, 255, 255, 0) 60%)',
                 }}
             />
             <div className="container relative mx-auto max-w-screen-xl px-4 text-center">
-                <h1 className="text-4xl font-extrabold tracking-tight text-foreground sm:text-5xl md:text-7xl">
-                    Discover & Deploy <span className="text-primary italic">Autonomous</span> AI Agents
+                <h1 className="text-4xl font-extrabold tracking-tight text-foreground sm:text-5xl md:text-6xl">
+                    Discover & Deploy Autonomous AI Agents
                 </h1>
-                <p className="mx-auto mt-6 max-w-2xl text-lg text-muted-foreground leading-relaxed">
-                    Welcome to <span className="font-bold text-foreground">AgentGrid</span>, the premier marketplace for cutting-edge AI agents. Find, test, and integrate specialized agents to automate any task imaginable.
+                <p className="mx-auto mt-6 max-w-2xl text-lg text-muted-foreground">
+                    Welcome to AgentGrid, the premier marketplace for cutting-edge AI agents. Find, test, and integrate specialized agents to automate any task imaginable.
                 </p>
                 <div className="mx-auto mt-10 flex max-w-md items-center space-x-2">
                     <div className="relative flex-grow">
@@ -24,10 +24,10 @@ const Hero: React.FC = () => {
                         <input
                             type="text"
                             placeholder="e.g., 'Market Research Analyst'"
-                            className="h-12 w-full rounded-xl border border-input bg-secondary/50 py-2 pl-12 pr-4 text-base placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary shadow-sm"
+                            className="h-12 w-full rounded-md border border-input bg-card py-2 pl-12 pr-4 text-base text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary shadow-sm"
                         />
                     </div>
-                    <button className="inline-flex h-12 items-center justify-center rounded-xl bg-primary px-8 text-base font-bold text-primary-foreground shadow-lg shadow-primary/20 transition-all hover:bg-primary/90 focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2 focus:ring-offset-background active:scale-95">
+                    <button className="inline-flex h-12 items-center justify-center rounded-md bg-primary px-6 text-base font-medium text-primary-foreground shadow transition-colors hover:bg-primary/90 focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2 focus:ring-offset-background">
                         Search
                     </button>
                 </div>

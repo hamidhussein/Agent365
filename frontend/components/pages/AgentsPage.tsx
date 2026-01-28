@@ -79,7 +79,7 @@ const AgentsPage: React.FC<AgentsPageProps> = ({
   const loadMore = () => {
     setVisibleCount(prev => Math.min(prev + AGENTS_PER_PAGE, filteredAndSortedAgents.length));
   };
-  
+
   const selectedSortLabel = sortOptions.find(opt => opt.value === sortOption)?.label;
 
   return (
@@ -95,17 +95,17 @@ const AgentsPage: React.FC<AgentsPageProps> = ({
 
         <main className="lg:col-span-3">
           <div className="mb-6 flex flex-col items-baseline justify-between gap-4 sm:flex-row">
-            <h1 className="text-2xl font-bold tracking-tight text-white sm:text-3xl">All Agents ({filteredAndSortedAgents.length})</h1>
+            <h1 className="text-2xl font-bold tracking-tight text-foreground sm:text-3xl">All Agents ({filteredAndSortedAgents.length})</h1>
             <div className="relative">
               <button
                 onClick={() => setSortOpen(!isSortOpen)}
-                className="flex h-10 items-center justify-between rounded-md border border-gray-700 bg-gray-800 px-4 py-2 text-sm font-medium text-gray-300 hover:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-brand-primary"
+                className="flex h-10 items-center justify-between rounded-md border border-input bg-background px-4 py-2 text-sm font-medium text-foreground hover:bg-secondary focus:outline-none focus:ring-2 focus:ring-primary"
               >
                 Sort by: {selectedSortLabel}
                 <ChevronDownIcon className={`ml-2 h-4 w-4 transition-transform ${isSortOpen ? 'rotate-180' : ''}`} />
               </button>
               {isSortOpen && (
-                <div className="absolute right-0 z-10 mt-2 w-56 origin-top-right rounded-md bg-gray-800 shadow-lg ring-1 ring-black ring-opacity-5 focus:outline-none border border-gray-700">
+                <div className="absolute right-0 z-10 mt-2 w-56 origin-top-right rounded-md bg-card shadow-lg ring-1 ring-black ring-opacity-5 focus:outline-none border border-border">
                   <div className="py-1">
                     {sortOptions.map(option => (
                       <button
@@ -114,7 +114,7 @@ const AgentsPage: React.FC<AgentsPageProps> = ({
                           setSortOption(option.value);
                           setSortOpen(false);
                         }}
-                        className="block w-full px-4 py-2 text-left text-sm text-gray-200 hover:bg-brand-primary hover:text-white"
+                        className="block w-full px-4 py-2 text-left text-sm text-foreground hover:bg-secondary hover:text-primary"
                       >
                         {option.label}
                       </button>
@@ -124,16 +124,16 @@ const AgentsPage: React.FC<AgentsPageProps> = ({
               )}
             </div>
           </div>
-          
+
           {currentAgents.length > 0 ? (
             <>
               <AgentGrid agents={currentAgents} onSelectAgent={onSelectAgent} onSelectCreator={onSelectCreator} favoriteAgentIds={favoriteAgentIds} onToggleFavorite={onToggleFavorite} />
               {hasMore && <Pagination onLoadMore={loadMore} />}
             </>
           ) : (
-            <div className="flex flex-col items-center justify-center rounded-lg border-2 border-dashed border-gray-700 py-24 text-center">
-                <h3 className="text-xl font-semibold text-white">No Agents Found</h3>
-                <p className="mt-2 text-sm text-gray-400">Try adjusting your filters.</p>
+            <div className="flex flex-col items-center justify-center rounded-lg border-2 border-dashed border-input py-24 text-center">
+              <h3 className="text-xl font-semibold text-foreground">No Agents Found</h3>
+              <p className="mt-2 text-sm text-muted-foreground">Try adjusting your filters.</p>
             </div>
           )}
 
