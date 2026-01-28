@@ -578,7 +578,7 @@ def suggest_agent(
     provider = get_provider_for_model(db, model)
     config = get_llm_config(db, provider)
     api_key = resolve_llm_key(provider, config)
-    response_text = generate_response(provider, model, system_instruction, prompt, api_key)
+    response_text = generate_response(provider, model, system_instruction, prompt, api_key, user_id=str(current_user.id))
     parsed = parse_agent_suggest_response(response_text, name)
     return CreatorStudioAgentSuggestResponse(**parsed)
 
@@ -812,7 +812,16 @@ def public_chat(
             for m in payload.messages:
                 history.append({"role": m.role, "content": m.content})
                 
-        text = generate_response(provider, model, system_instruction, payload.message, api_key, db=db, history=history)
+        text = generate_response(
+            provider,
+            model,
+            system_instruction,
+            payload.message,
+            api_key,
+            db=db,
+            history=history,
+            user_id=str(current_user.id) if current_user else None,
+        )
         return {"text": text, "execution_id": "preview"}
 
     agent = (
@@ -857,7 +866,15 @@ def public_chat(
     provider = get_provider_for_model(db, model)
     config = get_llm_config(db, provider)
     api_key = resolve_llm_key(provider, config)
-    text = generate_response(provider, model, system_instruction, payload.message, api_key, db=db)
+    text = generate_response(
+        provider,
+        model,
+        system_instruction,
+        payload.message,
+        api_key,
+        db=db,
+        user_id=str(current_user.id) if current_user else None,
+    )
     
     # Create execution record for Human-in-Loop
     # Note: guestId is not a real user, so we cannot set user_id if it's FK to users table and not nullable.
@@ -1001,7 +1018,18 @@ def public_chat_stream(
     def stream() -> Any:
         full_text = ""
         try:
-            for chunk in stream_response(provider, model, system_instruction, payload.message, api_key, execution_id, db=db, history=history_dicts, agent_id=agent_id):
+            for chunk in stream_response(
+                provider,
+                model,
+                system_instruction,
+                payload.message,
+                api_key,
+                execution_id,
+                db=db,
+                history=history_dicts,
+                agent_id=agent_id,
+                user_id=str(current_user.id) if current_user else None,
+            ):
                 if isinstance(chunk, bytes):
                     full_text += chunk.decode("utf-8")
                 else:
@@ -1071,7 +1099,17 @@ def chat(
 
     api_key = resolve_llm_key(provider, config)
 
-    text = generate_response(provider, model, system_instruction, payload.message, api_key, db=db, history=history_dicts, agent_id=str(agent.id))
+    text = generate_response(
+        provider,
+        model,
+        system_instruction,
+        payload.message,
+        api_key,
+        db=db,
+        history=history_dicts,
+        agent_id=str(agent.id),
+        user_id=str(current_user.id),
+    )
     
     # Create execution record
     
@@ -1163,7 +1201,18 @@ def chat_stream(
         def stream() -> Any:
             full_text = ""
             try:
-                for chunk in stream_response(provider, model, system_instruction, payload.message, api_key, execution_id=str(execution.id), db=db, history=history_dicts, agent_id=str(agent.id)):
+                for chunk in stream_response(
+                    provider,
+                    model,
+                    system_instruction,
+                    payload.message,
+                    api_key,
+                    execution_id=str(execution.id),
+                    db=db,
+                    history=history_dicts,
+                    agent_id=str(agent.id),
+                    user_id=str(current_user.id),
+                ):
                     if isinstance(chunk, bytes):
                         full_text += chunk.decode("utf-8")
                     else:
