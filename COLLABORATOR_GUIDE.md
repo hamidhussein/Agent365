@@ -1,77 +1,73 @@
-# 👥 Collaborator Guide - AgentGrid
+# Collaborator Guide - AgentGrid
 
-Welcome to the AgentGrid team! This guide will help you set up the project correctly and maintain a high-quality codebase.
+Welcome to the AgentGrid team. This guide helps you set up the project correctly and keep the codebase healthy.
 
----
+## One-time setup (Windows)
 
-## 🛠 One-Time Setup (Windows)
+1. Ensure you are in the repo root (`AgentGrid/`).
+2. Start dependencies with Docker:
+   ```powershell
+   docker compose up -d db redis
+   ```
+3. Copy environment templates:
+   - `backend/agentgrid-backend/.env.example` -> `backend/agentgrid-backend/.env`
+   - `frontend/.env.example` -> `frontend/.env`
+4. Run the app:
+   ```powershell
+   .\run-app.ps1
+   ```
 
-### 1. Zero-Config Environment
-We've provided a PowerShell script to launch everything.
-1.  **Repo Structure**: Ensure you are in the root directory `AgentGrid/`.
-2.  **Start Database**: 
-    ```powershell
-    docker compose up -d db
-    ```
-3.  **Run Application**:
-    ```powershell
-    .\run-app.ps1
-    ```
-    *This will auto-detect your Python path, set the database environment, and launch both Backend and Frontend in separate windows.*
+Notes:
+- Docker Compose maps Postgres to `localhost:5435`.
+- Set `OPENAI_API_KEY` in the backend `.env` to enable AI features.
 
----
+## Backend specifics (`backend/agentgrid-backend`)
 
-## 🐍 Backend Specifics (`backend/agentgrid-backend`)
+### Environment and dependencies
+```powershell
+cd backend/agentgrid-backend
+python -m venv venv
+.\venv\Scripts\activate
+pip install -r requirements.txt
+```
 
-### Environment & Dependencies
-1.  **Virtual Environment**: Always use a virtual environment.
-    ```powershell
-    cd backend/agentgrid-backend
-    python -m venv venv
-    .\venv\Scripts\activate
-    pip install -r requirements.txt
-    ```
-2.  **PDF Generation**: This project uses `fpdf2` and `pillow`. If you see "ImportError: cannot import name '_imaging'", run:
-    ```powershell
-    pip install --force-reinstall pillow
-    ```
-3.  **Local Logs**: Files like `last_agent_code.py` and `last_agent_error.log` are for debugging only and are ignored by Git. Do NOT commit them.
+### Optional: code execution sandbox
+```powershell
+docker build -t agentgrid-code-exec:latest docker/code-exec
+```
 
----
+### PDF generation
+If you see `ImportError: cannot import name '_imaging'`, run:
+```powershell
+pip install --force-reinstall pillow
+```
 
-## 🎨 Frontend Specifics (`frontend`)
+### Local logs
+Files like `last_agent_code.py` and `last_agent_error.log` are for debugging only and must not be committed.
+
+## Frontend specifics (`frontend`)
 
 ### Tooling
-1.  **Storybook**: Use it to develop components in isolation.
-    ```powershell
-    npm run storybook
-    ```
-2.  **Type Checking**: Ensure no errors before pushing.
-    ```powershell
-    npx tsc --noEmit
-    ```
+```powershell
+npm run storybook
+npx tsc --noEmit
+```
 
----
+## Git hygiene and best practices
+1. Work on feature branches (e.g., `feature/your-name-feature`).
+2. Do NOT commit:
+   - `venv/` or `.venv/`
+   - `.env`
+   - `__pycache__/`
+   - `.generated_files/`
+   - `.lancedb/`
+3. After pulling updates:
+   - If `requirements.txt` or `package.json` changed, run `pip install` / `npm install`.
+   - If migrations changed, run `alembic upgrade head`.
 
-## 🚩 Git Hygiene & Best Practices
-
-1.  **Branching**: Work on feature branches (e.g., `feature/your-name-feature`).
-2.  **Do NOT Commit**:
-    - `venv/` or `.venv/` (Virtual environments)
-    - `.env` (Secrets/Local config)
-    - `__pycache__`
-    - `.generated_files/` (Local agent output)
-    - `.lancedb/` (Local vector database)
-3.  **Pulling Updates**:
-    - After pulling, always check if `requirements.txt` or `package.json` changed and run `pip install`/`npm install`.
-    - If there are database changes, run `alembic upgrade head`.
-
----
-
-## 🚀 Verifying your Setup
-Run the built-in validation script to ensure PDF generation and environment are correct:
+## Verify your setup
 ```powershell
 cd backend/agentgrid-backend
 .\venv\Scripts\python.exe debug_pdf.py
 ```
-If you see `SUCCESS`, you are ready to go!
+If you see `SUCCESS`, you are ready to go.

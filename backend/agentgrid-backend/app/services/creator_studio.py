@@ -4,6 +4,8 @@ import math
 import os
 import re
 import uuid
+import time
+import logging
 from datetime import datetime
 from typing import Any, Iterable, List
 
@@ -19,6 +21,8 @@ from pypdf import PdfReader
 from sqlalchemy.orm import Session
 
 from app.core.config import get_settings
+from app.db.session import SessionLocal
+from app.models.code_execution_log import CodeExecutionLog
 from app.models.creator_studio import (
     CreatorStudioAppSetting,
     CreatorStudioGuestCredit,
@@ -174,8 +178,115 @@ def perform_web_search(query: str, db: Session | None = None) -> str:
 
 # Global storage for generated files (execution_id -> list of file paths)
 GENERATED_FILES = {}
+GENERATED_FILES_DIR = os.path.join(os.getcwd(), ".generated_files")
+logger = logging.getLogger(__name__)
 
-def execute_python_code(code: str, execution_id: str) -> str:
+
+def _maybe_uuid(value: str | None) -> uuid.UUID | None:
+    if not value:
+        return None
+    try:
+        return uuid.UUID(str(value))
+    except (ValueError, TypeError):
+        return None
+
+
+def _record_code_execution(
+    execution_id: str,
+    status: str,
+    duration_ms: int | None = None,
+    stdout_len: int = 0,
+    stderr_len: int = 0,
+    file_count: int = 0,
+    total_file_bytes: int = 0,
+    error_message: str | None = None,
+    agent_id: str | None = None,
+    user_id: str | None = None,
+    sandboxed: bool = False,
+    docker_image: str | None = None,
+) -> None:
+    db = SessionLocal()
+    try:
+        log = CodeExecutionLog(
+            id=uuid.uuid4(),
+            execution_id=str(execution_id),
+            tool_name="run_python",
+            status=status,
+            duration_ms=duration_ms,
+            stdout_len=stdout_len,
+            stderr_len=stderr_len,
+            file_count=file_count,
+            total_file_bytes=total_file_bytes,
+            error_message=error_message[:1024] if error_message else None,
+            sandboxed=sandboxed,
+            docker_image=docker_image,
+            agent_id=_maybe_uuid(agent_id),
+            user_id=_maybe_uuid(user_id),
+        )
+        db.add(log)
+        db.commit()
+    except Exception:
+        db.rollback()
+        logger.exception("code_exec_log_failed execution_id=%s", execution_id)
+    finally:
+        db.close()
+
+def cleanup_generated_files() -> int:
+    def _env_int(name: str, default: int) -> int:
+        try:
+            return int(os.environ.get(name, default))
+        except (TypeError, ValueError):
+            return default
+
+    ttl_seconds = _env_int("CODE_EXECUTION_CLEANUP_TTL_SECONDS", 86400)
+    max_dirs = _env_int("CODE_EXECUTION_CLEANUP_MAX_DIRS", 2000)
+    max_delete = _env_int("CODE_EXECUTION_CLEANUP_MAX_DELETE", 50)
+
+    if ttl_seconds <= 0:
+        return 0
+    if not os.path.isdir(GENERATED_FILES_DIR):
+        return 0
+
+    now = time.time()
+    cutoff = now - ttl_seconds
+    entries: list[tuple[float, str]] = []
+
+    try:
+        with os.scandir(GENERATED_FILES_DIR) as it:
+            for entry in it:
+                if len(entries) >= max_dirs:
+                    break
+                if not entry.is_dir():
+                    continue
+                try:
+                    mtime = entry.stat().st_mtime
+                except OSError:
+                    continue
+                if mtime < cutoff:
+                    entries.append((mtime, entry.path))
+    except OSError:
+        return 0
+
+    if not entries:
+        return 0
+
+    entries.sort(key=lambda item: item[0])
+    deleted = 0
+    for _, path in entries:
+        if deleted >= max_delete:
+            break
+        try:
+            import shutil
+            shutil.rmtree(path, ignore_errors=True)
+            deleted += 1
+        except Exception:
+            continue
+
+    if deleted:
+        logger.info("code_exec_cleanup_deleted=%s", deleted)
+    return deleted
+
+def execute_python_code(code: str, execution_id: str, agent_id: str | None = None, user_id: str | None = None) -> str:
     """
     Executes Python code in a temporary directory and captures stdout + generated files.
     Returns a formatted string with output and download links.
@@ -183,8 +294,123 @@ def execute_python_code(code: str, execution_id: str) -> str:
     import tempfile
     import subprocess
     import sys
+    import ast
+
+    def _env_int(name: str, default: int) -> int:
+        try:
+            return int(os.environ.get(name, default))
+        except (TypeError, ValueError):
+            return default
+
+    def _parse_module_list(raw: str) -> set[str]:
+        if not raw:
+            return set()
+        return {item.strip() for item in raw.split(",") if item.strip()}
+
+    def _collect_imports(source: str) -> set[str]:
+        try:
+            tree = ast.parse(source)
+        except SyntaxError:
+            return set()
+        modules: set[str] = set()
+        for node in ast.walk(tree):
+            if isinstance(node, ast.Import):
+                for alias in node.names:
+                    if alias.name:
+                        modules.add(alias.name.split(".", 1)[0])
+            elif isinstance(node, ast.ImportFrom):
+                if node.module:
+                    modules.add(node.module.split(".", 1)[0])
+        return modules
+
+    max_code_chars = _env_int("CODE_EXECUTION_MAX_CHARS", 50000)
+    max_stdout_chars = _env_int("CODE_EXECUTION_MAX_STDOUT_CHARS", 20000)
+    max_stderr_chars = _env_int("CODE_EXECUTION_MAX_STDERR_CHARS", 20000)
+    max_files = _env_int("CODE_EXECUTION_MAX_FILES", 5)
+    max_file_bytes = _env_int("CODE_EXECUTION_MAX_FILE_BYTES", 5 * 1024 * 1024)
+    max_total_bytes = _env_int("CODE_EXECUTION_MAX_TOTAL_FILE_BYTES", 20 * 1024 * 1024)
+    timeout_seconds = _env_int("CODE_EXECUTION_TIMEOUT_SECONDS", 30)
+    base_url = os.environ.get("CODE_EXECUTION_BASE_URL", "http://localhost:8000").rstrip("/")
+    use_docker = os.environ.get("CODE_EXECUTION_USE_DOCKER", "").strip().lower() in {"1", "true", "yes"}
+    require_docker = os.environ.get("CODE_EXECUTION_REQUIRE_DOCKER", "").strip().lower() in {"1", "true", "yes"}
+    app_env = os.environ.get("APP_ENV", os.environ.get("ENVIRONMENT", "")).strip().lower()
+    if app_env in {"prod", "production"}:
+        require_docker = True
+    docker_image = os.environ.get("CODE_EXECUTION_DOCKER_IMAGE", "agentgrid-code-exec:latest").strip()
+    docker_cpus = os.environ.get("CODE_EXECUTION_DOCKER_CPUS", "1").strip()
+    docker_mem_mb = _env_int("CODE_EXECUTION_DOCKER_MEMORY_MB", 512)
+    docker_pids = _env_int("CODE_EXECUTION_DOCKER_PIDS_LIMIT", 128)
+    docker_tmpfs_mb = _env_int("CODE_EXECUTION_DOCKER_TMPFS_MB", 64)
+    allowed_modules = _parse_module_list(os.environ.get("CODE_EXECUTION_ALLOWED_MODULES", ""))
+    forbidden_modules = _parse_module_list(
+        os.environ.get(
+            "CODE_EXECUTION_FORBIDDEN_MODULES",
+            "os,sys,subprocess,shutil,pathlib,socket,importlib,ctypes,inspect,signal,resource,multiprocessing,threading,asyncio,ssl,urllib,requests,http,ftplib,webbrowser",
+        )
+    )
+
+    if require_docker:
+        use_docker = True
+
+    if not code:
+        _record_code_execution(
+            execution_id=execution_id,
+            status="rejected",
+            error_message="No code provided.",
+            agent_id=agent_id,
+            user_id=user_id,
+            sandboxed=use_docker,
+            docker_image=docker_image if use_docker else None,
+        )
+        return "Error: No code provided."
+    if len(code) > max_code_chars:
+        _record_code_execution(
+            execution_id=execution_id,
+            status="rejected",
+            error_message=f"Code length exceeds limit ({max_code_chars} characters).",
+            agent_id=agent_id,
+            user_id=user_id,
+            sandboxed=use_docker,
+            docker_image=docker_image if use_docker else None,
+        )
+        return f"Error: Code length exceeds limit ({max_code_chars} characters)."
+
+    imports = _collect_imports(code)
+    if allowed_modules:
+        blocked = sorted(imports - allowed_modules)
+        if blocked:
+            _record_code_execution(
+                execution_id=execution_id,
+                status="rejected",
+                error_message=f"Import(s) not allowed: {', '.join(blocked)}.",
+                agent_id=agent_id,
+                user_id=user_id,
+                sandboxed=use_docker,
+                docker_image=docker_image if use_docker else None,
+            )
+            return f"Error: Import(s) not allowed: {', '.join(blocked)}."
+    else:
+        blocked = sorted(imports.intersection(forbidden_modules))
+        if blocked:
+            _record_code_execution(
+                execution_id=execution_id,
+                status="rejected",
+                error_message=f"Import(s) not allowed: {', '.join(blocked)}.",
+                agent_id=agent_id,
+                user_id=user_id,
+                sandboxed=use_docker,
+                docker_image=docker_image if use_docker else None,
+            )
+            return f"Error: Import(s) not allowed: {', '.join(blocked)}."
     
-    print(f"Executing Python code for execution {execution_id}...")
+    cleanup_generated_files()
+    start_ts = time.perf_counter()
+    logger.info(
+        "code_exec_start execution_id=%s docker=%s imports=%s",
+        execution_id,
+        use_docker,
+        ",".join(sorted(imports)) if imports else "",
+    )
     
     # Create temp directory
     with tempfile.TemporaryDirectory() as tmpdir:
@@ -202,17 +428,45 @@ def execute_python_code(code: str, execution_id: str) -> str:
             pass
         
         try:
-            # Run code with subprocess for safety
-            result = subprocess.run(
-                [sys.executable, code_file],
-                cwd=tmpdir,
-                capture_output=True,
-                text=True,
-                timeout=30,  # 30 second timeout
-            )
+            if use_docker:
+                cmd = [
+                    "docker", "run", "--rm",
+                    "--network", "none",
+                    "--read-only",
+                    "--pids-limit", str(docker_pids),
+                    "--memory", f"{docker_mem_mb}m",
+                    "--cpus", str(docker_cpus),
+                    "--security-opt", "no-new-privileges",
+                    "--cap-drop", "ALL",
+                    "--tmpfs", f"/tmp:rw,size={docker_tmpfs_mb}m",
+                    "-v", f"{tmpdir}:/work:rw",
+                    "-w", "/work",
+                    docker_image,
+                    "python", "/work/script.py",
+                ]
+                result = subprocess.run(
+                    cmd,
+                    cwd=tmpdir,
+                    capture_output=True,
+                    text=True,
+                    timeout=timeout_seconds,
+                )
+            else:
+                # Run code with subprocess for safety
+                result = subprocess.run(
+                    [sys.executable, code_file],
+                    cwd=tmpdir,
+                    capture_output=True,
+                    text=True,
+                    timeout=timeout_seconds,
+                )
             
-            stdout = result.stdout
-            stderr = result.stderr
+            stdout = result.stdout or ""
+            stderr = result.stderr or ""
+            if len(stdout) > max_stdout_chars:
+                stdout = stdout[:max_stdout_chars] + "\n...[truncated]..."
+            if len(stderr) > max_stderr_chars:
+                stderr = stderr[:max_stderr_chars] + "\n...[truncated]..."
             
             if result.returncode != 0:
                 error_msg = f"ERROR: Python script failed (Return Code: {result.returncode}).\n\nSTDOUT:\n{stdout}\n\nSTDERR:\n{stderr}"
@@ -225,26 +479,33 @@ def execute_python_code(code: str, execution_id: str) -> str:
                     pass
                 return error_msg
             
-            # Check for generated files
-            files_before = set()
-            files_after = set(os.listdir(tmpdir))
-            generated = files_after - files_before - {"script.py"}
-            
             # Actually, we need to list files after execution
             all_files = [f for f in os.listdir(tmpdir) if f != "script.py" and os.path.isfile(os.path.join(tmpdir, f))]
             
             # Copy generated files to a persistent location
-            output_dir = os.path.join(os.getcwd(), ".generated_files", execution_id)
+            output_dir = os.path.join(GENERATED_FILES_DIR, execution_id)
             os.makedirs(output_dir, exist_ok=True)
             
             file_links = []
+            total_bytes = 0
             for filename in all_files:
+                if len(file_links) >= max_files:
+                    break
                 src = os.path.join(tmpdir, filename)
+                try:
+                    size_bytes = os.path.getsize(src)
+                except OSError:
+                    continue
+                if size_bytes > max_file_bytes:
+                    continue
+                if total_bytes + size_bytes > max_total_bytes:
+                    break
                 dst = os.path.join(output_dir, filename)
                 import shutil
                 shutil.copy(src, dst)
+                total_bytes += size_bytes
                 # Store reference
-                file_links.append(f"[Download {filename}](http://localhost:8000/creator-studio/api/files/{execution_id}/{filename})")
+                file_links.append(f"[Download {filename}]({base_url}/creator-studio/api/files/{execution_id}/{filename})")
             
             # Store in global dict
             GENERATED_FILES[execution_id] = [os.path.join(output_dir, f) for f in all_files]
@@ -258,15 +519,83 @@ def execute_python_code(code: str, execution_id: str) -> str:
             if file_links:
                 output_parts.append(f"**Generated Files:**\n" + "\n".join(file_links))
             
+            duration_ms = int((time.perf_counter() - start_ts) * 1000)
+            logger.info(
+                "code_exec_done execution_id=%s duration_ms=%s stdout_len=%s stderr_len=%s files=%s total_file_bytes=%s",
+                execution_id,
+                duration_ms,
+                len(stdout),
+                len(stderr),
+                len(file_links),
+                total_bytes,
+            )
+            _record_code_execution(
+                execution_id=execution_id,
+                status="success",
+                duration_ms=duration_ms,
+                stdout_len=len(stdout),
+                stderr_len=len(stderr),
+                file_count=len(file_links),
+                total_file_bytes=total_bytes,
+                agent_id=agent_id,
+                user_id=user_id,
+                sandboxed=use_docker,
+                docker_image=docker_image if use_docker else None,
+            )
+
             if not output_parts:
                 return "Code executed successfully (no output)."
             
             return "\n\n".join(output_parts)
             
         except subprocess.TimeoutExpired:
-            return "Error: Code execution timed out (30s limit)."
+            duration_ms = int((time.perf_counter() - start_ts) * 1000)
+            logger.warning("code_exec_timeout execution_id=%s duration_ms=%s", execution_id, duration_ms)
+            _record_code_execution(
+                execution_id=execution_id,
+                status="timeout",
+                duration_ms=duration_ms,
+                agent_id=agent_id,
+                user_id=user_id,
+                sandboxed=use_docker,
+                docker_image=docker_image if use_docker else None,
+            )
+            return f"Error: Code execution timed out ({timeout_seconds}s limit)."
+        except FileNotFoundError as e:
+            if use_docker:
+                logger.error("code_exec_docker_missing execution_id=%s", execution_id)
+                _record_code_execution(
+                    execution_id=execution_id,
+                    status="error",
+                    error_message="Docker not found.",
+                    agent_id=agent_id,
+                    user_id=user_id,
+                    sandboxed=use_docker,
+                    docker_image=docker_image if use_docker else None,
+                )
+                return "Error: Docker not found. Install Docker or disable CODE_EXECUTION_USE_DOCKER."
+            logger.error("code_exec_missing_runtime execution_id=%s error=%s", execution_id, e)
+            _record_code_execution(
+                execution_id=execution_id,
+                status="error",
+                error_message=str(e),
+                agent_id=agent_id,
+                user_id=user_id,
+                sandboxed=use_docker,
+                docker_image=docker_image if use_docker else None,
+            )
+            return f"Error executing code: {str(e)}"
         except Exception as e:
-            print(f"Code execution error: {e}")
+            logger.exception("code_exec_error execution_id=%s", execution_id)
+            _record_code_execution(
+                execution_id=execution_id,
+                status="error",
+                error_message=str(e),
+                agent_id=agent_id,
+                user_id=user_id,
+                sandboxed=use_docker,
+                docker_image=docker_image if use_docker else None,
+            )
             return f"Error executing code: {str(e)}"
 
 
@@ -397,10 +726,10 @@ class VectorIndex:
             
             return [
                 {
-                    "text": r["text"],
+                    "text": r.get("text", ""),
                     "metadata": json.loads(r["metadata"]) if r.get("metadata") else {}
-                } 
-                for r in results
+                }
+                for r in combined
             ]
         except Exception as e:
             print(f"Error searching VectorIndex: {e}")
@@ -919,6 +1248,7 @@ def build_system_instruction(
                 "- FEATURE ENABLED: Code Execution: You have the 'run_python' tool. You can write and execute Python code blocks for file generation.\n"
                 "  - **PDF generation**: Use the `fpdf2` library. **IMPORTANT**: The library is called `fpdf2` but you MUST import it as `fpdf`. Never try to `import fpdf2`. ONLY USE: `from fpdf import FPDF`. (Example: `pdf = FPDF(); pdf.add_page(); pdf.set_font('helvetica', size=12); pdf.cell(text='Hello'); pdf.output('file.pdf')`)\n"
                 "  - **Word (.docx) generation**: Use the `python-docx` library. IMPORT VIA: `import docx`. (Example: `doc = docx.Document(); doc.add_paragraph('Hello'); doc.save('file.docx')`)\n"
+                "  - **FORMAT RULE**: If the user asks for a specific format (PDF or Word/doc/docx), you MUST generate that exact format. If the user does not specify a format, default to PDF (unless the content has non-Latin characters; then choose DOCX to avoid PDF font errors).\n"
                 "  - **CRITICAL**: If the user asks for a 'downloadable document', 'file', 'PDF', or 'Word document', you **MUST** use this tool to generate it. If you believe you lack a library, you are WRONG. Always use `fpdf` or `docx` as shown above.\n"
                 "  - **UNICODE WARNING**: The default PDF font ('helvetica') does NOT support non-Latin characters (like Urdu or Arabic). If the content contains such characters, you MUST stick to English/ASCII in the PDF or the script will crash.\n"
                 "  - **LINKING RULES**: You MUST use the `run_python` tool to generate any requested file. Do NOT pretend to generate it. PROHIBITED: Do not write markdown links like `[Download](...)` yourself. INSTEAD: execute the tool, and THEN say 'I have created the document.' The system will handle the link display."
@@ -939,7 +1269,17 @@ def build_system_instruction(
 
 from app.services.tool_engine import get_actions_for_agent, format_action_as_tool, execute_agent_action, format_action_as_gemini_tool
 
-def generate_response(provider: str, model: str, system_instruction: str, message: str, api_key: str, db: Session | None = None, history: list[dict] | None = None, agent_id: str | None = None) -> str:
+def generate_response(
+    provider: str,
+    model: str,
+    system_instruction: str,
+    message: str,
+    api_key: str,
+    db: Session | None = None,
+    history: list[dict] | None = None,
+    agent_id: str | None = None,
+    user_id: str | None = None,
+) -> str:
     if provider == "openai":
         client = get_openai_client(api_key)
         messages = []
@@ -1015,7 +1355,7 @@ def generate_response(provider: str, model: str, system_instruction: str, messag
                     result = perform_web_search(args.get("query"), db=db)
                 elif tool_name == "run_python":
                     exec_id = f"chat-{uuid.uuid4()}"
-                    result = execute_python_code(args.get("code"), exec_id)
+                    result = execute_python_code(args.get("code"), exec_id, agent_id=agent_id, user_id=user_id)
                 elif tool_name.startswith("action_"):
                     action_uuid_str = tool_name.replace("action_", "").replace("_", "-")
                     result = execute_agent_action(db, action_uuid_str, args)
@@ -1361,7 +1701,7 @@ def generate_response(provider: str, model: str, system_instruction: str, messag
                     result_content = perform_web_search(query, db=db)
                 elif tool_name == "run_python":
                     exec_id = f"chat-{uuid.uuid4()}"
-                    result_content = execute_python_code(tool_input.get("code"), exec_id)
+                    result_content = execute_python_code(tool_input.get("code"), exec_id, agent_id=agent_id, user_id=user_id)
                 elif tool_name.startswith("action_"):
                     action_uuid_str = tool_name.replace("action_", "").replace("_", "-")
                     try:
@@ -1441,7 +1781,7 @@ def generate_response(provider: str, model: str, system_instruction: str, messag
                     result_str = perform_web_search(args.get("query"), db=db)
                 elif fc.name == "run_python":
                     exec_id = f"chat-{uuid.uuid4()}"
-                    result_str = execute_python_code(args.get("code"), exec_id)
+                    result_str = execute_python_code(args.get("code"), exec_id, agent_id=agent_id, user_id=user_id)
                 elif fc.name.startswith("action_"):
                     action_uuid_str = fc.name.replace("action_", "").replace("_", "-")
                     result_str = execute_agent_action(db, action_uuid_str, args)
@@ -1490,7 +1830,18 @@ def generate_response(provider: str, model: str, system_instruction: str, messag
     return getattr(response, "text", "") or ""
 
 
-def stream_response(provider: str, model: str, system_instruction: str, message: str, api_key: str, execution_id: str = None, db: Session | None = None, history: list[dict] | None = None, agent_id: str | None = None) -> Iterable[bytes]:
+def stream_response(
+    provider: str,
+    model: str,
+    system_instruction: str,
+    message: str,
+    api_key: str,
+    execution_id: str | None = None,
+    db: Session | None = None,
+    history: list[dict] | None = None,
+    agent_id: str | None = None,
+    user_id: str | None = None,
+) -> Iterable[bytes]:
     if provider == "openai":
         client = get_openai_client(api_key)
         messages = []
@@ -1611,7 +1962,7 @@ def stream_response(provider: str, model: str, system_instruction: str, message:
                     code = args.get("code")
                     yield (json.dumps({"type": "thought", "content": "Executing Python code..."}) + "\n").encode("utf-8")
                     if execution_id:
-                        result_content = execute_python_code(code, execution_id)
+                        result_content = execute_python_code(code, execution_id, agent_id=agent_id, user_id=user_id)
                     else:
                         result_content = "Code execution requires a valid execution session."
                         
@@ -2246,7 +2597,7 @@ def stream_response(provider: str, model: str, system_instruction: str, message:
                             code = args.get("code")
                             yield (json.dumps({"type": "thought", "content": "Executing Python code..."}) + "\n").encode("utf-8")
                             exec_id = f"chat-{uuid.uuid4()}"
-                            result_str = execute_python_code(code, exec_id)
+                            result_str = execute_python_code(code, exec_id, agent_id=agent_id, user_id=user_id)
                             # Prepare history for second turn
                             contents.append(chunk.candidates[0].content)
                             contents.append(types.Content(

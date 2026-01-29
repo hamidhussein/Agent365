@@ -53,24 +53,24 @@ const CreditPackageCard: React.FC<{ pkg: CreditPackage }> = ({ pkg }) => {
     };
 
     return (
-        <div className={`relative rounded-lg border ${pkg.isBestValue ? 'border-brand-primary' : 'border-gray-700'} bg-gray-800/50 p-6 text-center`}>
+        <div className={`relative rounded-lg border ${pkg.isBestValue ? 'border-primary ring-1 ring-primary' : 'border-border'} bg-card p-6 text-center shadow-sm`}>
             {pkg.isBestValue && (
-                <div className="absolute -top-3 left-1/2 -translate-x-1/2 rounded-full bg-brand-primary px-3 py-1 text-xs font-semibold text-white">
+                <div className="absolute -top-3 left-1/2 -translate-x-1/2 rounded-full bg-primary px-3 py-1 text-xs font-semibold text-primary-foreground">
                     Best Value
                 </div>
             )}
-            <h3 className="text-lg font-semibold text-white">{pkg.credits.toLocaleString()} Credits</h3>
-            {pkg.bonus > 0 && <p className="text-sm text-brand-secondary">includes {pkg.bonus}% bonus!</p>}
+            <h3 className="text-lg font-semibold text-foreground">{pkg.credits.toLocaleString()} Credits</h3>
+            {pkg.bonus > 0 && <p className="text-sm text-primary">includes {pkg.bonus}% bonus!</p>}
             <div className="my-4">
-                <span className="text-4xl font-extrabold text-white">${pkg.price}</span>
+                <span className="text-4xl font-extrabold text-foreground">${pkg.price}</span>
             </div>
-            <p className="text-xs text-gray-400">
+            <p className="text-xs text-muted-foreground">
                 ${(pkg.price / (pkg.credits * (1 + pkg.bonus / 100))).toFixed(4)} per credit
             </p>
             <button
                 onClick={handlePurchase}
                 disabled={isLoading}
-                className="mt-6 inline-flex w-full h-11 items-center justify-center rounded-md bg-brand-primary px-6 text-base font-medium text-white shadow transition-colors hover:bg-brand-primary/90 focus:outline-none focus:ring-2 focus:ring-brand-primary focus:ring-offset-2 focus:ring-offset-gray-900 disabled:opacity-50 disabled:cursor-not-allowed"
+                className="mt-6 inline-flex w-full h-11 items-center justify-center rounded-md bg-primary px-6 text-base font-medium text-primary-foreground shadow transition-colors hover:bg-primary/90 focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2 focus:ring-offset-background disabled:opacity-50 disabled:cursor-not-allowed"
             >
                 {isLoading ? 'Processing...' : 'Purchase Now'}
             </button>
@@ -82,8 +82,8 @@ const PricingPage: React.FC = () => {
     return (
         <div className="container mx-auto max-w-screen-xl px-4 py-16">
             <div className="text-center mb-12">
-                <h1 className="text-4xl font-bold tracking-tight text-white sm:text-5xl">Buy Credits</h1>
-                <p className="mt-4 max-w-2xl mx-auto text-lg text-gray-400">
+                <h1 className="text-4xl font-bold tracking-tight text-foreground sm:text-5xl">Buy Credits</h1>
+                <p className="mt-4 max-w-2xl mx-auto text-lg text-muted-foreground">
                     Purchase credits to run agents, access premium features, and power your workflows.
                 </p>
             </div>
@@ -94,9 +94,9 @@ const PricingPage: React.FC = () => {
                 ))}
             </div>
 
-            <div className="mt-16 text-center text-gray-400">
+            <div className="mt-16 text-center text-muted-foreground">
                 <p>All payments are processed securely. Credits are added to your account instantly.</p>
-                <p>Have questions? <a href="#" className="font-medium text-brand-primary hover:underline">Contact support</a>.</p>
+                <p>Have questions? <a href="#" className="font-medium text-primary hover:underline">Contact support</a>.</p>
             </div>
         </div>
     );

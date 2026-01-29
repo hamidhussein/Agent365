@@ -162,7 +162,7 @@ export const Dashboard = ({
 
                   <div className="p-4 border-t border-border bg-card/50">
                     <Button className="w-full" onClick={() => onSelectAgent(agent)}>
-                      <MessageSquare size={16} /> Chat Now
+                      <MessageSquare size={16} /> Hire Agent
                     </Button>
                   </div>
                 </div>

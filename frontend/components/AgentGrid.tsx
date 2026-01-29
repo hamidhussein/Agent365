@@ -9,9 +9,10 @@ interface AgentGridProps {
   onSelectCreator: (username: string) => void;
   favoriteAgentIds: Set<string>;
   onToggleFavorite: (agentId: string) => void;
+  showFavorite?: boolean;
 }
 
-const AgentGrid: React.FC<AgentGridProps> = ({ agents, onSelectAgent, onSelectCreator, favoriteAgentIds, onToggleFavorite }) => {
+const AgentGrid: React.FC<AgentGridProps> = ({ agents, onSelectAgent, onSelectCreator, favoriteAgentIds, onToggleFavorite, showFavorite = true }) => {
   return (
     <div className="grid grid-cols-1 gap-6 md:grid-cols-2 xl:grid-cols-3">
       {agents.map(agent => (
@@ -22,6 +23,7 @@ const AgentGrid: React.FC<AgentGridProps> = ({ agents, onSelectAgent, onSelectCr
           onSelectCreator={onSelectCreator} 
           isFavorited={favoriteAgentIds.has(agent.id)}
           onToggleFavorite={onToggleFavorite}
+          showFavorite={showFavorite}
         />
       ))}
     </div>

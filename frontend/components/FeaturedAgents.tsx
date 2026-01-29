@@ -27,10 +27,10 @@ const FeaturedAgents: React.FC<FeaturedAgentsProps> = ({
     <section className="py-16 sm:py-24">
       <div className="container mx-auto max-w-screen-2xl px-4">
         <div className="mb-10 text-center">
-          <h2 className="text-3xl font-bold tracking-tight text-white sm:text-4xl">
+          <h2 className="text-3xl font-display font-semibold tracking-tight text-foreground sm:text-4xl">
             Featured Agents
           </h2>
-          <p className="mt-4 text-lg text-gray-400">
+          <p className="mt-4 text-lg text-muted-foreground">
             Hand-picked agents that excel at their tasks.
           </p>
         </div>

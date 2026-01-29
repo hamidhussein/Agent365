@@ -59,7 +59,7 @@ const createPlaceholderCreator = (id: string): User => {
 };
 
 export const mapBackendAgent = (agent: BackendAgent): Agent => {
-    const placeholderImage = `https://placehold.co/600x400/111827/FFFFFF/png?text=${encodeURIComponent(agent.name?.[0] ?? 'A')}`;
+    const placeholderImage = `https://placehold.co/600x400/F5F5F4/0F2B2F/png?text=${encodeURIComponent(agent.name?.[0] ?? 'A')}`;
     const successRate =
         agent.total_runs > 0
             ? Math.min(99, Math.max(70, Math.round((agent.rating ?? 0) * 18)))

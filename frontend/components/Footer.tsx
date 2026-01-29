@@ -9,7 +9,7 @@ const Footer: React.FC = () => {
                 <div className="flex flex-col items-center justify-between space-y-6 sm:flex-row sm:space-y-0 text-center sm:text-left">
                     <div className="flex items-center space-x-3">
                         <BotIcon className="h-7 w-7 text-primary" />
-                        <span className="text-xl font-bold text-foreground tracking-tight">AgentGrid</span>
+                        <span className="text-xl font-display font-semibold text-foreground tracking-tight">AgentGrid</span>
                     </div>
                     <p className="text-sm text-muted-foreground font-medium">&copy; {new Date().getFullYear()} AgentGrid Inc. All rights reserved.</p>
                     <div className="flex space-x-6">
