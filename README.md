@@ -2,44 +2,42 @@
 
 This guide provides step-by-step instructions to set up and run the AgentGrid platform locally.
 
-## ✨ New Features
-### Advanced Creator Studio
-- **Agent Architect**: Conversational builder that helps you create agents using natural language.
-- **Live Preview**: Real-time side-by-side chat to test your agent before saving.
-- **Enhanced Skills**: Dynamic integration of Web Search and Code Execution.
+## Highlights
+- Creator Studio with Agent Architect, live preview, and optional web search/code execution tools.
+- Marketplace and dashboard UI updates.
 
----
+## Quick start (Windows)
 
-## 🚀 Quick Start (Windows)
+IMPORTANT: New collaborators should read GETTING_STARTED.md and COLLABORATOR_GUIDE.md first.
 
-> [!IMPORTANT]
-> **New Collaborators**: Please read the [**Full Setup Guide**](GETTING_STARTED.md) and the [Collaborator Guide](COLLABORATOR_GUIDE.md) before starting!
+1. Checkout the feature branch:
+   ```powershell
+   git checkout feature/hamid-agentgrid-updates
+   ```
+2. Start database and Redis (Docker Desktop required):
+   ```powershell
+   docker compose up -d db redis
+   ```
+3. Copy environment templates:
+   - `backend/agentgrid-backend/.env.example` -> `backend/agentgrid-backend/.env`
+   - `frontend/.env.example` -> `frontend/.env`
+4. Run the app:
+   ```powershell
+   .\run-app.ps1
+   ```
 
-1.  **Pull Changes**:
-    ```powershell
-    git checkout feature/hamid-agentgrid-updates
-    ```
-2.  **Start Database**: Ensure Docker Desktop is running.
-    ```powershell
-    docker compose up -d db
-    ```
-2.  **Run Services**: Open PowerShell in the project root and run:
-    ```powershell
-    .\run-app.ps1
-    ```
-    This will open two terminal windows: one for the backend (port 8000) and one for the frontend (port 3000).
+Notes:
+- Docker compose maps Postgres to `localhost:5435`. If you use local Postgres on `5432`, update `DATABASE_URL`.
+- Set `OPENAI_API_KEY` in `backend/agentgrid-backend/.env` to enable AI features.
 
----
+## Manual setup
 
-## 🛠 Manual Setup
+### Prerequisites
+- Python 3.10+
+- Node.js 18+ and npm
+- Docker Desktop (Postgres/Redis and optional code-execution sandbox)
 
-### 1. Prerequisites
-- **Python 3.10+**
-- **Node.js 18+** & **npm**
-- **Docker** (for PostgreSQL)
-- **PostgreSQL 15+** (if not using Docker)
-
-### 2. Backend Setup
+### Backend setup
 The backend is located in `backend/agentgrid-backend`.
 
 ```powershell
@@ -49,33 +47,37 @@ python -m venv venv
 pip install -r requirements.txt
 ```
 
-#### Environment Config (`backend/agentgrid-backend/.env`)
-```ini
-DATABASE_URL=postgresql://postgres:postgres@localhost:5432/agentgrid
-SECRET_KEY=your_secret_key_here
-ALGORITHM=HS256
-OPENAI_API_KEY=your_openai_api_key_here
-```
+#### Environment config (`backend/agentgrid-backend/.env`)
+Copy `backend/agentgrid-backend/.env.example` to `.env` and adjust as needed.
+- Required: `DATABASE_URL`
+- Recommended: `OPENAI_API_KEY` (enables AI features)
 
-#### Database Initialization
+#### Database initialization
 ```powershell
-# Start the Postgres container (if using Docker)
-docker compose up -d db
+# Start Postgres and Redis (Docker)
+docker compose up -d db redis
 
-# Run Alembic migrations to set up the schema
+# Run migrations
 alembic upgrade head
 
 # Seed initial agents
 python seed_agents.py
 ```
 
-#### Start Backend
-From the **project root**:
+#### Optional: Code execution sandbox
+Code execution runs in a Docker sandbox when enabled.
 ```powershell
-$env:PYTHONPATH="backend/agentgrid-backend"; $env:DATABASE_URL="postgresql://postgres:postgres@localhost:5432/agentgrid"; .\backend\agentgrid-backend\venv\Scripts\python.exe -m uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
+docker build -t agentgrid-code-exec:latest backend/agentgrid-backend/docker/code-exec
+```
+If you enable code execution, ensure Docker is running and `CODE_EXECUTION_USE_DOCKER=true` (the default in production).
+
+#### Start backend
+From the project root:
+```powershell
+$env:PYTHONPATH="backend/agentgrid-backend"; $env:DATABASE_URL="postgresql://postgres:postgres@localhost:5435/agentgrid"; .\backend\agentgrid-backend\venv\Scripts\python.exe -m uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
 ```
 
-### 3. Frontend Setup
+### Frontend setup
 The frontend is located in `frontend`.
 
 ```powershell
@@ -83,35 +85,37 @@ cd frontend
 npm install
 ```
 
-#### Environment Config (`frontend/.env`)
+#### Environment config (`frontend/.env`)
 ```ini
 VITE_API_URL=http://localhost:8000/api/v1
 ```
 
-#### Start Frontend
+#### Start frontend
 ```powershell
 npm run dev
 ```
 
----
+## Docker-only option (full stack)
+If you prefer running everything in Docker:
+```powershell
+docker compose up --build
+```
+- Frontend: http://localhost:3000
+- Backend: http://localhost:8001/docs
 
-## 🔑 Default Credentials
+## Default credentials
 
 | Role | Email | Password |
 | :--- | :--- | :--- |
-| **Admin** | `admin@agentgrid.ai` | `admin123` |
-| **Test User** | `testclient_user@example.com` | `Password123!` |
+| Admin | `admin@agentgrid.ai` | `admin123` |
+| Test User | `testclient_user@example.com` | `Password123!` |
 
----
+## Verification
+1. Frontend: http://localhost:3000
+2. Backend API docs: http://localhost:8000/docs
+3. Creator Studio: Use the "Creator Studio" tab to try the Agent Architect.
 
-## 🔍 Verification
-
-1.  **Frontend**: [http://localhost:3000](http://localhost:3000)
-2.  **Backend API Docs**: [http://localhost:8000/docs](http://localhost:8000/docs)
-3.  **Creator Studio**: Go to the "Creator Studio" tab to try the new **Agent Architect**.
-
-## 📌 Troubleshooting
-
-- **Database Connection**: If the backend fails to start, ensure Docker is running and the `db` container is up (`docker ps`).
-- **Migrations**: If you see `no such table` errors, run `alembic upgrade head`.
-- **Unique Constraint Errors**: If you encounter errors during your first run, ensure your `agentgrid` database in Postgres is empty before running migrations.
+## Troubleshooting
+- Database connection errors: ensure Docker is running and `DATABASE_URL` uses port 5435.
+- Missing tables: run `alembic upgrade head`.
+- Code execution errors: build the sandbox image and confirm Docker is running.

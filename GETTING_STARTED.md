@@ -1,113 +1,98 @@
-# 🏁 Getting Started with AgentGrid
+# Getting Started with AgentGrid
 
-Follow this guide to successfully pull the project and run it on your local machine.
+Follow this guide to pull the project and run it locally.
 
----
-
-## 1. 📥 Pull the Latest Changes
-
-If you are joining the team, clone the repository and switch to the development branch:
+## 1. Pull the repository
 
 ```powershell
 # Clone the repository
 git clone https://github.com/axeecom/AgentGrid.git
 cd AgentGrid
 
-# Switch to the active feature branch (if applicable)
+# Switch to the active feature branch
 git checkout feature/hamid-agentgrid-updates
 ```
 
----
+## 2. Backend setup
 
-## 2. 🐍 Backend Setup
+1. Navigate to the backend directory:
+   ```powershell
+   cd backend/agentgrid-backend
+   ```
+2. Create and activate a virtual environment:
+   ```powershell
+   python -m venv venv
+   .\venv\Scripts\activate  # Windows
+   ```
+3. Install dependencies:
+   ```powershell
+   pip install -r requirements.txt
+   ```
+4. Configure environment variables:
+   - Copy `backend/agentgrid-backend/.env.example` to `.env` and adjust as needed.
+   - If you use Docker Compose for Postgres, the host port is `5435`.
+5. Initialize the database:
+   ```powershell
+   docker compose up -d db redis
+   alembic upgrade head
+   python seed_agents.py
+   ```
+6. Optional: build the code execution sandbox:
+   ```powershell
+   docker build -t agentgrid-code-exec:latest backend/agentgrid-backend/docker/code-exec
+   ```
 
-The backend uses FastAPI and PostgreSQL.
+## 3. Frontend setup
 
-1.  **Navigate to backend directory**:
-    ```powershell
-    cd backend/agentgrid-backend
-    ```
-2.  **Create and activate Virtual Environment**:
-    ```powershell
-    python -m venv venv
-    .\venv\Scripts\activate  # Windows
-    # source venv/bin/activate # Mac/Linux
-    ```
-3.  **Install dependencies**:
-    ```powershell
-    pip install -r requirements.txt
-    ```
-4.  **Configure Environment Variables**:
-    Create a `.env` file in `backend/agentgrid-backend/` (use `.env.example` as a template):
-    ```ini
-    DATABASE_URL=postgresql://postgres:postgres@localhost:5432/agentgrid
-    SECRET_KEY=your_secret_key_here
-    ALGORITHM=HS256
-    OPENAI_API_KEY=sk-xxxx...  # Required for AI features
-    ```
-5.  **Initialize Database**:
-    Ensure Docker Desktop is running, then:
-    ```powershell
-    docker compose up -d db
-    alembic upgrade head
-    python seed_agents.py
-    ```
+1. Navigate to the frontend directory:
+   ```powershell
+   cd ../../frontend
+   ```
+2. Install dependencies:
+   ```powershell
+   npm install
+   ```
+3. Configure environment:
+   - Copy `frontend/.env.example` to `frontend/.env`.
+   - Default API URL for local backend:
+     ```ini
+     VITE_API_URL=http://localhost:8000/api/v1
+     ```
 
----
+## 4. Run the application
 
-## 🎨 3. Frontend Setup
-
-The frontend uses React (Vite) and Tailwind CSS.
-
-1.  **Navigate to frontend directory**:
-    ```powershell
-    cd ../../frontend
-    ```
-2.  **Install dependencies**:
-    ```powershell
-    npm install
-    ```
-3.  **Configure Environment**:
-    Create a `.env` file in `frontend/`:
-    ```ini
-    VITE_API_URL=http://localhost:8000/api/v1
-    ```
-
----
-
-## 🚀 4. Running the Application
-
-### The Easy Way (Windows)
-From the **project root**, run the provided automation script:
+### Option A: Windows quick start
+From the project root:
 ```powershell
 .\run-app.ps1
 ```
-*This will open two terminal windows and start everything automatically.*
 
-### The Manual Way
-**Start Backend (Port 8000)**:
+### Option B: Manual
+Start backend (port 8000):
 ```powershell
 cd backend/agentgrid-backend
 uvicorn app.main:app --port 8000 --reload
 ```
 
-**Start Frontend (Port 3000)**:
+Start frontend (port 3000):
 ```powershell
 cd frontend
 npm run dev
 ```
 
----
+### Option C: Docker-only full stack
+```powershell
+docker compose up --build
+```
+Frontend: http://localhost:3000
+Backend: http://localhost:8001/docs
 
-## 🔍 5. Verification
+## 5. Verification
+- Frontend: http://localhost:3000
+- API documentation: http://localhost:8000/docs
+- Default login: `admin@agentgrid.ai` / `admin123`
 
-- **Frontend**: [http://localhost:3000](http://localhost:3000)
-- **API Documentation**: [http://localhost:8000/docs](http://localhost:8000/docs)
-- **Default Login**: `admin@agentgrid.ai` / `admin123`
-
----
-
-## 📌 Troubleshooting
-- **400 Bad Request on Register**: This usually means the email or username is already taken. Check the backend logs for `[DEBUG]` messages.
-- **ImportError / Missing Modules**: Ensure your Virtual Environment is activated before running backend commands.
-- **Port Conflict**: If port 8000 or 3000 is in use, you can change them in `run-app.ps1` or commands.
+## Troubleshooting
+- Database errors: ensure Docker is running and `DATABASE_URL` points to port 5435.
+- Missing tables: run `alembic upgrade head`.
+- Port conflicts: adjust ports in `run-app.ps1` or your commands.
