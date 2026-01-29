@@ -407,35 +407,41 @@ const ExecutionDetailsModal: React.FC<{ execution: any; onClose: () => void }> =
     };
 
     return (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50" onClick={onClose}>
-            <div className="bg-gray-900 rounded-lg border border-gray-700 max-w-2xl w-full max-h-[90vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
-                <div className="p-6 border-b border-gray-700 flex justify-between items-center">
-                    <h2 className="text-2xl font-bold text-white">Execution Details</h2>
-                    <button onClick={onClose} className="text-gray-400 hover:text-white">&times;</button>
+        <div className="fixed inset-0 bg-black/50 dark:bg-black/60 flex items-center justify-center p-4 z-50" onClick={onClose}>
+            <div className="bg-white dark:bg-gray-900 rounded-lg border border-gray-200 dark:border-gray-700 shadow-2xl max-w-2xl w-full max-h-[90vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
+                <div className="p-6 border-b border-gray-200 dark:border-gray-700 flex justify-between items-center">
+                    <h2 className="text-2xl font-bold text-gray-900 dark:text-white">Execution Details</h2>
+                    <button onClick={onClose} className="text-gray-400 hover:text-gray-900 dark:text-gray-400 dark:hover:text-white">&times;</button>
                 </div>
 
                 <div className="p-6 space-y-6">
                     <div className="grid grid-cols-2 gap-4 text-sm">
                         <div>
-                            <p className="text-gray-400">Agent</p>
-                            <p className="text-white font-medium">{execution.agent?.name || 'Unknown'}</p>
+                            <p className="text-gray-500 dark:text-gray-400">Agent</p>
+                            <p className="text-gray-900 dark:text-white font-medium">{execution.agent?.name || 'Unknown'}</p>
                         </div>
                         <div>
-                            <p className="text-gray-400">Date</p>
-                            <p className="text-white font-medium">{new Date(execution.created_at).toLocaleString()}</p>
+                            <p className="text-gray-500 dark:text-gray-400">Date</p>
+                            <p className="text-gray-900 dark:text-white font-medium">{new Date(execution.created_at).toLocaleString()}</p>
                         </div>
                         <div>
-                            <p className="text-gray-400">Status</p>
-                            <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium capitalize ${execution.status === 'completed' ? 'bg-green-900 text-green-300' :
-                                execution.status === 'failed' ? 'bg-red-900 text-red-300' : 'bg-yellow-900 text-yellow-300'
+                            <p className="text-gray-500 dark:text-gray-400">Status</p>
+                            <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium capitalize ring-1 ring-inset ${execution.status === 'completed'
+                                ? 'bg-emerald-50 text-emerald-700 ring-emerald-200 dark:bg-emerald-900/40 dark:text-emerald-300 dark:ring-emerald-800'
+                                : execution.status === 'failed'
+                                    ? 'bg-red-50 text-red-700 ring-red-200 dark:bg-red-900/40 dark:text-red-300 dark:ring-red-800'
+                                    : 'bg-amber-50 text-amber-700 ring-amber-200 dark:bg-amber-900/40 dark:text-amber-300 dark:ring-amber-800'
                                 }`}>
                                 {execution.status}
                             </span>
                         </div>
                         <div>
-                            <p className="text-gray-400">Review Status</p>
-                            <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium capitalize ${execution.review_status === 'completed' ? 'bg-blue-900 text-blue-300' :
-                                execution.review_status === 'pending' ? 'bg-amber-900 text-amber-300' : 'bg-gray-700 text-gray-400'
+                            <p className="text-gray-500 dark:text-gray-400">Review Status</p>
+                            <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium capitalize ring-1 ring-inset ${execution.review_status === 'completed'
+                                ? 'bg-blue-50 text-blue-700 ring-blue-200 dark:bg-blue-900/40 dark:text-blue-300 dark:ring-blue-800'
+                                : execution.review_status === 'pending'
+                                    ? 'bg-amber-50 text-amber-700 ring-amber-200 dark:bg-amber-900/40 dark:text-amber-300 dark:ring-amber-800'
+                                    : 'bg-gray-100 text-gray-600 ring-gray-200 dark:bg-gray-800 dark:text-gray-400 dark:ring-gray-700'
                                 }`}>
                                 {execution.review_status || 'none'}
                             </span>
@@ -443,67 +449,67 @@ const ExecutionDetailsModal: React.FC<{ execution: any; onClose: () => void }> =
                     </div>
 
                     <div>
-                        <h3 className="text-sm font-semibold text-gray-300 mb-2">Inputs</h3>
-                        <div className="bg-gray-800 rounded-md p-3 text-xs">
-                            <pre className="text-gray-300 whitespace-pre-wrap">{JSON.stringify(execution.inputs, null, 2)}</pre>
+                        <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">Inputs</h3>
+                        <div className="bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-md p-3 text-xs">
+                            <pre className="text-gray-700 dark:text-gray-300 whitespace-pre-wrap">{JSON.stringify(execution.inputs, null, 2)}</pre>
                         </div>
                     </div>
 
                     <div>
-                        <h3 className="text-sm font-semibold text-gray-300 mb-2">Outputs</h3>
-                        <div className="bg-gray-800 rounded-md p-3 text-xs">
-                            <pre className="text-gray-300 whitespace-pre-wrap">{smartUnwrap(execution.outputs)}</pre>
+                        <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">Outputs</h3>
+                        <div className="bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-md p-3 text-xs">
+                            <pre className="text-gray-700 dark:text-gray-300 whitespace-pre-wrap">{smartUnwrap(execution.outputs)}</pre>
                         </div>
                     </div>
 
                     {execution.review_status !== 'none' && (
-                        <div className="border-t border-gray-700 pt-6 space-y-4">
+                        <div className="border-t border-gray-200 dark:border-gray-700 pt-6 space-y-4">
                             <div className="flex items-center gap-2">
                                 <MessageSquare className="w-5 h-5 text-brand-primary" />
-                                <h3 className="text-lg font-semibold text-white">Expert Review</h3>
+                                <h3 className="text-lg font-semibold text-gray-900 dark:text-white">Expert Review</h3>
                             </div>
 
-                            <div className="bg-amber-900/10 border border-amber-800 rounded-lg p-4">
-                                <p className="text-xs font-semibold text-amber-400 uppercase tracking-wider mb-2">Your Request</p>
-                                <p className="text-sm text-gray-300">{execution.review_request_note || 'No note provided'}</p>
+                            <div className="bg-amber-50/80 border border-amber-200 dark:bg-amber-900/10 dark:border-amber-800 rounded-lg p-4">
+                                <p className="text-xs font-semibold text-amber-700 dark:text-amber-400 uppercase tracking-wider mb-2">Your Request</p>
+                                <p className="text-sm text-gray-700 dark:text-gray-300">{execution.review_request_note || 'No note provided'}</p>
                                 <p className="text-xs text-gray-500 mt-2">
                                     Requested on {new Date(execution.created_at).toLocaleDateString()} at {new Date(execution.created_at).toLocaleTimeString()}
                                 </p>
                             </div>
 
                             {execution.review_status === 'completed' && execution.review_response_note && (
-                                <div className="bg-blue-900/10 border border-blue-800 rounded-lg p-5 relative overflow-hidden group">
+                                <div className="bg-blue-50/70 border border-blue-200 dark:bg-blue-900/10 dark:border-blue-800 rounded-lg p-5 relative overflow-hidden group">
                                     <div className="absolute top-0 right-0 p-3 flex flex-col items-end gap-1">
                                         <div className="flex gap-0.5">
                                             {[1, 2, 3, 4, 5].map((s) => (
-                                                <div key={s} className={`w-2 h-2 rounded-full ${execution.quality_score && s <= execution.quality_score ? 'bg-blue-500 shadow-[0_0_8px_rgba(59,130,246,0.6)]' : 'bg-gray-700'}`} />
+                                                <div key={s} className={`w-2 h-2 rounded-full ${execution.quality_score && s <= execution.quality_score ? 'bg-blue-500 shadow-[0_0_8px_rgba(59,130,246,0.45)]' : 'bg-gray-200 dark:bg-gray-700'}`} />
                                             ))}
                                         </div>
-                                        <span className="text-[8px] font-black text-blue-400 uppercase tracking-widest">Quality score</span>
+                                        <span className="text-[8px] font-black text-blue-700 dark:text-blue-400 uppercase tracking-widest">Quality score</span>
                                     </div>
 
                                     <div className="flex items-center gap-3 mb-4">
-                                        <div className="w-10 h-10 bg-blue-500/20 rounded-full flex items-center justify-center text-blue-500">
+                                        <div className="w-10 h-10 bg-blue-500/15 dark:bg-blue-500/20 rounded-full flex items-center justify-center text-blue-600 dark:text-blue-500">
                                             <Sparkles size={20} />
                                         </div>
                                         <div>
-                                            <p className="text-xs font-black text-blue-400 uppercase tracking-widest">Expert Verification</p>
-                                            <p className="text-[10px] text-blue-400/60 font-medium">Provided by original creator</p>
+                                            <p className="text-xs font-black text-blue-700 dark:text-blue-400 uppercase tracking-widest">Expert Verification</p>
+                                            <p className="text-[10px] text-blue-600/70 dark:text-blue-400/60 font-medium">Provided by original creator</p>
                                         </div>
                                     </div>
 
                                     <div className="space-y-4">
                                         <div>
-                                            <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-2 leading-none">Internal Analysis</p>
-                                            <p className="text-sm text-gray-100 leading-relaxed italic">{execution.review_response_note}</p>
+                                            <p className="text-[10px] font-black text-gray-600 dark:text-gray-400 uppercase tracking-widest mb-2 leading-none">Internal Analysis</p>
+                                            <p className="text-sm text-gray-800 dark:text-gray-100 leading-relaxed italic">{execution.review_response_note}</p>
                                         </div>
 
                                         {execution.refined_outputs && (
-                                            <div className="bg-gray-900 border border-blue-900/30 rounded-xl p-4">
-                                                <p className="text-[10px] font-black text-blue-400 uppercase tracking-widest mb-3 flex items-center gap-2">
+                                            <div className="bg-white/70 dark:bg-gray-900 border border-blue-200 dark:border-blue-900/30 rounded-xl p-4">
+                                                <p className="text-[10px] font-black text-blue-700 dark:text-blue-400 uppercase tracking-widest mb-3 flex items-center gap-2">
                                                     <CheckCircle size={10} /> Refined Verified Result
                                                 </p>
-                                                <pre className="text-xs text-blue-50 font-medium whitespace-pre-wrap font-mono leading-relaxed">
+                                                <pre className="text-xs text-blue-800 dark:text-blue-50 font-medium whitespace-pre-wrap font-mono leading-relaxed">
                                                     {smartUnwrap(execution.refined_outputs)}
                                                 </pre>
                                             </div>
@@ -519,9 +525,9 @@ const ExecutionDetailsModal: React.FC<{ execution: any; onClose: () => void }> =
                             )}
 
                             {execution.review_status === 'pending' && (
-                                <div className="bg-gray-800 border border-gray-700 rounded-lg p-4 text-center">
-                                    <div className="inline-flex items-center gap-2 text-amber-400">
-                                        <div className="w-2 h-2 bg-amber-400 rounded-full animate-pulse"></div>
+                                <div className="bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg p-4 text-center">
+                                    <div className="inline-flex items-center gap-2 text-amber-600 dark:text-amber-400">
+                                        <div className="w-2 h-2 bg-amber-500 dark:bg-amber-400 rounded-full animate-pulse"></div>
                                         <span className="text-sm font-medium">Waiting for creator response...</span>
                                     </div>
                                     <p className="text-xs text-gray-500 mt-2">You'll be notified when the creator responds</p>
@@ -531,7 +537,7 @@ const ExecutionDetailsModal: React.FC<{ execution: any; onClose: () => void }> =
                     )}
                 </div>
 
-                <div className="p-6 border-t border-gray-700 flex justify-between items-center">
+                <div className="p-6 border-t border-gray-200 dark:border-gray-700 flex justify-between items-center">
                     <div className="flex gap-2">
                         {execution.status === 'completed' && (localReviewStatus === 'none' || localReviewStatus === 'rejected') && (
                             <button
@@ -543,7 +549,7 @@ const ExecutionDetailsModal: React.FC<{ execution: any; onClose: () => void }> =
                             </button>
                         )}
                     </div>
-                    <button onClick={onClose} className="px-4 py-2 bg-gray-800 text-white rounded hover:bg-gray-700 transition-colors">Close</button>
+                    <button onClick={onClose} className="px-4 py-2 bg-gray-900 text-white rounded hover:bg-gray-800 dark:bg-gray-800 dark:hover:bg-gray-700 transition-colors">Close</button>
                 </div>
 
                 <ReviewRequestModal
