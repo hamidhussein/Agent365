@@ -33,6 +33,10 @@
     --ring: 162 78% 39%;
 
     --radius: 0.9rem;
+
+    --scrollbar-track: 0 0% 100%;
+    --scrollbar-thumb: 214 20% 78%;
+    --scrollbar-thumb-hover: 214 20% 66%;
   }
 
   .dark {
@@ -63,6 +67,10 @@
     --border: 217 24% 18%;
     --input: 217 24% 20%;
     --ring: 162 78% 45%;
+
+    --scrollbar-track: 222 47% 9%;
+    --scrollbar-thumb: 217 24% 30%;
+    --scrollbar-thumb-hover: 217 24% 38%;
   }
 }
 
@@ -78,6 +86,13 @@
       radial-gradient(1200px 600px at 10% -10%, hsl(var(--primary) / 0.12), transparent 60%),
       radial-gradient(900px 500px at 90% 0%, hsl(var(--accent) / 0.12), transparent 55%);
     background-attachment: fixed;
+  }
+}
+
+@layer base {
+  * {
+    scrollbar-width: thin;
+    scrollbar-color: hsl(var(--scrollbar-thumb)) transparent;
   }
 }
 
@@ -127,25 +142,23 @@
   }
 }
 
-/* Custom Scrollbar for Dark Mode - Global Override */
+/* Themed scrollbars (light + dark) */
 ::-webkit-scrollbar {
   width: 6px;
   height: 6px;
 }
 
 ::-webkit-scrollbar-track {
-  background: transparent;
+  background: hsl(var(--scrollbar-track) / 0.6);
 }
 
 ::-webkit-scrollbar-thumb {
-  background-color: rgb(51, 65, 85);
-  /* slate-700 */
+  background-color: hsl(var(--scrollbar-thumb));
   border-radius: 9999px;
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background-color: rgb(71, 85, 105);
-  /* slate-600 */
+  background-color: hsl(var(--scrollbar-thumb-hover));
 }
 
 ::-webkit-scrollbar-corner {

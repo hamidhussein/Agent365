@@ -2,7 +2,7 @@
 import { motion, AnimatePresence } from 'framer-motion';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
-import { Bot, Send, FileText, Copy, RotateCcw, Square, Download, Globe, Code, Zap, Paperclip, Loader2, X, ChevronDown } from 'lucide-react';
+import { Bot, Send, FileText, Copy, RotateCcw, Square, Download, Globe, Code, Zap, Paperclip, Loader2, X, ChevronDown, LayoutDashboard } from 'lucide-react';
 import { publicApi } from '../../api';
 import { Button } from '../ui/Button';
 import { Input, TextArea } from '../ui/Input';
@@ -502,6 +502,10 @@ export const ChatInterface = ({
     setIsThinking(false);
   };
 
+  const handleOpenCreatorStudio = () => {
+    window.location.assign('/studio');
+  };
+
   const exportConversation = () => {
     const payload = messages.map(msg => ({
       ...msg,
@@ -538,6 +542,9 @@ export const ChatInterface = ({
           </p>
           <Button variant="outline" className="mt-4 text-xs" onClick={exportConversation}>
             <Download size={14} /> Export Chat
+          </Button>
+          <Button variant="secondary" className="mt-2 text-xs" onClick={handleOpenCreatorStudio}>
+            <LayoutDashboard size={14} /> Creator Studio
           </Button>
         </div>
 
@@ -697,9 +704,15 @@ export const ChatInterface = ({
                   </div>
                   <span className="font-bold text-foreground text-sm">{agent.name}</span>
                 </div>
-                <Button variant="outline" className="text-xs px-2 h-8" onClick={exportConversation}>
-                  <Download size={14} /> Export
-                </Button>
+                <div className="flex items-center gap-2">
+                  <Button variant="outline" className="text-xs px-2 h-8" onClick={handleOpenCreatorStudio}>
+                    <LayoutDashboard size={14} />
+                    <span className="hidden sm:inline">Studio</span>
+                  </Button>
+                  <Button variant="outline" className="text-xs px-2 h-8" onClick={exportConversation}>
+                    <Download size={14} /> Export
+                  </Button>
+                </div>
               </div>
 
               <AnimatePresence initial={false}>
