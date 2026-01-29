@@ -196,12 +196,6 @@ const RunAgentPage: React.FC<RunAgentPageProps> = ({ agent, onBackToDetail }) =>
     if (isCreatorStudioOwner) {
         return (
             <div className="container mx-auto max-w-screen-2xl px-4 py-12">
-                <button
-                    onClick={() => onBackToDetail(agent.id)}
-                    className="text-sm text-gray-400 hover:text-white mb-4"
-                >
-                    &larr; Back to Agent Details
-                </button>
                 <div className="rounded-lg border border-blue-700 bg-blue-900/30 p-6 text-blue-100">
                     <h2 className="text-2xl font-bold text-white">Open in Creator Studio</h2>
                     <p className="mt-2 text-sm">
@@ -233,12 +227,6 @@ const RunAgentPage: React.FC<RunAgentPageProps> = ({ agent, onBackToDetail }) =>
         if (csLoading) {
             return (
                 <div className="container mx-auto max-w-screen-2xl px-4 py-12">
-                    <button
-                        onClick={() => onBackToDetail(agent.id)}
-                        className="text-sm text-gray-400 hover:text-white mb-4"
-                    >
-                        &larr; Back to Agent Details
-                    </button>
                     <div className="text-gray-300">Loading Creator Studio agent...</div>
                 </div>
             );
@@ -246,12 +234,6 @@ const RunAgentPage: React.FC<RunAgentPageProps> = ({ agent, onBackToDetail }) =>
         if (csError) {
             return (
                 <div className="container mx-auto max-w-screen-2xl px-4 py-12">
-                    <button
-                        onClick={() => onBackToDetail(agent.id)}
-                        className="text-sm text-gray-400 hover:text-white mb-4"
-                    >
-                        &larr; Back to Agent Details
-                    </button>
                     <div className="rounded-md border border-red-700 bg-red-900/30 p-6 text-red-100">
                         {csError}
                     </div>
@@ -260,15 +242,7 @@ const RunAgentPage: React.FC<RunAgentPageProps> = ({ agent, onBackToDetail }) =>
         }
         if (csAgent) {
             return (
-                <div className="min-h-screen bg-slate-900">
-                    <div className="container mx-auto max-w-screen-2xl px-4 py-6">
-                        <button
-                            onClick={() => onBackToDetail(agent.id)}
-                            className="text-sm text-gray-400 hover:text-white mb-4"
-                        >
-                            &larr; Back to Agent Details
-                        </button>
-                    </div>
+                <div className="min-h-screen bg-background">
                     <div className="max-w-screen-2xl mx-auto px-4 pb-8">
                         <ChatInterface
                             agent={csAgent}
@@ -276,8 +250,6 @@ const RunAgentPage: React.FC<RunAgentPageProps> = ({ agent, onBackToDetail }) =>
                             publicMode
                             guestId={guestId}
                         />
-
-
                     </div>
                 </div>
             );

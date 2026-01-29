@@ -30,7 +30,7 @@ const AgentCard: React.FC<AgentCardProps> = ({ agent, onSelect, onSelectCreator,
         <div onClick={() => onSelect(agent.id)} className="group relative overflow-hidden rounded-2xl border border-border/70 bg-card/90 text-left shadow-sm transition-all duration-300 hover:-translate-y-1 hover:border-primary/60 hover:shadow-lg hover:shadow-primary/10 cursor-pointer">
             <div className="relative">
                 <img src={agent.imageUrl} alt={agent.name} className="h-36 w-full object-cover sm:h-40" />
-                <div className="absolute inset-0 bg-gradient-to-t from-black/45 via-black/10 to-transparent" />
+                <div className="absolute inset-0 bg-gradient-to-t from-black/20 via-black/5 to-transparent dark:from-black/60 dark:via-black/20" />
                 <div className="absolute left-3 top-3 flex items-center gap-2">
                     {isCreatorStudio && (
                         <span className="rounded-full bg-primary/90 px-2.5 py-1 text-[9px] font-black uppercase tracking-widest text-primary-foreground shadow-sm">

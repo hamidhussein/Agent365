@@ -2,7 +2,7 @@
 import { motion, AnimatePresence } from 'framer-motion';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
-import { Bot, Send, FileText, Copy, RotateCcw, Square, Download, Globe, Code, Zap, Paperclip, Loader2, X, ChevronDown, LayoutDashboard } from 'lucide-react';
+import { Bot, Send, FileText, Copy, RotateCcw, Square, Download, Globe, Code, Zap, Paperclip, Loader2, X, ChevronDown } from 'lucide-react';
 import { publicApi } from '../../api';
 import { Button } from '../ui/Button';
 import { Input, TextArea } from '../ui/Input';
@@ -125,6 +125,7 @@ export const ChatInterface = ({
   const [isReviewModalOpen, setIsReviewModalOpen] = useState(false);
   const [userHasScrolledUp, setUserHasScrolledUp] = useState(false);
   const scrollContainerRef = useRef<HTMLDivElement>(null);
+  const showCreatorMeta = !publicMode;
 
   const handleRequestReview = async (note: string, priority?: 'standard' | 'high') => {
     if (!lastExecutionId) return;
@@ -502,10 +503,6 @@ export const ChatInterface = ({
     setIsThinking(false);
   };
 
-  const handleOpenCreatorStudio = () => {
-    window.location.assign('/studio');
-  };
-
   const exportConversation = () => {
     const payload = messages.map(msg => ({
       ...msg,
@@ -532,9 +529,11 @@ export const ChatInterface = ({
             </div>
             <div>
               <h2 className="font-bold text-foreground text-lg">{agent.name}</h2>
-              <span className="text-xs px-2 py-0.5 rounded-full bg-secondary text-secondary-foreground border border-border">
-                {agentModelOption?.label || 'AI Model'}
-              </span>
+              {showCreatorMeta && (
+                <span className="text-xs px-2 py-0.5 rounded-full bg-secondary text-secondary-foreground border border-border">
+                  {agentModelOption?.label || 'AI Model'}
+                </span>
+              )}
             </div>
           </div>
           <p className="text-sm text-muted-foreground leading-relaxed">
@@ -543,59 +542,58 @@ export const ChatInterface = ({
           <Button variant="outline" className="mt-4 text-xs" onClick={exportConversation}>
             <Download size={14} /> Export Chat
           </Button>
-          <Button variant="secondary" className="mt-2 text-xs" onClick={handleOpenCreatorStudio}>
-            <LayoutDashboard size={14} /> Creator Studio
-          </Button>
         </div>
 
         <div className="p-6 flex-1 overflow-y-auto">
-          <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-3">Knowledge Files</h3>
-          {agent.files.length === 0 ? (
-            <p className="text-sm text-muted-foreground italic">No files attached.</p>
-          ) : (
-            <ul className="space-y-2">
-              {agent.files.map((f) => (
-                <li key={f.id} className="flex items-center gap-2 text-sm text-foreground/80">
-                  <FileText size={14} className="text-blue-400" />
-                  <span className="truncate">{f.name}</span>
-                </li>
-              ))}
-            </ul>
+          {showCreatorMeta && (
+            <>
+              <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-3">Knowledge Files</h3>
+              {agent.files.length === 0 ? (
+                <p className="text-sm text-muted-foreground italic">No files attached.</p>
+              ) : (
+                <ul className="space-y-2">
+                  {agent.files.map((f) => (
+                    <li key={f.id} className="flex items-center gap-2 text-sm text-foreground/80">
+                      <FileText size={14} className="text-blue-400" />
+                      <span className="truncate">{f.name}</span>
+                    </li>
+                  ))}
+                </ul>
+              )}
+
+              {(agent.enabledCapabilities?.codeExecution || agent.enabledCapabilities?.webBrowsing || agent.enabledCapabilities?.apiIntegrations || agent.enabledCapabilities?.fileHandling) && (
+                <div className="mt-6">
+                  <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-3">Capabilities</h3>
+                  <ul className="space-y-2">
+                    {agent.enabledCapabilities.webBrowsing && (
+                      <li className="flex items-center gap-2 text-sm text-foreground/80">
+                        <Globe size={14} className="text-teal-400" />
+                        <span>Web Browsing</span>
+                      </li>
+                    )}
+                    {agent.enabledCapabilities.codeExecution && (
+                      <li className="flex items-center gap-2 text-sm text-foreground/80">
+                        <Code size={14} className="text-purple-400" />
+                        <span>Code Execution</span>
+                      </li>
+                    )}
+                    {agent.enabledCapabilities.apiIntegrations && (
+                      <li className="flex items-center gap-2 text-sm text-foreground/80">
+                        <Zap size={14} className="text-amber-400" />
+                        <span>API Actions</span>
+                      </li>
+                    )}
+                    {agent.enabledCapabilities.fileHandling && (
+                      <li className="flex items-center gap-2 text-sm text-foreground/80">
+                        <FileText size={14} className="text-orange-400" />
+                        <span>File Handling</span>
+                      </li>
+                    )}
+                  </ul>
+                </div>
+              )}
+            </>
           )}
-
-          {(agent.enabledCapabilities?.codeExecution || agent.enabledCapabilities?.webBrowsing || agent.enabledCapabilities?.apiIntegrations || agent.enabledCapabilities?.fileHandling) && (
-            <div className="mt-6">
-              <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-3">Capabilities</h3>
-              <ul className="space-y-2">
-                {agent.enabledCapabilities.webBrowsing && (
-                  <li className="flex items-center gap-2 text-sm text-foreground/80">
-                    <Globe size={14} className="text-teal-400" />
-                    <span>Web Browsing</span>
-                  </li>
-                )}
-                {agent.enabledCapabilities.codeExecution && (
-                  <li className="flex items-center gap-2 text-sm text-foreground/80">
-                    <Code size={14} className="text-purple-400" />
-                    <span>Code Execution</span>
-                  </li>
-                )}
-                {agent.enabledCapabilities.apiIntegrations && (
-                  <li className="flex items-center gap-2 text-sm text-foreground/80">
-                    <Zap size={14} className="text-amber-400" />
-                    <span>API Actions</span>
-                  </li>
-                )}
-                {agent.enabledCapabilities.fileHandling && (
-                  <li className="flex items-center gap-2 text-sm text-foreground/80">
-                    <FileText size={14} className="text-orange-400" />
-                    <span>File Handling</span>
-                  </li>
-                )}
-              </ul>
-            </div>
-          )}
-
-
         </div>
       </div>
 
@@ -616,7 +614,9 @@ export const ChatInterface = ({
                   <h2 className="text-xl font-bold text-foreground">Before we start</h2>
                   <p className="text-sm text-muted-foreground">Provide the required inputs for {agent.name}.</p>
                 </div>
-                <span className="text-xs text-muted-foreground">{agentModelOption?.label || 'AI Model'}</span>
+                {showCreatorMeta && (
+                  <span className="text-xs text-muted-foreground">{agentModelOption?.label || 'AI Model'}</span>
+                )}
               </div>
 
               <div className="space-y-4">
@@ -704,15 +704,9 @@ export const ChatInterface = ({
                   </div>
                   <span className="font-bold text-foreground text-sm">{agent.name}</span>
                 </div>
-                <div className="flex items-center gap-2">
-                  <Button variant="outline" className="text-xs px-2 h-8" onClick={handleOpenCreatorStudio}>
-                    <LayoutDashboard size={14} />
-                    <span className="hidden sm:inline">Studio</span>
-                  </Button>
-                  <Button variant="outline" className="text-xs px-2 h-8" onClick={exportConversation}>
-                    <Download size={14} /> Export
-                  </Button>
-                </div>
+                <Button variant="outline" className="text-xs px-2 h-8" onClick={exportConversation}>
+                  <Download size={14} /> Export
+                </Button>
               </div>
 
               <AnimatePresence initial={false}>
@@ -915,11 +909,13 @@ export const ChatInterface = ({
                       </button>
                     )}
                   </div>
-                  <div className="flex items-center gap-2">
-                    <div className="text-[10px] uppercase tracking-widest text-muted-foreground font-bold px-2 py-1 bg-secondary rounded-lg border border-border">
-                      {agentModelOption?.label || 'AI Model'}
+                  {showCreatorMeta && (
+                    <div className="flex items-center gap-2">
+                      <div className="text-[10px] uppercase tracking-widest text-muted-foreground font-bold px-2 py-1 bg-secondary rounded-lg border border-border">
+                        {agentModelOption?.label || 'AI Model'}
+                      </div>
                     </div>
-                  </div>
+                  )}
                 </div>
 
                 {/* Input Container */}

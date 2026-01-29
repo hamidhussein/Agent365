@@ -1,14 +1,12 @@
 import { ChangeEvent, useEffect, useRef, useState } from 'react';
-import { Bot, Cpu, Settings, FileText, Upload, X, AlertTriangle, Sparkles, Globe, Save, Rocket } from 'lucide-react';
+import { Bot, Cpu, Settings, FileText, Upload, X, AlertTriangle, Sparkles, Save, Rocket } from 'lucide-react';
 import { Button } from '../ui/Button';
 import { Input, TextArea } from '../ui/Input';
-import { Agent, AgentInput, AgentPayload, KnowledgeFile, AgentActionResponse } from '../../types';
+import { Agent, AgentInput, AgentPayload, KnowledgeFile } from '../../types';
 import { COLORS } from '../../constants';
 import { BuilderChat, Message } from './BuilderChat';
 import { PreviewChat } from './PreviewChat';
 import { AgentDebugger, DebugLog } from './AgentDebugger';
-import { ActionsConfig } from './ActionsConfig';
-import { agentsApi } from '../../api';
 
 export const AgentBuilder = ({
     onCancel,
@@ -52,14 +50,7 @@ export const AgentBuilder = ({
             content: "Hi! I'm your Agent Architect. What kind of agent would you like to build today?"
         }
     ]);
-    const [actions, setActions] = useState<AgentActionResponse[]>(initialData?.creator_studio_actions || []);
     const [debugLogs, setDebugLogs] = useState<DebugLog[]>([]);
-
-    useEffect(() => {
-        if (initialData?.id) {
-            agentsApi.getActions(initialData.id).then(setActions).catch(console.error);
-        }
-    }, [initialData?.id]);
 
     useEffect(() => {
         if (activeTab !== 'create') return;
@@ -150,7 +141,7 @@ export const AgentBuilder = ({
     };
 
     // Tabs for the main configuration area
-    const [configSection, setConfigSection] = useState<'identity' | 'behavior' | 'knowledge' | 'capabilities' | 'tools' | 'publish'>('identity');
+    const [configSection, setConfigSection] = useState<'identity' | 'behavior' | 'knowledge' | 'capabilities' | 'publish'>('identity');
 
     return (
         <div className="flex flex-col h-full bg-background overflow-hidden font-sans">
@@ -331,9 +322,6 @@ export const AgentBuilder = ({
                                     <button onClick={() => setConfigSection('capabilities')} className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-bold transition-all ${configSection === 'capabilities' ? 'bg-primary/10 text-primary shadow-sm' : 'text-muted-foreground hover:bg-muted hover:text-foreground'}`}>
                                         <Settings size={16} /> Capabilities
                                     </button>
-                                    <button onClick={() => setConfigSection('tools')} className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-bold transition-all ${configSection === 'tools' ? 'bg-primary/10 text-primary shadow-sm' : 'text-muted-foreground hover:bg-muted hover:text-foreground'}`}>
-                                        <Globe size={16} /> Tools & Actions
-                                    </button>
                                     <div className="h-px bg-border my-3 mx-3" />
                                     <button onClick={() => setConfigSection('publish')} className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-bold transition-all ${configSection === 'publish' ? 'bg-primary/10 text-primary shadow-sm' : 'text-muted-foreground hover:bg-muted hover:text-foreground'}`}>
                                         <Upload size={16} /> Publish Settings
@@ -439,14 +427,6 @@ export const AgentBuilder = ({
                                         </div>
                                     )}
 
-                                    {configSection === 'tools' && (
-                                        <div className="space-y-6">
-                                            <h2 className="text-xl font-bold text-foreground">Tools & Actions</h2>
-                                            <p className="text-sm text-muted-foreground">Configure external API tools that your agent can call.</p>
-                                            <ActionsConfig agentId={initialData?.id || ''} actions={actions} setActions={setActions} />
-                                        </div>
-                                    )}
-
                                     {configSection === 'publish' && (
                                         <div className="space-y-6">
                                             <h2 className="text-xl font-bold text-foreground">Publish Settings</h2>
@@ -459,7 +439,7 @@ export const AgentBuilder = ({
                                                     </div>
                                                     <label className="relative inline-flex items-center cursor-pointer">
                                                         <input type="checkbox" checked={isPublic} onChange={(e) => setIsPublic(e.target.checked)} className="sr-only peer" />
-                                                        <div className="w-12 h-6.5 bg-muted peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[4px] after:left-[4px] after:bg-white after:border-border after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-primary shadow-inner"></div>
+                                                        <div className="w-12 h-6.5 bg-muted/80 peer-focus:outline-none rounded-full peer peer-checked:bg-green-600 peer-checked:after:translate-x-full after:content-[''] after:absolute after:top-[4px] after:left-[4px] after:bg-gray-300 dark:after:bg-gray-100 peer-checked:after:bg-green-500 after:rounded-full after:h-5 after:w-5 after:transition-all shadow-inner"></div>
                                                     </label>
                                                 </div>
 
@@ -482,7 +462,7 @@ export const AgentBuilder = ({
                                                     </div>
                                                     <label className="relative inline-flex items-center cursor-pointer">
                                                         <input type="checkbox" checked={allowReviews} onChange={(e) => setAllowReviews(e.target.checked)} className="sr-only peer" />
-                                                        <div className="w-12 h-6.5 bg-muted peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[4px] after:left-[4px] after:bg-white after:border-border after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-green-600 shadow-inner"></div>
+                                                        <div className="w-12 h-6.5 bg-muted/80 peer-focus:outline-none rounded-full peer peer-checked:bg-green-600 peer-checked:after:translate-x-full after:content-[''] after:absolute after:top-[4px] after:left-[4px] after:bg-gray-300 dark:after:bg-gray-100 peer-checked:after:bg-green-500 after:rounded-full after:h-5 after:w-5 after:transition-all shadow-inner"></div>
                                                     </label>
                                                 </div>
                                                 {allowReviews && (
