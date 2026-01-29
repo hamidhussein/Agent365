@@ -64,10 +64,10 @@ const AgentGraph: React.FC<AgentGraphProps> = ({ currentAgentId, creatorId, crea
     if (isLoading) {
         return (
             <div className="mt-16 animate-pulse">
-                <div className="h-8 w-48 rounded bg-gray-700 mb-8"></div>
+                <div className="h-8 w-48 rounded bg-muted/70 mb-8"></div>
                 <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-5">
                     {[1, 2, 3, 4, 5].map((i) => (
-                        <div key={i} className="h-40 rounded-xl bg-gray-800/50 border border-gray-700/50"></div>
+                        <div key={i} className="h-40 rounded-xl bg-card/60 border border-border"></div>
                     ))}
                 </div>
             </div>
@@ -81,18 +81,18 @@ const AgentGraph: React.FC<AgentGraphProps> = ({ currentAgentId, creatorId, crea
         <section className="mt-20 relative overflow-hidden pb-12">
             {/* Ambient Background Glow */}
             <div className="absolute top-0 left-1/2 -translate-x-1/2 w-full h-full pointer-events-none">
-                <div className="absolute top-0 left-1/4 w-64 h-64 bg-brand-primary/10 rounded-full blur-[100px]"></div>
-                <div className="absolute bottom-0 right-1/4 w-64 h-64 bg-indigo-500/10 rounded-full blur-[100px]"></div>
+                <div className="absolute top-0 left-1/4 w-64 h-64 bg-primary/10 rounded-full blur-[100px]"></div>
+                <div className="absolute bottom-0 right-1/4 w-64 h-64 bg-cyan-500/10 rounded-full blur-[100px]"></div>
             </div>
 
             <div className="relative z-10">
                 <div className="flex items-end justify-between mb-8">
                     <div>
-                        <h2 className="text-2xl font-bold text-white tracking-tight">Agent Graph</h2>
-                        <p className="text-gray-400 mt-1">
+                        <h2 className="text-2xl font-bold text-foreground tracking-tight">Agent Graph</h2>
+                        <p className="text-muted-foreground mt-1">
                             {hasOnlyCreatorAgents 
-                                ? <>Discover more excellence from <span className="text-brand-primary font-medium">{creatorName}</span></>
-                                : <>Discover more of our <span className="text-brand-primary font-medium">top-rated agents</span></>
+                                ? <>Discover more excellence from <span className="text-primary font-medium">{creatorName}</span></>
+                                : <>Discover more of our <span className="text-primary font-medium">top-rated agents</span></>
                             }
                         </p>
                     </div>
@@ -116,7 +116,7 @@ const AgentGraph: React.FC<AgentGraphProps> = ({ currentAgentId, creatorId, crea
                         <div
                             key={agent.id}
                             onClick={() => onSelectAgent(agent.id)}
-                            className="group cursor-pointer relative overflow-hidden rounded-xl border border-gray-700/50 bg-gray-800/40 p-5 transition-all duration-300 hover:-translate-y-1 hover:border-brand-primary/50 hover:bg-gray-800/60 hover:shadow-2xl hover:shadow-brand-primary/10"
+                            className="group cursor-pointer relative overflow-hidden rounded-2xl border border-border/70 bg-card/80 p-5 transition-all duration-300 hover:-translate-y-1 hover:border-primary/50 hover:bg-card hover:shadow-2xl hover:shadow-primary/10"
                         >
                             {/* Card Content */}
                             <div className="relative h-24 mb-4 overflow-hidden rounded-lg">
@@ -125,27 +125,27 @@ const AgentGraph: React.FC<AgentGraphProps> = ({ currentAgentId, creatorId, crea
                                     alt={agent.name} 
                                     className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-110" 
                                 />
-                                <div className="absolute inset-0 bg-gradient-to-t from-gray-900/80 to-transparent"></div>
+                                <div className="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent"></div>
                                 <div className="absolute bottom-2 left-2 right-2 flex justify-between items-center text-[10px] font-bold text-white">
                                     <div className="flex items-center bg-black/40 backdrop-blur-md px-1.5 py-0.5 rounded">
                                         <StarIcon className="h-2.5 w-2.5 text-yellow-500 mr-1" />
                                         {agent.rating}
                                     </div>
-                                    <div className="bg-brand-primary/80 backdrop-blur-md px-1.5 py-0.5 rounded">
+                                    <div className="bg-primary/90 text-primary-foreground backdrop-blur-md px-1.5 py-0.5 rounded">
                                         {agent.price} cr
                                     </div>
                                 </div>
                             </div>
 
-                            <h3 className="text-sm font-semibold text-white truncate group-hover:text-brand-primary transition-colors">{agent.name}</h3>
-                            <p className="mt-1 text-xs text-gray-400 line-clamp-2 leading-relaxed">{agent.description}</p>
+                            <h3 className="text-sm font-semibold text-foreground truncate group-hover:text-primary transition-colors">{agent.name}</h3>
+                            <p className="mt-1 text-xs text-muted-foreground line-clamp-2 leading-relaxed">{agent.description}</p>
                             
                             <div className="mt-4 flex items-center justify-between opacity-60 group-hover:opacity-100 transition-opacity">
-                                <div className="flex items-center text-[10px] text-gray-400">
-                                    <ZapIcon className="h-3 w-3 mr-1 text-brand-primary" />
+                                <div className="flex items-center text-[10px] text-muted-foreground">
+                                    <ZapIcon className="h-3 w-3 mr-1 text-primary" />
                                     {agent.runs.toLocaleString()} runs
                                 </div>
-                                <div className="h-6 w-6 rounded-full bg-gray-700 flex items-center justify-center group-hover:bg-brand-primary transition-colors">
+                                <div className="h-6 w-6 rounded-full bg-muted flex items-center justify-center group-hover:bg-primary transition-colors">
                                     <svg className="w-3 h-3 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
                                     </svg>
@@ -153,7 +153,7 @@ const AgentGraph: React.FC<AgentGraphProps> = ({ currentAgentId, creatorId, crea
                             </div>
 
                             {/* Hover Accent */}
-                            <div className="absolute top-0 left-0 w-1 h-0 bg-brand-primary transition-all duration-300 group-hover:h-full"></div>
+                            <div className="absolute top-0 left-0 w-1 h-0 bg-primary transition-all duration-300 group-hover:h-full"></div>
                         </div>
                     ))}
                 </div>

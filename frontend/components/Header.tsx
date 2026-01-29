@@ -55,17 +55,23 @@ const Header: React.FC<HeaderProps> = ({ setCurrentPage, currentPage, creditBala
 
 
   return (
-    <header className="sticky top-0 z-50 w-full border-b border-border bg-background/80 backdrop-blur-md">
+    <header className="sticky top-0 z-50 w-full border-b border-border/70 bg-background/75 backdrop-blur-xl shadow-[0_8px_30px_-20px_rgba(15,23,42,0.35)]">
       <div className="container mx-auto flex h-16 max-w-screen-2xl items-center justify-between px-4">
         <button onClick={() => handleNavigation('home')} className="flex items-center space-x-3">
           <BotIcon className="h-7 w-7 text-primary" />
-          <span className="text-xl font-bold text-foreground">AgentGrid</span>
+          <span className="text-xl font-display font-semibold text-foreground tracking-tight">AgentGrid</span>
         </button>
 
         {/* Desktop Nav */}
-        <nav className="hidden items-center space-x-8 text-base font-semibold text-foreground md:flex">
+        <nav className="hidden items-center space-x-8 text-sm font-semibold text-foreground md:flex">
           {navLinks.map(link => (
-            <button key={link.page} onClick={() => handleNavigation(link.page)} className="transition-colors hover:text-primary">{link.label}</button>
+            <button
+              key={link.page}
+              onClick={() => handleNavigation(link.page)}
+              className="relative text-foreground/80 transition-colors hover:text-foreground after:absolute after:left-0 after:-bottom-1 after:h-0.5 after:w-0 after:bg-primary after:transition-all after:duration-300 hover:after:w-full"
+            >
+              {link.label}
+            </button>
           ))}
         </nav>
 
@@ -77,10 +83,10 @@ const Header: React.FC<HeaderProps> = ({ setCurrentPage, currentPage, creditBala
               placeholder="Search agents..."
               value={searchInput}
               onChange={(e) => setSearchInput(e.target.value)}
-              className="h-9 w-full rounded-md border border-input bg-secondary px-3 py-1 pl-9 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary"
+              className="h-9 w-full rounded-full border border-input bg-secondary/80 px-3 py-1 pl-9 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/40"
             />
           </form>
-          <button onClick={() => handleNavigation('pricing')} className="hidden sm:flex items-center gap-1.5 rounded-full border border-input bg-secondary px-3 py-1.5 text-sm text-foreground hover:bg-secondary/80">
+          <button onClick={() => handleNavigation('pricing')} className="hidden sm:flex items-center gap-1.5 rounded-full border border-input bg-secondary/80 px-3 py-1.5 text-sm text-foreground shadow-sm hover:bg-secondary">
             <CreditIcon className="h-4 w-4 text-primary" />
             <span>{creditBalance.toLocaleString()}</span>
           </button>
@@ -92,7 +98,7 @@ const Header: React.FC<HeaderProps> = ({ setCurrentPage, currentPage, creditBala
             <>
               <button
                 onClick={() => handleNavigation('dashboard')}
-                className="hidden sm:flex items-center gap-2 rounded-full border border-input bg-secondary px-3 py-1.5 text-sm text-foreground hover:bg-secondary/80"
+                className="hidden sm:flex items-center gap-2 rounded-full border border-input bg-secondary/80 px-3 py-1.5 text-sm text-foreground hover:bg-secondary"
               >
                 <span className="max-w-[100px] truncate">{user.full_name || user.username}</span>
               </button>

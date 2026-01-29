@@ -21,6 +21,13 @@ export const BuilderChat = ({ currentState, onUpdateState, agentId, messages, se
   const [input, setInput] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
+  const suggestions = [
+    'Build an IELTS tutor that evaluates writing and gives band scores.',
+    'Create a marketing strategist that writes ad copy and email sequences.',
+    'Make a data analyst that summarizes CSVs and outputs insights.',
+    'Design a product support agent with FAQ + troubleshooting steps.',
+    'Build a research assistant that finds sources and cites them.'
+  ];
 
   useEffect(() => {
     if (scrollRef.current) {
@@ -61,11 +68,11 @@ export const BuilderChat = ({ currentState, onUpdateState, agentId, messages, se
   };
 
   return (
-    <div className="flex flex-col h-[600px] bg-card border border-border rounded-2xl overflow-hidden shadow-sm">
+    <div className="flex flex-col h-[600px] bg-card/90 border border-border rounded-2xl overflow-hidden shadow-sm">
       {/* Header */}
-      <div className="px-6 py-4 border-b border-border bg-secondary/50 flex items-center justify-between">
+      <div className="px-6 py-4 border-b border-border bg-card/70 flex items-center justify-between">
         <div className="flex items-center gap-3">
-          <div className="w-8 h-8 rounded-lg bg-primary/10 flex items-center justify-center">
+          <div className="w-9 h-9 rounded-xl bg-primary/10 flex items-center justify-center">
             <Sparkles className="w-5 h-5 text-primary" />
           </div>
           <div>
@@ -73,13 +80,27 @@ export const BuilderChat = ({ currentState, onUpdateState, agentId, messages, se
             <p className="text-[10px] text-muted-foreground uppercase tracking-wider font-semibold">Conversational Builder</p>
           </div>
         </div>
-        <Button variant="outline" className="h-8 px-3 text-[10px]" onClick={() => setMessages([{ role: 'model', content: "Reset. Let's start over. What kind of agent are we building?" }])}>
+        <Button variant="outline" className="h-8 px-3 text-[10px] bg-background" onClick={() => setMessages([{ role: 'model', content: "Reset. Let's start over. What kind of agent are we building?" }])}>
           <RefreshCw className="w-3 h-3 mr-1" /> Reset
         </Button>
       </div>
 
       {/* Messages */}
-      <div ref={scrollRef} className="flex-1 overflow-y-auto p-6 space-y-6 scroll-smooth bg-muted/10">
+      <div ref={scrollRef} className="flex-1 overflow-y-auto p-6 space-y-6 scroll-smooth bg-gradient-to-b from-muted/20 via-background to-background">
+        {messages.length <= 1 && !isLoading && (
+          <div className="flex flex-wrap gap-2">
+            {suggestions.map((suggestion) => (
+              <button
+                key={suggestion}
+                type="button"
+                onClick={() => setInput(suggestion)}
+                className="rounded-full border border-border bg-background/80 px-3 py-1.5 text-[11px] font-semibold text-muted-foreground transition-colors hover:border-primary/40 hover:text-foreground"
+              >
+                {suggestion}
+              </button>
+            ))}
+          </div>
+        )}
         {messages.map((m, i) => (
           <div key={i} className={`flex gap-4 ${m.role === 'user' ? 'flex-row-reverse' : ''}`}>
             <div className={`w-8 h-8 rounded-lg flex items-center justify-center shrink-0 ${m.role === 'model' ? 'bg-primary/10 text-primary border border-primary/20' : 'bg-secondary text-foreground border border-border'
@@ -88,8 +109,8 @@ export const BuilderChat = ({ currentState, onUpdateState, agentId, messages, se
             </div>
             <div className={`flex flex-col max-w-[85%] ${m.role === 'user' ? 'items-end' : ''}`}>
               <div className={`px-4 py-3 rounded-2xl text-sm leading-relaxed ${m.role === 'model'
-                  ? 'bg-card border border-border text-foreground rounded-tl-none shadow-sm'
-                  : 'bg-primary text-primary-foreground rounded-tr-none shadow-sm'
+                  ? 'bg-card/90 border border-border text-foreground rounded-tl-none shadow-sm backdrop-blur-sm'
+                  : 'bg-primary text-primary-foreground rounded-tr-none shadow-[0_12px_24px_-16px_rgba(16,185,129,0.45)]'
                 }`}>
                 {m.content}
               </div>
@@ -101,7 +122,7 @@ export const BuilderChat = ({ currentState, onUpdateState, agentId, messages, se
             <div className="w-8 h-8 rounded-lg bg-primary/10 text-primary border border-primary/20 flex items-center justify-center shrink-0">
               <Loader2 size={16} className="animate-spin" />
             </div>
-            <div className="bg-muted text-muted-foreground px-4 py-3 rounded-2xl rounded-tl-none text-sm italic">
+            <div className="bg-muted/60 text-muted-foreground px-4 py-3 rounded-2xl rounded-tl-none text-sm italic border border-border">
               Architect is thinking...
             </div>
           </div>
@@ -109,7 +130,7 @@ export const BuilderChat = ({ currentState, onUpdateState, agentId, messages, se
       </div>
 
       {/* Input */}
-      <div className="p-4 border-t border-border bg-card">
+      <div className="p-4 border-t border-border bg-card/80">
         <form
           onSubmit={(e) => { e.preventDefault(); handleSend(); }}
           className="relative"
@@ -120,12 +141,12 @@ export const BuilderChat = ({ currentState, onUpdateState, agentId, messages, se
             onChange={(e) => setInput(e.target.value)}
             disabled={isLoading}
             placeholder="Describe your agent..."
-            className="w-full bg-secondary/50 border border-border rounded-xl px-4 py-3 pr-12 text-sm text-foreground placeholder-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all disabled:opacity-50"
+            className="w-full bg-background border border-border rounded-xl px-4 py-3 pr-12 text-sm text-foreground placeholder-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all disabled:opacity-50"
           />
           <button
             type="submit"
             disabled={!input.trim() || isLoading}
-            className="absolute right-2 top-2 w-8 h-8 bg-primary hover:bg-primary/90 text-primary-foreground rounded-lg flex items-center justify-center transition-colors disabled:opacity-50 disabled:grayscale"
+            className="absolute right-2 top-2 w-8 h-8 bg-primary hover:bg-primary/90 text-primary-foreground rounded-lg flex items-center justify-center transition-colors disabled:opacity-50 disabled:grayscale shadow-sm"
           >
             <Send size={16} />
           </button>

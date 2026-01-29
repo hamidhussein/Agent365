@@ -43,7 +43,9 @@ export const AgentBuilder = ({
 
     // Power Mode State
     const [activeTab, setActiveTab] = useState<'create' | 'configure'>('create'); // 'create' = Architect, 'configure' = Manual
-    const [rightPanelTab, setRightPanelTab] = useState<'preview' | 'debug'>('preview');
+    const [rightPanelTab, setRightPanelTab] = useState<'preview' | 'debug' | 'config'>('preview');
+    const [showWizard, setShowWizard] = useState(false);
+    const [wizardStep, setWizardStep] = useState(0);
     const [architectMessages, setArchitectMessages] = useState<Message[]>([
         {
             role: 'model',
@@ -58,6 +60,15 @@ export const AgentBuilder = ({
             agentsApi.getActions(initialData.id).then(setActions).catch(console.error);
         }
     }, [initialData?.id]);
+
+    useEffect(() => {
+        if (activeTab !== 'create') return;
+        const seen = localStorage.getItem('ag_architect_wizard_seen');
+        if (!seen) {
+            setShowWizard(true);
+            setWizardStep(0);
+        }
+    }, [activeTab]);
 
     useEffect(() => {
         setShowFileWarning(newFiles.some(file => file.type === 'application/pdf'));
@@ -96,6 +107,21 @@ export const AgentBuilder = ({
             metadata
         }]);
     };
+
+    const wizardSteps = [
+        {
+            title: 'Describe your agent',
+            description: 'Use the prompt chips or type a short description. The Architect will draft the name, instructions, and capabilities for you.'
+        },
+        {
+            title: 'Review live suggestions',
+            description: 'Watch the configuration update as you chat. You can always switch to the Editor for manual edits.'
+        },
+        {
+            title: 'Preview the experience',
+            description: 'Use the right panel to test the agent and confirm the behavior before publishing.'
+        }
+    ];
 
     const currentPayload: AgentPayload = {
         name,
@@ -185,18 +211,31 @@ export const AgentBuilder = ({
 
                     {activeTab === 'create' ? (
                         <div className="flex-1 overflow-hidden flex flex-col relative bg-muted/30">
-                            <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_right,_var(--tw-gradient-stops))] from-primary/5 via-background to-background" />
+                            <div className="absolute inset-0 bg-[radial-gradient(60%_50%_at_60%_0%,hsl(var(--primary)/0.12),transparent_70%)]" />
                             <div className="relative z-10 flex-1 p-6 overflow-y-auto">
                                 <div className="max-w-3xl mx-auto">
-                                    <div className="mb-8 p-6 bg-primary/5 border border-primary/10 rounded-2xl backdrop-blur-sm">
-                                        <h3 className="text-lg font-bold text-primary mb-2 flex items-center gap-2">
-                                            <Sparkles size={20} className="text-primary" /> Conversational Architect
-                                        </h3>
-                                        <p className="text-sm text-muted-foreground leading-relaxed">
-                                            Tell the architect what you want to build. It will automatically suggest Name, Instructions, and Capabilities for you.
+                                    <div className="mb-8 rounded-2xl border border-border bg-card/80 p-6 shadow-sm">
+                                        <div className="flex flex-wrap items-center justify-between gap-4">
+                                            <div className="flex items-center gap-3">
+                                                <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-primary/10 text-primary">
+                                                    <Sparkles size={20} />
+                                                </div>
+                                                <div>
+                                                    <p className="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground">
+                                                        Conversational Architect
+                                                    </p>
+                                                    <h3 className="text-lg font-bold text-foreground">Design your agent in minutes</h3>
+                                                </div>
+                                            </div>
+                                            <span className="rounded-full border border-primary/20 bg-primary/10 px-3 py-1 text-[10px] font-bold uppercase tracking-widest text-primary">
+                                                Auto-config
+                                            </span>
+                                        </div>
+                                        <p className="mt-3 text-sm text-muted-foreground leading-relaxed">
+                                            Tell the architect what you want to build. It automatically suggests the name, instructions, and capabilities for you.
                                         </p>
                                     </div>
-                                    <div className="bg-card border border-border rounded-2xl overflow-hidden shadow-xl">
+                                    <div className="rounded-2xl border border-border bg-card/90 shadow-xl">
                                         <BuilderChat
                                             currentState={currentPayload}
                                             onUpdateState={handleArchitectUpdate}
@@ -207,6 +246,73 @@ export const AgentBuilder = ({
                                     </div>
                                 </div>
                             </div>
+
+                            {showWizard && (
+                                <div className="absolute inset-0 z-20 flex items-center justify-center bg-background/70 backdrop-blur-sm p-6">
+                                    <div className="w-full max-w-lg rounded-2xl border border-border bg-card/95 p-6 shadow-2xl">
+                                        <div className="flex items-center justify-between">
+                                            <div className="flex items-center gap-3">
+                                                <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-primary/10 text-primary">
+                                                    <Sparkles size={18} />
+                                                </div>
+                                                <div>
+                                                    <p className="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground">
+                                                        First-time setup
+                                                    </p>
+                                                    <h3 className="text-lg font-bold text-foreground">{wizardSteps[wizardStep].title}</h3>
+                                                </div>
+                                            </div>
+                                            <button
+                                                type="button"
+                                                onClick={() => {
+                                                    localStorage.setItem('ag_architect_wizard_seen', 'true');
+                                                    setShowWizard(false);
+                                                }}
+                                                className="text-xs font-semibold text-muted-foreground hover:text-foreground"
+                                            >
+                                                Skip
+                                            </button>
+                                        </div>
+                                        <p className="mt-4 text-sm text-muted-foreground leading-relaxed">
+                                            {wizardSteps[wizardStep].description}
+                                        </p>
+                                        <div className="mt-5 flex items-center justify-between">
+                                            <div className="flex items-center gap-2">
+                                                {wizardSteps.map((_, idx) => (
+                                                    <span
+                                                        key={idx}
+                                                        className={`h-2 w-2 rounded-full ${idx === wizardStep ? 'bg-primary' : 'bg-border'}`}
+                                                    />
+                                                ))}
+                                            </div>
+                                            <div className="flex items-center gap-2">
+                                                <button
+                                                    type="button"
+                                                    onClick={() => setWizardStep((prev) => Math.max(0, prev - 1))}
+                                                    disabled={wizardStep === 0}
+                                                    className="rounded-lg border border-border bg-background px-3 py-1.5 text-xs font-semibold text-muted-foreground disabled:opacity-50"
+                                                >
+                                                    Back
+                                                </button>
+                                                <button
+                                                    type="button"
+                                                    onClick={() => {
+                                                        if (wizardStep === wizardSteps.length - 1) {
+                                                            localStorage.setItem('ag_architect_wizard_seen', 'true');
+                                                            setShowWizard(false);
+                                                        } else {
+                                                            setWizardStep(prev => prev + 1);
+                                                        }
+                                                    }}
+                                                    className="rounded-lg bg-primary px-4 py-1.5 text-xs font-semibold text-primary-foreground shadow-sm"
+                                                >
+                                                    {wizardStep === wizardSteps.length - 1 ? 'Got it' : 'Next'}
+                                                </button>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            )}
                         </div>
                     ) : (
                         <div className="flex-1 flex overflow-hidden">
@@ -404,6 +510,9 @@ export const AgentBuilder = ({
                         <button onClick={() => setRightPanelTab('preview')} className={`flex-1 h-full text-[10px] font-black uppercase tracking-widest transition-all ${rightPanelTab === 'preview' ? 'text-primary bg-primary/5' : 'text-muted-foreground hover:text-foreground hover:bg-muted/30'}`}>
                             Preview Chat
                         </button>
+                        <button onClick={() => setRightPanelTab('config')} className={`flex-1 h-full text-[10px] font-black uppercase tracking-widest transition-all border-l border-border ${rightPanelTab === 'config' ? 'text-primary bg-primary/5' : 'text-muted-foreground hover:text-foreground hover:bg-muted/30'}`}>
+                            Live Config
+                        </button>
                         <button onClick={() => setRightPanelTab('debug')} className={`flex-1 h-full text-[10px] font-black uppercase tracking-widest transition-all border-l border-border ${rightPanelTab === 'debug' ? 'text-purple-600 bg-purple-500/5' : 'text-muted-foreground hover:text-foreground hover:bg-muted/30'}`}>
                             Debugger
                         </button>
@@ -412,6 +521,45 @@ export const AgentBuilder = ({
                     <div className="flex-1 overflow-hidden p-4 relative bg-muted/20">
                         <div className={`h-full flex flex-col ${rightPanelTab !== 'preview' ? 'hidden' : ''}`}>
                             <PreviewChat draftAgent={currentPayload} onDebugLog={addDebugLog} />
+                        </div>
+                        <div className={`h-full overflow-y-auto ${rightPanelTab !== 'config' ? 'hidden' : ''}`}>
+                            <div className="space-y-4">
+                                <div className="rounded-2xl border border-border bg-card/80 p-4">
+                                    <p className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">Identity</p>
+                                    <h3 className="mt-2 text-lg font-semibold text-foreground">{name || 'Untitled Agent'}</h3>
+                                    <p className="mt-2 text-sm text-muted-foreground">{description || 'No description yet.'}</p>
+                                </div>
+                                <div className="rounded-2xl border border-border bg-card/80 p-4">
+                                    <p className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">Capabilities</p>
+                                    <div className="mt-3 flex flex-wrap gap-2">
+                                        {Object.entries(enabledCapabilities)
+                                            .filter(([, enabled]) => enabled)
+                                            .map(([key]) => (
+                                                <span key={key} className="rounded-full border border-primary/20 bg-primary/10 px-3 py-1 text-[10px] font-semibold text-primary">
+                                                    {key.replace(/([A-Z])/g, ' $1').trim()}
+                                                </span>
+                                            ))}
+                                        {Object.entries(enabledCapabilities).every(([, enabled]) => !enabled) && (
+                                            <span className="text-xs text-muted-foreground">No capabilities selected.</span>
+                                        )}
+                                    </div>
+                                </div>
+                                <div className="rounded-2xl border border-border bg-card/80 p-4">
+                                    <p className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">Knowledge</p>
+                                    <p className="mt-2 text-sm text-muted-foreground">
+                                        {existingFiles.length + newFiles.length} file(s) attached
+                                    </p>
+                                </div>
+                                <div className="rounded-2xl border border-border bg-card/80 p-4">
+                                    <p className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">Pricing</p>
+                                    <p className="mt-2 text-sm text-muted-foreground">
+                                        {isPublic ? `${creditsPerRun} credits/run` : 'Private (not listed)'}
+                                    </p>
+                                    {allowReviews && (
+                                        <p className="mt-1 text-xs text-muted-foreground">Expert review fee: {reviewCost} credits</p>
+                                    )}
+                                </div>
+                            </div>
                         </div>
                         <div className={`h-full ${rightPanelTab !== 'debug' ? 'hidden' : ''}`}>
                             <AgentDebugger logs={debugLogs} isThinking={false} />

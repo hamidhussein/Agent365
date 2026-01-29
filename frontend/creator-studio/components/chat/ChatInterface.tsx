@@ -548,7 +548,7 @@ export const ChatInterface = ({
           ) : (
             <ul className="space-y-2">
               {agent.files.map((f) => (
-                <li key={f.id} className="flex items-center gap-2 text-sm text-slate-300">
+                <li key={f.id} className="flex items-center gap-2 text-sm text-foreground/80">
                   <FileText size={14} className="text-blue-400" />
                   <span className="truncate">{f.name}</span>
                 </li>
@@ -561,25 +561,25 @@ export const ChatInterface = ({
               <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-3">Capabilities</h3>
               <ul className="space-y-2">
                 {agent.enabledCapabilities.webBrowsing && (
-                  <li className="flex items-center gap-2 text-sm text-slate-300">
+                  <li className="flex items-center gap-2 text-sm text-foreground/80">
                     <Globe size={14} className="text-teal-400" />
                     <span>Web Browsing</span>
                   </li>
                 )}
                 {agent.enabledCapabilities.codeExecution && (
-                  <li className="flex items-center gap-2 text-sm text-slate-300">
+                  <li className="flex items-center gap-2 text-sm text-foreground/80">
                     <Code size={14} className="text-purple-400" />
                     <span>Code Execution</span>
                   </li>
                 )}
                 {agent.enabledCapabilities.apiIntegrations && (
-                  <li className="flex items-center gap-2 text-sm text-slate-300">
+                  <li className="flex items-center gap-2 text-sm text-foreground/80">
                     <Zap size={14} className="text-amber-400" />
                     <span>API Actions</span>
                   </li>
                 )}
                 {agent.enabledCapabilities.fileHandling && (
-                  <li className="flex items-center gap-2 text-sm text-slate-300">
+                  <li className="flex items-center gap-2 text-sm text-foreground/80">
                     <FileText size={14} className="text-orange-400" />
                     <span>File Handling</span>
                   </li>
@@ -593,7 +593,8 @@ export const ChatInterface = ({
       </div>
 
       {/* Main Chat Area */}
-      <div className="flex-1 flex flex-col h-full relative">
+      <div className="flex-1 flex flex-col h-full relative bg-gradient-to-b from-background via-background to-muted/30">
+        <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(60%_45%_at_50%_0%,hsl(var(--primary)/0.12),transparent_70%)]" />
         {isCollectingInputs ? (
           <div className="flex-1 overflow-y-auto p-4 md:p-8">
             <div className="lg:hidden mb-4">
@@ -627,9 +628,9 @@ export const ChatInterface = ({
                           value={typeof value === 'string' ? value : ''}
                           onChange={(e: any) => updateInputValue(input.id, e.target.value)}
                         />
-                        {input.description && (
-                          <p className="text-xs text-slate-500 -mt-2">{input.description}</p>
-                        )}
+                          {input.description && (
+                            <p className="text-xs text-muted-foreground -mt-2">{input.description}</p>
+                          )}
                         {error && <p className="text-xs text-red-400 mt-2">{error}</p>}
                       </div>
                     );
@@ -638,19 +639,19 @@ export const ChatInterface = ({
                   if (input.type === 'file') {
                     return (
                       <div key={input.id}>
-                        <label className="text-sm font-medium text-slate-300 block mb-2">{label}</label>
+                        <label className="text-sm font-medium text-foreground block mb-2">{label}</label>
                         <input
                           type="file"
                           onChange={(e) => updateInputValue(input.id, e.target.files?.[0] || null)}
-                          className="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-sm text-slate-200 focus:border-blue-500 outline-none"
+                          className="w-full bg-card border border-border rounded-lg px-3 py-2 text-sm text-foreground focus:border-primary outline-none"
                         />
                         {value instanceof File ? (
-                          <p className="text-xs text-slate-400 mt-2">Selected: {value.name} ({formatBytes(value.size)})</p>
+                          <p className="text-xs text-muted-foreground mt-2">Selected: {value.name} ({formatBytes(value.size)})</p>
                         ) : (
-                          <p className="text-xs text-slate-600 mt-2">No file selected.</p>
+                          <p className="text-xs text-muted-foreground/70 mt-2">No file selected.</p>
                         )}
                         {input.description && (
-                          <p className="text-xs text-slate-500 mt-2">{input.description}</p>
+                          <p className="text-xs text-muted-foreground mt-2">{input.description}</p>
                         )}
                         {error && <p className="text-xs text-red-400 mt-2">{error}</p>}
                       </div>
@@ -666,7 +667,7 @@ export const ChatInterface = ({
                         onChange={(e: any) => updateInputValue(input.id, e.target.value)}
                       />
                       {input.description && (
-                        <p className="text-xs text-slate-500 -mt-2">{input.description}</p>
+                        <p className="text-xs text-muted-foreground -mt-2">{input.description}</p>
                       )}
                       {error && <p className="text-xs text-red-400 mt-2">{error}</p>}
                     </div>
@@ -685,16 +686,16 @@ export const ChatInterface = ({
             <div
               ref={scrollContainerRef}
               onScroll={handleScroll}
-              className="flex-1 overflow-y-auto p-4 md:p-6 space-y-4 relative z-10"
+              className="flex-1 overflow-y-auto p-4 md:p-6 space-y-4 relative z-10 scroll-smooth overscroll-contain"
             >
               {/* Mobile Back Button */}
               {/* Mobile Info Button instead of Back */}
-              <div className="lg:hidden mb-4 flex items-center justify-between border-b border-slate-800 pb-4">
+              <div className="lg:hidden mb-4 flex items-center justify-between border-b border-border pb-4">
                 <div className="flex items-center gap-2">
                   <div className={`w-8 h-8 rounded-lg ${agent.color} flex items-center justify-center text-white`}>
                     {agentModelOption?.icon || <Bot size={16} />}
                   </div>
-                  <span className="font-bold text-white text-sm">{agent.name}</span>
+                  <span className="font-bold text-foreground text-sm">{agent.name}</span>
                 </div>
                 <Button variant="outline" className="text-xs px-2 h-8" onClick={exportConversation}>
                   <Download size={14} /> Export
@@ -724,13 +725,13 @@ export const ChatInterface = ({
                     )}
 
                     <div
-                      className={`max-w-[75%] md:max-w-[65%] rounded-2xl px-5 py-3.5 shadow-sm relative break-words transition-all duration-300 ${msg.role === 'user'
-                        ? 'bg-primary text-primary-foreground rounded-br-md shadow-sm'
-                        : 'bg-card border border-border text-foreground rounded-bl-md shadow-sm'
+                      className={`max-w-[75%] md:max-w-[65%] rounded-2xl px-5 py-3.5 shadow-sm relative break-words transition-all duration-300 ease-out group-hover:-translate-y-0.5 group-hover:shadow-md ${msg.role === 'user'
+                        ? 'bg-primary text-primary-foreground rounded-br-md shadow-[0_10px_30px_-20px_rgba(16,185,129,0.45)]'
+                        : 'bg-card/90 border border-border/80 text-foreground rounded-bl-md backdrop-blur-sm shadow-[0_10px_30px_-24px_rgba(15,23,42,0.2)]'
                         }`}
                     >
                       {msg.role === 'model' ? (
-                        <div className="prose prose-slate max-w-none prose-p:leading-relaxed prose-p:my-2 prose-headings:mt-4 prose-headings:mb-2 prose-pre:bg-secondary prose-pre:border prose-pre:border-border prose-code:text-primary">
+                        <div className="prose prose-slate dark:prose-invert max-w-none prose-p:leading-relaxed prose-p:my-2 prose-headings:mt-4 prose-headings:mb-2 prose-pre:bg-secondary prose-pre:border prose-pre:border-border prose-code:text-primary">
                           <ReactMarkdown
                             remarkPlugins={[remarkGfm]}
                             components={{
@@ -769,14 +770,14 @@ export const ChatInterface = ({
 
                       <button
                         onClick={() => copyToClipboard(msg.text)}
-                        className="absolute -top-2 -right-2 p-2 text-muted-foreground hover:text-foreground bg-card border border-border rounded-full opacity-0 group-hover:opacity-100 transition-all shadow-sm hover:scale-110"
+                        className="absolute -top-2 -right-2 p-2 text-muted-foreground hover:text-foreground bg-card/90 border border-border rounded-full opacity-0 group-hover:opacity-100 transition-all duration-200 shadow-sm hover:shadow-md hover:scale-110 backdrop-blur-sm"
                         title="Copy message"
                       >
                         <Copy size={12} />
                       </button>
 
                       {/* Timestamp on hover */}
-                      <div className="absolute -bottom-5 left-0 text-[10px] text-slate-500 opacity-0 group-hover:opacity-100 transition-opacity">
+                      <div className="absolute -bottom-5 left-0 text-[10px] text-muted-foreground/70 opacity-0 group-hover:opacity-100 transition-opacity">
                         {msg.timestamp.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                       </div>
                     </div>
@@ -813,7 +814,7 @@ export const ChatInterface = ({
                           opacity: [0.5, 1, 0.5]
                         }}
                         transition={{ repeat: Infinity, duration: 1.2, delay: 0, ease: "easeInOut" }}
-                        className="w-2 h-2 bg-blue-400 rounded-full shadow-lg shadow-blue-400/50"
+                        className="w-2 h-2 bg-primary/80 rounded-full shadow-lg shadow-primary/40"
                       />
                       <motion.div
                         animate={{
@@ -821,7 +822,7 @@ export const ChatInterface = ({
                           opacity: [0.5, 1, 0.5]
                         }}
                         transition={{ repeat: Infinity, duration: 1.2, delay: 0.2, ease: "easeInOut" }}
-                        className="w-2 h-2 bg-blue-400 rounded-full shadow-lg shadow-blue-400/50"
+                        className="w-2 h-2 bg-primary/80 rounded-full shadow-lg shadow-primary/40"
                       />
                       <motion.div
                         animate={{
@@ -829,7 +830,7 @@ export const ChatInterface = ({
                           opacity: [0.5, 1, 0.5]
                         }}
                         transition={{ repeat: Infinity, duration: 1.2, delay: 0.4, ease: "easeInOut" }}
-                        className="w-2 h-2 bg-blue-400 rounded-full shadow-lg shadow-blue-400/50"
+                        className="w-2 h-2 bg-primary/80 rounded-full shadow-lg shadow-primary/40"
                       />
                       <span className="text-xs text-muted-foreground ml-2">Thinking...</span>
                     </div>
@@ -847,17 +848,17 @@ export const ChatInterface = ({
                   animate={{ opacity: 1, scale: 1 }}
                   exit={{ opacity: 0, scale: 0.8 }}
                   onClick={() => scrollToBottom(true)}
-                  className="absolute bottom-32 right-8 p-3 bg-blue-600 hover:bg-blue-500 text-white rounded-full shadow-2xl z-20 border border-white/20 transition-colors"
+                  className="absolute bottom-32 right-8 p-3 bg-primary hover:bg-primary/90 text-primary-foreground rounded-full shadow-glow-primary z-20 border border-primary/30 transition-colors"
                 >
                   <ChevronDown size={20} />
                 </motion.button>
               )}
             </AnimatePresence>
 
-            <div className="p-4 md:p-6 pt-2 relative z-10">
+            <div className="p-2 md:p-3 pt-1 relative z-10">
               <div className="max-w-4xl mx-auto">
                 {/* Action Bar */}
-                <div className="flex items-center justify-between gap-2 mb-3 px-2">
+                <div className="flex items-center justify-between gap-2 mb-1 px-1">
                   <div className="flex items-center gap-2">
                     <button
                       disabled={!lastUserMessage || isThinking}
@@ -909,7 +910,7 @@ export const ChatInterface = ({
                 </div>
 
                 {/* Input Container */}
-                <div className="bg-background border border-border rounded-3xl p-1.5 shadow-lg relative group/input transition-all">
+                <div className="bg-card/80 border border-border/70 rounded-3xl p-0.5 shadow-lg relative group/input transition-all focus-within:border-primary/40 focus-within:ring-2 focus-within:ring-primary/15">
                   {/* Focus Glow Effect */}
                   <div className="absolute inset-0 bg-gradient-to-r from-blue-500/10 via-purple-500/10 to-blue-500/10 rounded-3xl opacity-0 group-focus-within/input:opacity-100 transition-opacity pointer-events-none blur-xl" />
 
@@ -966,7 +967,7 @@ export const ChatInterface = ({
                         setInputValue(e.target.value);
                         // Auto-resize
                         e.target.style.height = 'auto';
-                        e.target.style.height = Math.min(e.target.scrollHeight, 150) + 'px';
+                        e.target.style.height = Math.min(e.target.scrollHeight, 120) + 'px';
                       }}
                       onKeyDown={(e) => {
                         if (e.key === 'Enter' && !e.shiftKey) {
@@ -975,9 +976,9 @@ export const ChatInterface = ({
                         }
                       }}
                       placeholder={`Ask ${agent.name} anything...`}
-                      className="w-full bg-transparent border-none text-foreground px-4 py-3 outline-none resize-none max-h-[150px] placeholder-muted-foreground text-[15px] leading-relaxed"
+                      className="w-full bg-transparent border-none text-foreground px-3 py-2 outline-none resize-none max-h-[120px] placeholder-muted-foreground text-[14px] leading-relaxed"
                       rows={1}
-                      style={{ minHeight: '48px' }}
+                      style={{ minHeight: '40px' }}
                     />
                     <Button
                       onClick={handleSend}
@@ -997,8 +998,10 @@ export const ChatInterface = ({
                   </div>
                 </div>
               </div>
-              <div className="text-center mt-4">
-                <p className="text-[11px] text-muted-foreground font-medium">AI can make mistakes. Please verify important information.</p>
+              <div className="text-center mt-1">
+                <p className="text-[9px] leading-3 text-muted-foreground font-medium line-clamp-2">
+                  AI can make mistakes. Please verify important information.
+                </p>
               </div>
             </div>
           </>

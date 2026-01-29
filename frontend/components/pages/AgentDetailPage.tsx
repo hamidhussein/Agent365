@@ -21,11 +21,13 @@ interface AgentDetailPageProps {
 }
 
 const StatCard: React.FC<{ icon: React.ReactNode; label: string; value: string }> = ({ icon, label, value }) => (
-    <div className="rounded-lg border border-border bg-card p-6 shadow-sm">
-        <div className="flex items-center space-x-3">
-            <div className="text-primary">{icon}</div>
+    <div className="rounded-2xl border border-border bg-card/80 p-5 shadow-sm transition-shadow hover:shadow-md">
+        <div className="flex items-center gap-3">
+            <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-primary/10 text-primary">
+                {icon}
+            </div>
             <div>
-                <p className="text-sm text-muted-foreground">{label}</p>
+                <p className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">{label}</p>
                 <p className="mt-1 text-2xl font-bold text-foreground">{value}</p>
             </div>
         </div>
@@ -56,29 +58,29 @@ const AgentDetailPage: React.FC<AgentDetailPageProps> = ({ agent, onRunAgent, on
                     />
 
                     {agent.source === 'creator_studio' && isOwner && (
-                        <div className="mt-6 rounded-md border border-blue-700 bg-blue-900/30 p-4 text-sm text-blue-100">
+                        <div className="mt-6 rounded-2xl border border-primary/20 bg-primary/5 p-4 text-sm text-primary">
                             You own this Creator Studio agent. Open the studio to edit or chat; clients run it directly from the marketplace.
                         </div>
                     )}
 
-                    <div className="mt-8">
-                        <h2 className="text-xl font-bold text-foreground">Description</h2>
-                        <p className="mt-4 whitespace-pre-wrap text-muted-foreground leading-relaxed">
+                    <div className="mt-8 rounded-2xl border border-border bg-card/80 p-6 shadow-sm">
+                        <h2 className="text-lg font-bold text-foreground">Description</h2>
+                        <p className="mt-3 whitespace-pre-wrap text-muted-foreground leading-relaxed">
                             {agent.longDescription}
                         </p>
                     </div>
 
                     <div className="mt-10">
-                        <h2 className="mb-4 text-xl font-bold text-foreground">Agent Stats</h2>
-                        <div className="mt-8 grid grid-cols-1 gap-6 sm:grid-cols-3">
+                        <h2 className="mb-4 text-lg font-bold text-foreground">Agent Stats</h2>
+                        <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
                             <StatCard icon={<ZapIcon className="h-6 w-6" />} label="Total Runs" value={agent.runs.toString()} />
                             <StatCard icon={<TrendingUpIcon className="h-6 w-6" />} label="Success Rate" value={`${agent.successRate}%`} />
                             <StatCard icon={<ClockIcon className="h-6 w-6" />} label="Avg. Run Time" value={`${agent.avgRunTime}s`} />
                         </div>
                     </div>
 
-                    <div className="mt-10 rounded-lg border border-border bg-card p-6 shadow-sm">
-                        <h2 className="text-xl font-bold text-foreground">About the Creator</h2>
+                    <div className="mt-10 rounded-2xl border border-border bg-card/80 p-6 shadow-sm">
+                        <h2 className="text-lg font-bold text-foreground">About the Creator</h2>
                         <div className="mt-4 flex items-start space-x-4">
                             <div className="flex h-12 w-12 items-center justify-center rounded-full bg-primary text-lg font-bold text-primary-foreground">
                                 {(agent.creator.full_name || agent.creator.username).charAt(0)}
@@ -90,8 +92,8 @@ const AgentDetailPage: React.FC<AgentDetailPageProps> = ({ agent, onRunAgent, on
                         </div>
                     </div>
 
-                    <div className="mt-10">
-                        <h2 className="mb-4 text-xl font-bold text-foreground">Reviews ({reviews.length})</h2>
+                    <div className="mt-10 rounded-2xl border border-border bg-card/80 p-6 shadow-sm">
+                        <h2 className="mb-4 text-lg font-bold text-foreground">Reviews ({reviews.length})</h2>
                         <div className="space-y-8">
                             <ReviewForm agentId={agent.id} />
                             {reviewsLoading ? (
