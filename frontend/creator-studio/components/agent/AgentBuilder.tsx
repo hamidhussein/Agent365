@@ -1,5 +1,5 @@
 import { ChangeEvent, useEffect, useRef, useState } from 'react';
-import { Bot, Cpu, Settings, FileText, Upload, X, AlertTriangle, Sparkles, Save, Rocket, Share2 } from 'lucide-react';
+import { Save, FileText, X, Bot, Share2, Sparkles, Settings, Cpu, Upload, AlertTriangle } from 'lucide-react';
 import { Button } from '../ui/Button';
 import { Input, TextArea } from '../ui/Input';
 import { Agent, AgentInput, AgentPayload, KnowledgeFile } from '../../types';
@@ -25,7 +25,7 @@ export const AgentBuilder = ({
     const [instruction, setInstruction] = useState(initialData?.instruction || '');
     const [color, setColor] = useState(initialData?.color || COLORS[0]);
     const [inputs] = useState<AgentInput[]>(initialData?.inputs || []);
-    const [isPublic, setIsPublic] = useState(initialData?.isPublic ?? false);
+    const [isPublic, _setIsPublic] = useState(initialData?.isPublic ?? false);
     const [welcomeMessage, setWelcomeMessage] = useState(initialData?.welcomeMessage || '');
     const [starterQuestions, setStarterQuestions] = useState<string[]>(initialData?.starterQuestions || []);
     const [newQuestionInput, setNewQuestionInput] = useState('');

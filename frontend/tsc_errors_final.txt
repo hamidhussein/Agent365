@@ -1,0 +1,27 @@
+﻿components/pages/SharedAgentChatPage.tsx(2,10): error TS6133: 'Bot' is declared but its value is never read.
+components/pages/SharedAgentChatPage.tsx(2,15): error TS6133: 'User' is declared but its value is never read.
+components/pages/SharedAgentChatPage.tsx(2,21): error TS6133: 'Send' is declared but its value is never read.
+components/pages/SharedAgentChatPage.tsx(2,27): error TS6133: 'ArrowLeft' is declared but its value is never read.
+components/pages/SharedAgentChatPage.tsx(2,38): error TS6133: 'RefreshCw' is declared but its value is never read.
+components/pages/SharedAgentChatPage.tsx(2,49): error TS6133: 'Paperclip' is declared but its value is never read.
+components/pages/SharedAgentChatPage.tsx(2,60): error TS6133: 'X' is declared but its value is never read.
+components/pages/SharedAgentChatPage.tsx(288,9): error TS6133: 'formatMessageWithFiles' is declared but its value is never read.
+creator-studio/components/agent/AgentBuilder.tsx(2,10): error TS6133: 'ArrowLeft' is declared but its value is never read.
+creator-studio/components/agent/AgentBuilder.tsx(2,27): error TS6133: 'Plus' is declared but its value is never read.
+creator-studio/components/agent/AgentBuilder.tsx(2,51): error TS6133: 'Code' is declared but its value is never read.
+creator-studio/components/agent/AgentBuilder.tsx(2,57): error TS6133: 'Info' is declared but its value is never read.
+creator-studio/components/agent/AgentBuilder.tsx(2,63): error TS6133: 'ChevronDown' is declared but its value is never read.
+creator-studio/components/agent/AgentBuilder.tsx(2,76): error TS6133: 'Check' is declared but its value is never read.
+creator-studio/components/agent/AgentBuilder.tsx(2,83): error TS6133: 'LayoutPanelLeft' is declared but its value is never read.
+creator-studio/components/agent/AgentBuilder.tsx(169,26): error TS2304: Cannot find name 'Sparkles'.
+creator-studio/components/agent/AgentBuilder.tsx(175,26): error TS2304: Cannot find name 'Settings'.
+creator-studio/components/agent/AgentBuilder.tsx(224,54): error TS2304: Cannot find name 'Sparkles'.
+creator-studio/components/agent/AgentBuilder.tsx(259,54): error TS2304: Cannot find name 'Sparkles'.
+creator-studio/components/agent/AgentBuilder.tsx(329,42): error TS2304: Cannot find name 'Cpu'.
+creator-studio/components/agent/AgentBuilder.tsx(335,42): error TS2304: Cannot find name 'Settings'.
+creator-studio/components/agent/AgentBuilder.tsx(339,42): error TS2304: Cannot find name 'Upload'.
+creator-studio/components/agent/AgentBuilder.tsx(380,54): error TS2304: Cannot find name 'Upload'.
+creator-studio/components/agent/AgentBuilder.tsx(389,54): error TS2304: Cannot find name 'AlertTriangle'.
+creator-studio/components/dashboard/AgentManagePage.tsx(503,74): error TS7053: Element implicitly has an 'any' type because expression of type 'string' can't be used to index type '{ codeExecution: boolean; webBrowsing: boolean; apiIntegrations: boolean; fileHandling: boolean; }'.
+  No index signature with a parameter of type 'string' was found on type '{ codeExecution: boolean; webBrowsing: boolean; apiIntegrations: boolean; fileHandling: boolean; }'.
+creator-studio/components/dashboard/AgentManagePage.tsx(550,46): error TS6133: 'color' is declared but its value is never read.

@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { ArrowLeft, MessageSquare, Share2, Settings, Users, BarChart2, Copy, Check, Trash2, Power, PowerOff, Plus, ExternalLink, Pencil, Globe, Lock, Clock, Hash, Mail, ChevronRight } from 'lucide-react';
+import { ArrowLeft, MessageSquare, Share2, Settings, Users, BarChart2, Copy, Check, Trash2, Power, PowerOff, Plus, ExternalLink, Pencil, Globe, Lock, Clock, Hash, Mail, X } from 'lucide-react';
 import { Agent, AgentPayload } from '../../types';
 import { Button } from '../ui/Button';
 import CreateShareLinkModal from '../agent/CreateShareLinkModal';
@@ -262,105 +262,194 @@ const ShareTab: React.FC<{ agentId: string }> = ({ agentId }) => {
 
 // ── Tab: Users ───────────────────────────────────────────────────────────────
 
+interface AgentUser {
+  id: string;
+  invited_email: string;
+  role: string;
+  status: string;
+  invited_at: string;
+  accepted_at: string | null;
+}
+
 const UsersTab: React.FC<{ agentId: string }> = ({ agentId }) => {
   const [inviteEmail, setInviteEmail] = useState('');
-  const [inviteRole, setInviteRole] = useState<'viewer' | 'admin'>('viewer');
-  const [users, setUsers] = useState<Array<{ email: string; role: string; source: string; link_name?: string | null }>>([]);
+  const [inviteRole, setInviteRole] = useState<'viewer' | 'editor' | 'admin'>('viewer');
+  const [users, setUsers] = useState<AgentUser[]>([]);
   const [loading, setLoading] = useState(true);
+  const [inviting, setInviting] = useState(false);
 
   useEffect(() => { loadUsers(); }, [agentId]);
 
   const loadUsers = async () => {
     try {
       setLoading(true);
-      const res = await axios.get(`${API_URL}/agents/${agentId}/share`, { headers: getAuthHeaders() });
-      const links: ShareLink[] = res.data;
-      // Aggregate all allowed emails from private links
-      const allUsers: typeof users = [];
-      links.filter(l => l.link_type === 'private').forEach(link => {
-        link.allowed_emails.forEach(email => {
-          if (!allUsers.find(u => u.email === email)) {
-            allUsers.push({ email, role: 'viewer', source: 'share_link', link_name: link.name });
-          }
-        });
-      });
-      setUsers(allUsers);
-    } catch (e) { console.error(e); }
-    finally { setLoading(false); }
+      const res = await axios.get(`${API_URL}/agents/${agentId}/users`, { headers: getAuthHeaders() });
+      setUsers(res.data);
+    } catch (e) {
+      console.error('Failed to load users:', e);
+    } finally {
+      setLoading(false);
+    }
   };
 
-  const handleInvite = () => {
+  const handleInvite = async () => {
     if (!inviteEmail.trim()) return;
-    // For now this opens a create-private-link flow with the email pre-filled
-    // In future Phase 2 this would hit a dedicated /agents/:id/users endpoint
-    alert(`Invite feature coming in Phase 2!\n\nFor now, create a Private share link and add ${inviteEmail} to the allowed emails list.`);
-    setInviteEmail('');
+    try {
+      setInviting(true);
+      await axios.post(
+        `${API_URL}/agents/${agentId}/invite`,
+        { email: inviteEmail, role: inviteRole },
+        { headers: getAuthHeaders() }
+      );
+      setInviteEmail('');
+      loadUsers();
+    } catch (e: any) {
+      alert(e.response?.data?.detail || 'Failed to send invite');
+    } finally {
+      setInviting(false);
+    }
+  };
+
+  const handleUpdateRole = async (invitationId: string, newRole: string) => {
+    try {
+      await axios.patch(
+        `${API_URL}/agents/${agentId}/users/${invitationId}/role`,
+        { role: newRole },
+        { headers: getAuthHeaders() }
+      );
+      loadUsers();
+    } catch (e) {
+      console.error('Failed to update role', e);
+    }
+  };
+
+  const handleRevoke = async (invitationId: string) => {
+    if (!window.confirm('Are you sure you want to revoke access?')) return;
+    try {
+      await axios.delete(`${API_URL}/agents/${agentId}/users/${invitationId}`, { headers: getAuthHeaders() });
+      loadUsers();
+    } catch (e) {
+      console.error('Failed to revoke access', e);
+    }
   };
 
   return (
-    <div className="space-y-5">
-      {/* Invite row */}
-      <div className="bg-card/60 border border-border/60 rounded-2xl p-5">
-        <h3 className="font-bold text-foreground text-sm mb-1">Invite a User</h3>
-        <p className="text-xs text-muted-foreground mb-4">Give someone private access to chat with this agent.</p>
-        <div className="flex gap-2 flex-wrap">
+    <div className="space-y-6">
+      {/* Invite section */}
+      <div className="bg-card/60 border border-border/60 rounded-2xl p-5 shadow-sm">
+        <h3 className="font-bold text-foreground text-sm mb-1">Invite People</h3>
+        <p className="text-xs text-muted-foreground mb-4">Send an email invitation to collaborate on or use this agent.</p>
+        
+        <div className="flex flex-col sm:flex-row gap-3">
           <input
             type="email"
             value={inviteEmail}
             onChange={e => setInviteEmail(e.target.value)}
-            placeholder="user@example.com"
-            className="flex-1 min-w-0 rounded-xl border border-input bg-background px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-primary"
+            placeholder="colleague@company.com"
+            disabled={inviting}
+            className="flex-1 min-w-0 rounded-xl border border-input bg-background/50 px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/20 placeholder:text-muted-foreground/50 transition-colors"
             onKeyDown={e => e.key === 'Enter' && handleInvite()}
           />
-          <select
-            value={inviteRole}
-            onChange={e => setInviteRole(e.target.value as 'viewer' | 'admin')}
-            className="rounded-xl border border-input bg-background px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-primary"
-          >
-            <option value="viewer">Viewer</option>
-            <option value="admin">Admin</option>
-          </select>
-          <Button className="bg-primary text-primary-foreground hover:bg-primary/90 border-0 font-bold gap-2" onClick={handleInvite}>
-            <Mail size={14} /> Invite
-          </Button>
+          <div className="flex gap-2">
+            <select
+              value={inviteRole}
+              onChange={e => setInviteRole(e.target.value as any)}
+              disabled={inviting}
+              className="rounded-xl border border-input bg-background/50 px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/20"
+            >
+              <option value="viewer">Viewer (Can chat)</option>
+              <option value="editor">Editor (Chat + view stats)</option>
+              <option value="admin">Admin (Full access)</option>
+            </select>
+            <Button 
+              className="bg-primary hover:bg-primary/90 text-primary-foreground font-bold border-0 shadow-sm shrink-0 min-w-[100px]" 
+              onClick={handleInvite}
+              disabled={inviting}
+            >
+              {inviting ? 'Sending...' : 'Send Invite'}
+            </Button>
+          </div>
         </div>
       </div>
 
-      {/* Current users */}
-      <div>
-        <h3 className="font-bold text-foreground text-sm mb-3">Users with Access</h3>
+      {/* Users List */}
+      <div className="border border-border/50 rounded-2xl overflow-hidden bg-card/40">
+        <div className="px-5 py-4 border-b border-border/50 bg-muted/20">
+          <h3 className="font-bold text-foreground text-sm">People with Access</h3>
+        </div>
+
         {loading ? (
-          <div className="flex justify-center py-8"><div className="w-5 h-5 border-2 border-primary border-t-transparent rounded-full animate-spin" /></div>
+          <div className="flex justify-center items-center py-12">
+            <div className="w-6 h-6 border-2 border-primary border-t-transparent rounded-full animate-spin" />
+          </div>
         ) : users.length === 0 ? (
-          <div className="text-center py-12 border-2 border-dashed border-border rounded-2xl bg-muted/10">
-            <Users size={28} className="text-muted-foreground mx-auto mb-2" />
-            <p className="text-sm text-muted-foreground">No users have private access yet.</p>
-            <p className="text-xs text-muted-foreground mt-1">Create a private share link or use Invite above.</p>
+          <div className="text-center py-12 px-6">
+            <div className="w-12 h-12 rounded-full bg-muted/50 flex items-center justify-center mx-auto mb-3">
+              <Users size={20} className="text-muted-foreground/50" />
+            </div>
+            <p className="text-sm font-semibold text-foreground mb-1">No one added yet</p>
+            <p className="text-xs text-muted-foreground max-w-xs mx-auto">
+              Invited users will appear here. You can manage their permissions or revoke access at any time.
+            </p>
           </div>
         ) : (
-          <div className="space-y-2">
-            {users.map((user) => (
-              <div key={user.email} className="flex items-center gap-3 p-3 bg-card/40 border border-border/40 rounded-xl">
-                <div className="w-8 h-8 rounded-full bg-primary/10 text-primary flex items-center justify-center font-bold text-sm shrink-0">
-                  {user.email[0].toUpperCase()}
+          <div className="divide-y divide-border/50">
+            {users.map(user => (
+              <div key={user.id} className={`flex items-center gap-4 p-4 ${user.status === 'revoked' ? 'opacity-50 grayscale' : ''}`}>
+                
+                {/* Avatar */}
+                <div className={`w-10 h-10 rounded-full flex items-center justify-center text-sm font-bold shrink-0 shadow-inner ${
+                  user.status === 'pending' ? 'bg-amber-500/10 text-amber-500 border border-amber-500/20' : 
+                  user.status === 'revoked' ? 'bg-muted text-muted-foreground' : 
+                  'bg-primary/10 text-primary border border-primary/20'
+                }`}>
+                  {user.invited_email[0].toUpperCase()}
                 </div>
+
+                {/* Info */}
                 <div className="flex-1 min-w-0">
-                  <p className="text-sm font-medium text-foreground truncate">{user.email}</p>
-                  <p className="text-xs text-muted-foreground">via {user.link_name || 'Private link'}</p>
+                  <p className="text-sm font-semibold text-foreground truncate">{user.invited_email}</p>
+                  <div className="flex items-center gap-2 mt-0.5">
+                    <span className={`text-[10px] font-bold uppercase tracking-widest px-1.5 py-0.5 rounded-md ${
+                      user.status === 'pending' ? 'bg-amber-500/10 text-amber-500' : 
+                      user.status === 'revoked' ? 'bg-destructive/10 text-destructive' : 
+                      'bg-emerald-500/10 text-emerald-500'
+                    }`}>
+                      {user.status}
+                    </span>
+                    <span className="text-xs text-muted-foreground">
+                      {user.status === 'pending' ? `Invited ${new Date(user.invited_at).toLocaleDateString()}` : 
+                       user.status === 'accepted' ? `Joined ${new Date(user.accepted_at!).toLocaleDateString()}` : ''}
+                    </span>
+                  </div>
                 </div>
-                <span className="text-xs px-2.5 py-1 rounded-full font-semibold bg-primary/10 text-primary border border-primary/20 shrink-0">
-                  {user.role}
-                </span>
+
+                {/* Controls */}
+                {user.status !== 'revoked' && (
+                  <div className="flex items-center gap-2 shrink-0">
+                    <select
+                      value={user.role}
+                      onChange={(e) => handleUpdateRole(user.id, e.target.value)}
+                      className="text-xs bg-transparent border-none text-muted-foreground hover:text-foreground font-medium focus-visible:outline-none cursor-pointer"
+                    >
+                      <option value="viewer">Viewer</option>
+                      <option value="editor">Editor</option>
+                      <option value="admin">Admin</option>
+                    </select>
+                    
+                    <button
+                      onClick={() => handleRevoke(user.id)}
+                      className="p-1.5 text-muted-foreground hover:bg-destructive/10 hover:text-destructive rounded-lg transition-colors ml-1"
+                      title="Revoke access"
+                    >
+                      <X size={16} />
+                    </button>
+                  </div>
+                )}
               </div>
             ))}
           </div>
         )}
-      </div>
-
-      {/* Phase 2 notice */}
-      <div className="flex items-start gap-3 p-4 rounded-xl bg-indigo-500/5 border border-indigo-500/20 text-sm text-indigo-400">
-        <ChevronRight size={16} className="mt-0.5 shrink-0" />
-        <p><span className="font-semibold">Phase 2:</span> Direct user invitations with email notifications, role management (Viewer/Admin), and access revocation will be added here.</p>
       </div>
     </div>
   );

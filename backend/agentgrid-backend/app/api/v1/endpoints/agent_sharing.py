@@ -385,3 +385,294 @@ async def chat_via_share_link(
     )
 
     return {"response": response_text}
+
+
+# ─── Invitation / User Management ─────────────────────────────────────────────
+
+from app.models.agent_invitation import AgentInvitation, generate_invite_token
+
+
+VALID_ROLES = {"viewer", "editor", "admin"}
+
+
+class InviteCreate(BaseModel):
+    email: EmailStr
+    role: str = "viewer"
+
+
+class InvitationOut(BaseModel):
+    id: str
+    invited_email: str
+    role: str
+    status: str
+    invited_at: str
+    accepted_at: str | None
+
+
+class AgentUserOut(BaseModel):
+    id: str
+    invited_email: str
+    role: str
+    status: str  # pending | accepted | revoked
+    invited_at: str
+    accepted_at: str | None
+
+
+def _send_invite_email(to_email: str, agent_name: str, inviter_name: str, invite_url: str) -> None:
+    """
+    Send an invitation email. Falls back to logging when SMTP is not configured.
+    Swap out the body of this function with your email service (SendGrid, SES, etc.).
+    """
+    import logging
+    logger = logging.getLogger(__name__)
+
+    try:
+        import smtplib
+        from email.mime.text import MIMEText
+        from app.core.config import get_settings
+        settings = get_settings()
+
+        smtp_host = getattr(settings, "SMTP_HOST", None)
+        smtp_port = getattr(settings, "SMTP_PORT", 587)
+        smtp_user = getattr(settings, "SMTP_USER", None)
+        smtp_pass = getattr(settings, "SMTP_PASSWORD", None)
+        from_email = getattr(settings, "SMTP_FROM", smtp_user)
+
+        if not smtp_host or not smtp_user:
+            raise ValueError("SMTP not configured")
+
+        body = f"""Hello!
+
+{inviter_name} has invited you to access the agent "{agent_name}" on AgentGrid.
+
+Click the link below to accept your invitation:
+{invite_url}
+
+This link expires in 7 days.
+
+– AgentGrid Team
+"""
+        msg = MIMEText(body)
+        msg["Subject"] = f"You've been invited to use {agent_name}"
+        msg["From"] = from_email
+        msg["To"] = to_email
+
+        with smtplib.SMTP(smtp_host, int(smtp_port)) as server:
+            server.starttls()
+            server.login(smtp_user, smtp_pass)
+            server.send_message(msg)
+
+        logger.info(f"Invite email sent to {to_email}")
+
+    except Exception as e:
+        # Log the invite link so it's not lost even if email fails
+        logger.warning(
+            f"[INVITE EMAIL] Could not send email to {to_email}: {e}. "
+            f"Invite link: {invite_url}"
+        )
+
+
+@router.post("/agents/{agent_id}/invite", response_model=InvitationOut)
+def invite_user_to_agent(
+    agent_id: str,
+    payload: InviteCreate,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """
+    Invite a user by email to access this agent with a specific role.
+    Sends an email with an accept link. Works like Canva's share dialog.
+    """
+    if payload.role not in VALID_ROLES:
+        raise HTTPException(400, f"role must be one of: {', '.join(VALID_ROLES)}")
+
+    agent = db.query(Agent).filter(
+        Agent.id == uuid.UUID(agent_id),
+        Agent.creator_id == current_user.id
+    ).first()
+    if not agent:
+        raise HTTPException(404, "Agent not found")
+
+    email = str(payload.email).lower()
+
+    # Don't allow owner to invite themselves
+    if current_user.email and current_user.email.lower() == email:
+        raise HTTPException(400, "You cannot invite yourself")
+
+    # Check for an active (non-revoked) invite for this email+agent
+    existing = db.query(AgentInvitation).filter(
+        AgentInvitation.agent_id == agent.id,
+        AgentInvitation.invited_email == email,
+        AgentInvitation.status != "revoked",
+    ).first()
+
+    if existing:
+        # Re-invite: update role and reset token so they get a fresh link
+        existing.role = payload.role
+        existing.status = "pending"
+        existing.invite_token = generate_invite_token()
+        db.commit()
+        db.refresh(existing)
+        invite = existing
+    else:
+        invite = AgentInvitation(
+            agent_id=agent.id,
+            invited_email=email,
+            role=payload.role,
+            status="pending",
+            invite_token=generate_invite_token(),
+            invited_by=current_user.id,
+        )
+        db.add(invite)
+        db.commit()
+        db.refresh(invite)
+
+    # Build accept URL — frontend route
+    from app.core.config import get_settings
+    settings = get_settings()
+    frontend_url = getattr(settings, "FRONTEND_URL", "http://localhost:3000")
+    invite_url = f"{frontend_url}/accept-invite?token={invite.invite_token}"
+
+    inviter_name = getattr(current_user, "full_name", None) or getattr(current_user, "email", "Someone")
+    _send_invite_email(email, agent.name, inviter_name, invite_url)
+
+    return InvitationOut(
+        id=str(invite.id),
+        invited_email=invite.invited_email,
+        role=invite.role,
+        status=invite.status,
+        invited_at=invite.created_at.isoformat(),
+        accepted_at=invite.accepted_at.isoformat() if invite.accepted_at else None,
+    )
+
+
+@router.get("/agents/{agent_id}/users", response_model=list[AgentUserOut])
+def list_agent_users(
+    agent_id: str,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """
+    List all users invited to this agent (pending, accepted, revoked).
+    """
+    agent = db.query(Agent).filter(
+        Agent.id == uuid.UUID(agent_id),
+        Agent.creator_id == current_user.id
+    ).first()
+    if not agent:
+        raise HTTPException(404, "Agent not found")
+
+    invitations = db.query(AgentInvitation).filter(
+        AgentInvitation.agent_id == agent.id
+    ).order_by(AgentInvitation.created_at.desc()).all()
+
+    return [
+        AgentUserOut(
+            id=str(inv.id),
+            invited_email=inv.invited_email,
+            role=inv.role,
+            status=inv.status,
+            invited_at=inv.created_at.isoformat(),
+            accepted_at=inv.accepted_at.isoformat() if inv.accepted_at else None,
+        )
+        for inv in invitations
+    ]
+
+
+@router.patch("/agents/{agent_id}/users/{invitation_id}/role")
+def update_user_role(
+    agent_id: str,
+    invitation_id: str,
+    payload: dict,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """Change the role for an existing invitation."""
+    new_role = payload.get("role", "viewer")
+    if new_role not in VALID_ROLES:
+        raise HTTPException(400, f"role must be one of: {', '.join(VALID_ROLES)}")
+
+    agent = db.query(Agent).filter(
+        Agent.id == uuid.UUID(agent_id),
+        Agent.creator_id == current_user.id
+    ).first()
+    if not agent:
+        raise HTTPException(404, "Agent not found")
+
+    invite = db.query(AgentInvitation).filter(
+        AgentInvitation.id == uuid.UUID(invitation_id),
+        AgentInvitation.agent_id == agent.id,
+    ).first()
+    if not invite:
+        raise HTTPException(404, "Invitation not found")
+
+    invite.role = new_role
+    db.commit()
+    return {"ok": True, "role": new_role}
+
+
+@router.delete("/agents/{agent_id}/users/{invitation_id}")
+def revoke_user_access(
+    agent_id: str,
+    invitation_id: str,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """Revoke a user's access (sets status to 'revoked')."""
+    agent = db.query(Agent).filter(
+        Agent.id == uuid.UUID(agent_id),
+        Agent.creator_id == current_user.id
+    ).first()
+    if not agent:
+        raise HTTPException(404, "Agent not found")
+
+    invite = db.query(AgentInvitation).filter(
+        AgentInvitation.id == uuid.UUID(invitation_id),
+        AgentInvitation.agent_id == agent.id,
+    ).first()
+    if not invite:
+        raise HTTPException(404, "Invitation not found")
+
+    invite.status = "revoked"
+    db.commit()
+    return {"ok": True}
+
+
+@router.get("/invite/accept")
+def accept_invitation(
+    token: str,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """
+    Accept an invitation via the token from the invite email.
+    The authenticated user must match the invited email.
+    """
+    invite = db.query(AgentInvitation).filter(
+        AgentInvitation.invite_token == token,
+    ).first()
+
+    if not invite:
+        raise HTTPException(404, "Invitation not found or already used")
+
+    if invite.status == "revoked":
+        raise HTTPException(403, "This invitation has been revoked")
+
+    if invite.status == "accepted":
+        return {"ok": True, "agent_id": str(invite.agent_id), "role": invite.role, "message": "Already accepted"}
+
+    # Verify email matches
+    user_email = getattr(current_user, "email", "") or ""
+    if user_email.lower() != invite.invited_email.lower():
+        raise HTTPException(403, "This invitation was sent to a different email address")
+
+    invite.status = "accepted"
+    invite.accepted_at = datetime.utcnow()
+    db.commit()
+
+    return {
+        "ok": True,
+        "agent_id": str(invite.agent_id),
+        "role": invite.role,
+        "message": "Invitation accepted! You now have access to this agent.",
+    }

@@ -11,6 +11,7 @@ const SignupPage = React.lazy(() => import('./components/pages/SignupPage'));
 const CreatorStudioPage = React.lazy(() => import('./creator-studio'));
 const NotFoundPage = React.lazy(() => import('./components/pages/NotFoundPage'));
 const SharedAgentChatPage = React.lazy(() => import('./components/pages/SharedAgentChatPage'));
+const AcceptInvitePage = React.lazy(() => import('./components/pages/AcceptInvitePage'));
 
 export type Page =
   | 'login'
@@ -18,6 +19,7 @@ export type Page =
   | 'creatorStudio'
   | 'studioAdmin'
   | 'sharedAgent'
+  | 'acceptInvite'
   | 'notFound';
 
 type RouteState = {
@@ -36,6 +38,7 @@ const getRouteFromLocation = (): RouteState => {
   if (path === '/login') return { page: 'login', next };
   if (path === '/signup') return { page: 'signup', next };
   if (path === '/studio/admin') return { page: 'studioAdmin', next };
+  if (path === '/accept-invite') return { page: 'acceptInvite', next };
   if (path.startsWith('/studio')) return { page: 'creatorStudio', next };
   
   // Shared agent route
@@ -61,6 +64,8 @@ const pathForPage = (page: Page): string => {
       return '/studio/admin';
     case 'sharedAgent':
       return '/share';
+    case 'acceptInvite':
+      return '/accept-invite';
     case 'notFound':
       return '/404';
     default:
@@ -192,6 +197,8 @@ const App: React.FC = () => {
           return <SharedAgentChatPage shareToken={route.shareToken} />;
         }
         return <NotFoundPage onGoHome={() => navigateTo('login')} />;
+      case 'acceptInvite':
+        return <AcceptInvitePage />;
       case 'notFound':
       default:
         return <NotFoundPage onGoHome={() => navigateTo('login')} />;

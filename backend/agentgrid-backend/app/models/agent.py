@@ -17,6 +17,7 @@ if TYPE_CHECKING:
     from app.models.agent_version import AgentVersion
     from app.models.agent_metrics import AgentMetrics
     from app.models.agent_share import AgentShareLink
+    from app.models.agent_invitation import AgentInvitation
 
 
 class Agent(TimestampMixin, Base):
@@ -72,6 +73,9 @@ class Agent(TimestampMixin, Base):
         back_populates="agent", cascade="all, delete"
     )
     share_links: Mapped[List["AgentShareLink"]] = relationship(
+        back_populates="agent", cascade="all, delete"
+    )
+    invitations: Mapped[List["AgentInvitation"]] = relationship(
         back_populates="agent", cascade="all, delete"
     )
 

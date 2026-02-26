@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { LoadingSpinner } from '@/components/shared/LoadingSpinner';
+import { Bot, User, Send, ArrowLeft, RefreshCw, Paperclip, X, Image as ImageIcon, FileText } from 'lucide-react';
 import axios from 'axios';
 
 interface SharedAgentChatPageProps {
@@ -56,7 +56,7 @@ function renderMarkdown(text: string): React.ReactNode {
     if (/^#{1,3}\s/.test(line)) {
       const level = (line.match(/^(#+)/) || [''])[0].length;
       const content = line.replace(/^#+\s/, '');
-      const Tag = `h${Math.min(level, 3)}` as keyof JSX.IntrinsicElements;
+      const Tag = `h${Math.min(level, 3)}` as any;
       const sizeClass = level === 1 ? 'text-lg font-bold' : level === 2 ? 'text-base font-semibold' : 'text-sm font-semibold';
       elements.push(<Tag key={i} className={`${sizeClass} text-white mt-3 mb-1`}>{inlineFormat(content)}</Tag>);
     } else if (/^\s*[-*]\s/.test(line)) {

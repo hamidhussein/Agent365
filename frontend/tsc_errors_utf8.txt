@@ -1,0 +1,18 @@
+﻿components/pages/SharedAgentChatPage.tsx(2,1): error TS6133: 'LoadingSpinner' is declared but its value is never read.
+components/pages/SharedAgentChatPage.tsx(59,53): error TS2503: Cannot find namespace 'JSX'.
+components/pages/SharedAgentChatPage.tsx(61,22): error TS2604: JSX element type 'Tag' does not have any construct or call signatures.
+components/pages/SharedAgentChatPage.tsx(61,22): error TS2786: 'Tag' cannot be used as a JSX component.
+  Its type 'string | number | symbol' is not a valid JSX element type.
+    Type 'number' is not assignable to type 'ElementType'.
+creator-studio/components/agent/AgentBuilder.tsx(2,82): error TS6133: 'Rocket' is declared but its value is never read.
+creator-studio/components/agent/AgentBuilder.tsx(28,22): error TS6133: 'setIsPublic' is declared but its value is never read.
+creator-studio/components/agent/ShareLinksList.tsx(4,24): error TS1149: File name 'D:/Axeecom/Agent365/frontend/src/components/ui/button/index.ts' differs from already included file name 'D:/Axeecom/Agent365/frontend/src/components/ui/Button/index.ts' only in casing.
+  The file is in the program because:
+    Imported via '@/components/ui/Button' from file 'D:/Axeecom/Agent365/frontend/src/components/features/AuthForms/LoginForm.tsx'
+    Imported via '@/components/ui/Button' from file 'D:/Axeecom/Agent365/frontend/src/components/features/AuthForms/SignupForm.tsx'
+    Imported via '@/components/ui/Button' from file 'D:/Axeecom/Agent365/frontend/creator-studio/components/agent/CreateShareLinkModal.tsx'
+    Imported via '@/components/ui/button' from file 'D:/Axeecom/Agent365/frontend/creator-studio/components/agent/ShareLinksList.tsx'
+    Imported via '@/components/ui/Button' from file 'D:/Axeecom/Agent365/frontend/components/pages/AcceptInvitePage.tsx'
+creator-studio/components/dashboard/AgentManagePage.tsx(503,74): error TS7053: Element implicitly has an 'any' type because expression of type 'string' can't be used to index type '{ codeExecution: boolean; webBrowsing: boolean; apiIntegrations: boolean; fileHandling: boolean; }'.
+  No index signature with a parameter of type 'string' was found on type '{ codeExecution: boolean; webBrowsing: boolean; apiIntegrations: boolean; fileHandling: boolean; }'.
+creator-studio/components/dashboard/AgentManagePage.tsx(550,46): error TS6133: 'color' is declared but its value is never read.

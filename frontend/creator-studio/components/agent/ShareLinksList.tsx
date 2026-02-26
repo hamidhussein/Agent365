@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Plus, Copy, Check, Trash2, Power, PowerOff } from 'lucide-react';
 import axios from 'axios';
-import { Button } from '@/components/ui/button';
+import { Button } from '@/components/ui/Button';
 import { LoadingSpinner } from '@/components/shared/LoadingSpinner';
 import CreateShareLinkModal from './CreateShareLinkModal';
 
