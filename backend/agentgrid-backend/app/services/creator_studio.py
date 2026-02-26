@@ -1175,7 +1175,7 @@ def generate_response(
         response = client.chat.completions.create(
             model=model_name,
             messages=messages,
-            max_tokens=1024,
+            max_tokens=4096,
             tools=tools,
         )
 
@@ -1239,7 +1239,7 @@ def generate_response(
         response = client.chat.completions.create(
             model=model_name,
             messages=messages,
-            max_tokens=1024,
+            max_tokens=4096,
         )
         return response.choices[0].message.content or ""
     if provider == "groq":
@@ -1299,7 +1299,7 @@ def generate_response(
         response = client.chat.completions.create(
             model=model_name,
             messages=messages,
-            max_tokens=1024,
+            max_tokens=4096,
             tools=settings_tools if settings_tools else None,
         )
 
@@ -1410,7 +1410,7 @@ def generate_response(
         response = client.chat.completions.create(
             model=model_name,
             messages=messages,
-            max_tokens=1024,
+            max_tokens=4096,
             tools=settings_tools if settings_tools else None,
         )
 
@@ -1586,7 +1586,7 @@ def generate_response(
         if db_actions:
              gemini_tools.append({"function_declarations": [format_action_as_gemini_tool(a) for a in db_actions]})
 
-    config = types.GenerateContentConfig(system_instruction=system_instruction)
+    config = types.GenerateContentConfig(system_instruction=system_instruction, max_output_tokens=4096)
     if gemini_tools:
         config.tools = gemini_tools
 
