@@ -2,9 +2,10 @@
 Agent sharing API endpoints
 """
 import uuid
+import base64
 from datetime import datetime, timedelta
-from typing import List
-from fastapi import APIRouter, Depends, HTTPException, Query
+from typing import List, Optional
+from fastapi import APIRouter, Depends, HTTPException, Query, UploadFile, File, Form
 from sqlalchemy.orm import Session
 from pydantic import BaseModel, EmailStr
 
@@ -261,6 +262,7 @@ def get_share_info(
     
     agent = share_link.agent
     creator_cfg = agent.config.get("creator_studio", {})
+    enabled_caps = creator_cfg.get("enabledCapabilities", {})
     
     return {
         "agent_id": str(agent.id),
@@ -269,58 +271,63 @@ def get_share_info(
         "welcome_message": agent.welcome_message,
         "starter_questions": agent.starter_questions,
         "link_type": share_link.link_type,
-        "share_token": share_token
+        "share_token": share_token,
+        "capabilities": {
+            "web_search": bool(enabled_caps.get("web_search", False)),
+            "file_handling": bool(enabled_caps.get("file_handling", False)),
+            "code_execution": bool(enabled_caps.get("code_execution", False)),
+            "rag": bool(enabled_caps.get("rag", False)),
+        }
     }
 
 
+def _validate_share_access(share_link, current_user, db):
+    """Shared validation logic for share link access."""
+    if not share_link.is_active:
+        raise HTTPException(403, "This share link has been deactivated")
+    if share_link.expires_at and share_link.expires_at < datetime.utcnow():
+        raise HTTPException(403, "This share link has expired")
+    if share_link.max_uses and share_link.current_uses >= share_link.max_uses:
+        raise HTTPException(403, "This share link has reached its maximum number of uses")
+    if share_link.link_type == "private":
+        if not current_user:
+            raise HTTPException(401, "Authentication required for private links")
+        has_access = db.query(AgentShareAccess).filter(
+            AgentShareAccess.share_link_id == share_link.id,
+            (AgentShareAccess.user_id == current_user.id) |
+            (AgentShareAccess.email == current_user.email.lower())
+        ).first()
+        if not has_access:
+            raise HTTPException(403, "You don't have access to this agent")
+
+
 @router.post("/share/{share_token}/chat")
-def chat_via_share_link(
+async def chat_via_share_link(
     share_token: str,
-    payload: dict,
+    message: str = Form(...),
+    history: str = Form(default="[]"),
+    file: Optional[UploadFile] = File(default=None),
     db: Session = Depends(get_db),
     current_user: User | None = Depends(get_current_user_optional),
 ):
     """
-    Chat with an agent via share link.
-    
-    Public links: No authentication required
-    Private links: Authentication required and access checked
+    Chat with an agent via share link. Supports optional file/image upload.
+    Public links: No authentication required.
+    Private links: Authentication required.
     """
+    import json
     share_link = db.query(AgentShareLink).filter(
         AgentShareLink.share_token == share_token
     ).first()
-    
     if not share_link:
         raise HTTPException(404, "Share link not found")
-    
-    # Validate access (same checks as get_share_info)
-    if not share_link.is_active:
-        raise HTTPException(403, "This share link has been deactivated")
-    
-    if share_link.expires_at and share_link.expires_at < datetime.utcnow():
-        raise HTTPException(403, "This share link has expired")
-    
-    if share_link.max_uses and share_link.current_uses >= share_link.max_uses:
-        raise HTTPException(403, "This share link has reached its maximum number of uses")
-    
-    if share_link.link_type == "private":
-        if not current_user:
-            raise HTTPException(401, "Authentication required for private links")
-        
-        has_access = db.query(AgentShareAccess).filter(
-            AgentShareAccess.share_link_id == share_link.id,
-            (AgentShareAccess.user_id == current_user.id) | 
-            (AgentShareAccess.email == current_user.email.lower())
-        ).first()
-        
-        if not has_access:
-            raise HTTPException(403, "You don't have access to this agent")
-    
+
+    _validate_share_access(share_link, current_user, db)
+
     # Increment usage counter
     share_link.current_uses += 1
     db.commit()
-    
-    # Generate response using agent
+
     from app.services.creator_studio import (
         generate_response,
         build_context,
@@ -330,30 +337,51 @@ def chat_via_share_link(
         get_llm_config,
         resolve_llm_key
     )
-    
+
     agent = share_link.agent
     creator_cfg = agent.config.get("creator_studio", {})
     instruction = creator_cfg.get("instruction", "")
     model = creator_cfg.get("model", "gemini-1.5-flash-preview")
-    capabilities = creator_cfg.get("enabledCapabilities")
-    
-    message = payload.get("message", "")
-    history = payload.get("history", [])
-    
-    safe_message = sanitize_user_input(message)
-    context_chunks = build_context(db, str(agent.id), safe_message)
+    capabilities = creator_cfg.get("enabledCapabilities", {})
+
+    try:
+        history_list = json.loads(history)
+    except Exception:
+        history_list = []
+
+    # Handle file/image attachment — embed as context in the message
+    file_context = ""
+    if file and capabilities.get("file_handling"):
+        raw = await file.read()
+        mime = file.content_type or "application/octet-stream"
+        filename = file.filename or "attachment"
+        if mime.startswith("text/") or mime in ("application/json", "application/csv"):
+            try:
+                text_content = raw.decode("utf-8", errors="replace")
+                file_context = f"\n\n[Attached file: {filename}]\n```\n{text_content[:8000]}\n```"
+            except Exception:
+                file_context = f"\n\n[Attached file: {filename} — could not decode]"
+        elif mime.startswith("image/"):
+            b64 = base64.b64encode(raw).decode()
+            file_context = f"\n\n[Attached image: {filename} — base64 data:{mime};base64,{b64[:200]}... (image analysis depends on model vision support)]"
+        else:
+            file_context = f"\n\n[Attached file: {filename} ({mime}) — binary file, {len(raw)} bytes]"
+
+    full_message = message + file_context
+    safe_message = sanitize_user_input(full_message)
+    context_chunks = build_context(db, str(agent.id), sanitize_user_input(message))
     system_instruction = build_system_instruction(
         instruction, context_chunks, None, capabilities
     )
-    
+
     provider = get_provider_for_model(db, model)
     config = get_llm_config(db, provider)
     api_key = resolve_llm_key(provider, config)
-    
+
     response_text = generate_response(
-        provider, model, system_instruction, message, api_key,
-        db=db, history=history, agent_id=str(agent.id),
+        provider, model, system_instruction, safe_message, api_key,
+        db=db, history=history_list, agent_id=str(agent.id),
         user_id=str(current_user.id) if current_user else None
     )
-    
+
     return {"response": response_text}
