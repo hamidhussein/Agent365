@@ -1,10 +1,11 @@
 import { useState } from 'react';
-import { Bot, Pencil, Trash2, MessageSquare, FileText, Check, X, Rocket, LogOut, Plus, Zap } from 'lucide-react';
+import { Bot, Pencil, Trash2, MessageSquare, FileText, Check, X, Rocket, LogOut, Plus, Zap, Share2 } from 'lucide-react';
 import { Button } from '../ui/Button';
 import { Agent } from '../../types';
 import { MODEL_OPTIONS } from '../../constants';
 import { Breadcrumbs } from '../shared/Breadcrumbs';
 import { StudioHeader } from '../shared/StudioHeader';
+import CreateShareLinkModal from '../agent/CreateShareLinkModal';
 
 export const Dashboard = ({
   agents,
@@ -24,6 +25,7 @@ export const Dashboard = ({
   onLogout?: () => void,
 }) => {
   const [deleteId, setDeleteId] = useState<string | null>(null);
+  const [shareAgentId, setShareAgentId] = useState<string | null>(null);
 
   return (
     <div className="min-h-screen flex flex-col bg-background relative overflow-hidden">
@@ -154,6 +156,17 @@ export const Dashboard = ({
                             <button
                               onClick={(e) => {
                                 e.stopPropagation();
+                                setShareAgentId(agent.id);
+                              }}
+                              className="p-1.5 hover:bg-primary/10 rounded text-muted-foreground hover:text-primary"
+                              aria-label={`Share ${agent.name}`}
+                              title="Share agent"
+                            >
+                              <Share2 size={16} />
+                            </button>
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation();
                                 onEditAgent(agent);
                               }}
                               className="p-1.5 hover:bg-secondary rounded text-muted-foreground hover:text-foreground"
@@ -205,8 +218,16 @@ export const Dashboard = ({
           </div>
         )}
       </main>
+
+      {/* Quick Share Modal — triggered from agent card */}
+      {shareAgentId && (
+        <CreateShareLinkModal
+          agentId={shareAgentId}
+          onClose={() => setShareAgentId(null)}
+          onSuccess={() => setShareAgentId(null)}
+        />
+      )}
     </div>
   );
 };
-
 

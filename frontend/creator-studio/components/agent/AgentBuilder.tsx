@@ -1,5 +1,5 @@
 import { ChangeEvent, useEffect, useRef, useState } from 'react';
-import { Bot, Cpu, Settings, FileText, Upload, X, AlertTriangle, Sparkles, Save, Rocket } from 'lucide-react';
+import { Bot, Cpu, Settings, FileText, Upload, X, AlertTriangle, Sparkles, Save, Rocket, Share2 } from 'lucide-react';
 import { Button } from '../ui/Button';
 import { Input, TextArea } from '../ui/Input';
 import { Agent, AgentInput, AgentPayload, KnowledgeFile } from '../../types';
@@ -8,6 +8,7 @@ import { BuilderChat, Message } from './BuilderChat';
 import { PreviewChat } from './PreviewChat';
 import { AgentDebugger, DebugLog } from './AgentDebugger';
 import ShareLinksList from './ShareLinksList';
+import CreateShareLinkModal from './CreateShareLinkModal';
 
 export const AgentBuilder = ({
     onCancel,
@@ -52,6 +53,7 @@ export const AgentBuilder = ({
         }
     ]);
     const [debugLogs, setDebugLogs] = useState<DebugLog[]>([]);
+    const [showShareModal, setShowShareModal] = useState(false);
 
     useEffect(() => {
         if (activeTab !== 'create') return;
@@ -144,6 +146,7 @@ export const AgentBuilder = ({
     const [configSection, setConfigSection] = useState<'identity' | 'behavior' | 'knowledge' | 'capabilities' | 'share'>('identity');
 
     return (
+        <>
         <div className="flex flex-col h-full bg-background overflow-hidden font-sans">
             {/* Top Bar */}
             <div className="h-14 flex items-center justify-between px-4 border-b border-border bg-card/80 backdrop-blur-md shrink-0 sticky top-0 z-30">
@@ -174,6 +177,15 @@ export const AgentBuilder = ({
                 </div>
 
                 <div className="flex items-center gap-3">
+                    {initialData?.id && (
+                        <Button
+                            variant="outline"
+                            className="text-primary font-bold h-9 bg-transparent border-primary/30 hover:bg-primary/10 hover:border-primary gap-2"
+                            onClick={() => setShowShareModal(true)}
+                        >
+                            <Share2 size={15} /> Share
+                        </Button>
+                    )}
                     <Button
                         variant="outline"
                         className="text-muted-foreground font-bold h-9 bg-transparent border-border hover:bg-muted"
@@ -587,5 +599,14 @@ export const AgentBuilder = ({
                 </div>
             </div>
         </div>
+        {/* Share Modal */}
+        {showShareModal && initialData?.id && (
+            <CreateShareLinkModal
+                agentId={initialData.id}
+                onClose={() => setShowShareModal(false)}
+                onSuccess={() => setShowShareModal(false)}
+            />
+        )}
+        </>
     );
 };
