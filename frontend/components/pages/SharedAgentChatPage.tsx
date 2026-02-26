@@ -76,6 +76,47 @@ function renderMarkdown(text: string): React.ReactNode {
         </ol>
       );
       continue;
+    } else if (/^\|/.test(line.trim())) {
+      // Collect all contiguous table lines
+      const tableLines: string[] = [];
+      while (i < lines.length && /^\|/.test(lines[i].trim())) {
+        tableLines.push(lines[i]);
+        i++;
+      }
+      const parseRow = (row: string) =>
+        row.split('|').map(c => c.trim()).filter((_, idx, arr) => idx > 0 && idx < arr.length - 1);
+      const isSep = (r: string) => /^[\|\s\-:]+$/.test(r);
+      const headerRow = parseRow(tableLines[0] || '');
+      const bodyRows = tableLines.slice(isSep(tableLines[1] || '') ? 2 : 1).map(parseRow);
+      elements.push(
+        <div key={`table-${i}`} className="my-3 overflow-x-auto rounded-xl border border-white/10">
+          <table className="w-full text-sm border-collapse">
+            {headerRow.length > 0 && (
+              <thead>
+                <tr className="bg-white/10">
+                  {headerRow.map((cell, j) => (
+                    <th key={j} className="px-4 py-2 text-left text-xs font-semibold text-indigo-300 border-b border-white/10 whitespace-nowrap">
+                      {inlineFormat(cell)}
+                    </th>
+                  ))}
+                </tr>
+              </thead>
+            )}
+            <tbody>
+              {bodyRows.map((row, ri) => (
+                <tr key={ri} className={ri % 2 === 0 ? 'bg-white/5' : ''}>
+                  {row.map((cell, ci) => (
+                    <td key={ci} className="px-4 py-2 text-white/80 border-b border-white/5 align-top">
+                      {inlineFormat(cell)}
+                    </td>
+                  ))}
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      );
+      continue;
     } else if (line.trim() === '') {
       elements.push(<div key={i} className="h-2" />);
     } else {
