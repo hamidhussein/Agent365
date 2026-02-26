@@ -1,6 +1,6 @@
 import React from 'react';
 
-export type ViewState = 'dashboard' | 'admin-dashboard' | 'create-agent' | 'edit-agent' | 'chat';
+export type ViewState = 'dashboard' | 'admin-dashboard' | 'create-agent' | 'edit-agent' | 'chat' | 'agent-manage';
 export type UserRole = 'creator' | 'admin';
 
 export interface KnowledgeFile {

@@ -5,6 +5,7 @@ import { AdminDashboard } from './components/admin/AdminDashboard';
 import { Dashboard } from './components/dashboard/Dashboard';
 import { AgentBuilder } from './components/agent/AgentBuilder';
 import { ChatInterface } from './components/chat/ChatInterface';
+import { AgentManagePage } from './components/dashboard/AgentManagePage';
 import { adminApi, agentsApi } from './api';
 import { useAuthStore } from '@/lib/store';
 import { useAuth } from '@/lib/hooks/useAuth';
@@ -23,6 +24,7 @@ const CreatorStudioApp = ({ initialView }: { initialView?: string }) => {
     if (parts[1] === 'chat' && parts[2]) return { view: 'chat' as ViewState, id: parts[2] };
     if (parts[1] === 'create') return { view: 'create-agent' as ViewState, id: null };
     if (parts[1] === 'edit' && parts[2]) return { view: 'edit-agent' as ViewState, id: parts[2] };
+    if (parts[1] === 'agent' && parts[2]) return { view: 'agent-manage' as ViewState, id: parts[2] };
     
     return { 
       view: (initialView as ViewState) || (mainUser?.role === 'admin' ? 'admin-dashboard' : 'dashboard'), 
@@ -37,6 +39,7 @@ const CreatorStudioApp = ({ initialView }: { initialView?: string }) => {
   const [assistModel, setAssistModel] = useState<string | null>(null);
   const [selectedAgent, setSelectedAgent] = useState<Agent | null>(null);
   const [editingAgent, setEditingAgent] = useState<Agent | null>(null);
+  const [managingAgent, setManagingAgent] = useState<Agent | null>(null);
   const [platformSettings, setPlatformSettings] = useState<PlatformSettings>({});
 
   const loadAgents = async () => {
@@ -50,6 +53,7 @@ const CreatorStudioApp = ({ initialView }: { initialView?: string }) => {
       if (target) {
         if (currentView === 'chat') setSelectedAgent(target);
         if (currentView === 'edit-agent') setEditingAgent(target);
+        if (currentView === 'agent-manage') setManagingAgent(target);
       }
     }
   };
@@ -63,12 +67,13 @@ const CreatorStudioApp = ({ initialView }: { initialView?: string }) => {
     else if (view === 'chat' && selectedAgent) path = `${baseUrl}/chat/${selectedAgent.id}`;
     else if (view === 'create-agent') path = `${baseUrl}/create`;
     else if (view === 'edit-agent' && editingAgent) path = `${baseUrl}/edit/${editingAgent.id}`;
+    else if (view === 'agent-manage' && managingAgent) path = `${baseUrl}/agent/${managingAgent.id}`;
     else if (view === 'dashboard') path = baseUrl;
 
     if (window.location.pathname !== path) {
       window.history.pushState({}, '', path);
     }
-  }, [view, selectedAgent, editingAgent]);
+  }, [view, selectedAgent, editingAgent, managingAgent]);
 
   // Handle browser back/forward
   useEffect(() => {
@@ -78,11 +83,13 @@ const CreatorStudioApp = ({ initialView }: { initialView?: string }) => {
       if (!id) {
         setSelectedAgent(null);
         setEditingAgent(null);
+        setManagingAgent(null);
       } else if (agents.length > 0) {
         const target = agents.find(a => a.id === id);
         if (target) {
           if (nextView === 'chat') setSelectedAgent(target);
           if (nextView === 'edit-agent') setEditingAgent(target);
+          if (nextView === 'agent-manage') setManagingAgent(target);
         }
       }
     };
@@ -184,8 +191,8 @@ const CreatorStudioApp = ({ initialView }: { initialView?: string }) => {
   };
 
   const handleSelectAgent = (agent: Agent) => {
-    setSelectedAgent(agent);
-    setView('chat');
+    setManagingAgent(agent);
+    setView('agent-manage');
   };
 
   const handleEditAgent = (agent: Agent) => {
@@ -276,7 +283,43 @@ const CreatorStudioApp = ({ initialView }: { initialView?: string }) => {
             agent={selectedAgent}
             onBack={() => {
               setSelectedAgent(null);
+              // Go back to the manage page for this agent if we came from there
+              if (managingAgent?.id === selectedAgent.id) {
+                setView('agent-manage');
+              } else {
+                setView('dashboard');
+              }
+            }}
+          />
+        </div>
+      )}
+
+      {view === 'agent-manage' && managingAgent && (
+        <div className="animate-in fade-in slide-in-from-bottom-2 duration-500">
+          <AgentManagePage
+            agent={managingAgent}
+            onBack={() => {
+              setManagingAgent(null);
               setView('dashboard');
+            }}
+            onOpenChat={(agent) => {
+              setSelectedAgent(agent);
+              setView('chat');
+            }}
+            onSave={(payload, newFiles, removedFileIds) =>
+              handleUpdateAgent(managingAgent.id, payload, newFiles, removedFileIds).then(() => {
+                const updated = agents.find(a => a.id === managingAgent.id);
+                if (updated) setManagingAgent(updated);
+              })
+            }
+            onDelete={(id) => {
+              handleDeleteAgent(id);
+              setManagingAgent(null);
+              setView('dashboard');
+            }}
+            onOpenBuilder={(agent) => {
+              setEditingAgent(agent);
+              setView('edit-agent');
             }}
           />
         </div>

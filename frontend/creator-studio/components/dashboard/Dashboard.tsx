@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Bot, Pencil, Trash2, MessageSquare, FileText, Check, X, Rocket, LogOut, Plus, Zap, Share2 } from 'lucide-react';
+import { Bot, Pencil, Trash2, MessageSquare, FileText, Check, X, Rocket, LogOut, Plus, Zap, Share2, Settings } from 'lucide-react';
 import { Button } from '../ui/Button';
 import { Agent } from '../../types';
 import { MODEL_OPTIONS } from '../../constants';
@@ -209,7 +209,7 @@ export const Dashboard = ({
                       className="w-full bg-primary hover:bg-primary text-primary-foreground font-bold shadow-sm transition-all duration-300 group-hover:shadow-md border-0" 
                       onClick={() => onSelectAgent(agent)}
                     >
-                      <MessageSquare size={16} className="mr-2" /> Open Chat
+                      <Settings size={16} className="mr-2" /> Manage Agent
                     </Button>
                   </div>
                 </div>
