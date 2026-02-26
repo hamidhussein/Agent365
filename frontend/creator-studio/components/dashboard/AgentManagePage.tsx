@@ -41,65 +41,53 @@ const getAuthHeaders = () => {
 
 // ── Tab: Overview ────────────────────────────────────────────────────────────
 
-const OverviewTab: React.FC<{ agent: Agent; onOpenChat: (agent: Agent) => void; onOpenBuilder: (agent: Agent) => void }> = ({ agent, onOpenChat, onOpenBuilder }) => {
+const OverviewTab: React.FC<{ agent: Agent }> = ({ agent }) => {
   const opt = MODEL_OPTIONS.find(o => o.id === agent.model);
   const caps = agent.enabledCapabilities || {};
   const capLabels: Record<string, { label: string; color: string }> = {
-    webBrowsing:    { label: 'Web Search',    color: 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20' },
-    fileHandling:  { label: 'File Upload',    color: 'bg-blue-500/10 text-blue-400 border-blue-500/20' },
-    codeExecution: { label: 'Code Execution', color: 'bg-orange-500/10 text-orange-400 border-orange-500/20' },
-    apiIntegrations:{ label: 'API Access',    color: 'bg-purple-500/10 text-purple-400 border-purple-500/20' },
+    webBrowsing:     { label: 'Web Search',    color: 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20' },
+    fileHandling:   { label: 'File Upload',    color: 'bg-blue-500/10 text-blue-400 border-blue-500/20' },
+    codeExecution:  { label: 'Code Execution', color: 'bg-orange-500/10 text-orange-400 border-orange-500/20' },
+    apiIntegrations:{ label: 'API Access',     color: 'bg-purple-500/10 text-purple-400 border-purple-500/20' },
   };
   return (
-    <div className="space-y-6">
-      {/* Agent Card */}
-      <div className="bg-card/60 border border-border/60 rounded-2xl p-6 flex flex-col sm:flex-row gap-6">
-        <div className={`w-16 h-16 rounded-2xl ${agent.color || 'bg-blue-500'} flex items-center justify-center text-white shrink-0 text-2xl shadow-lg`}>
+    <div className="space-y-5">
+      {/* Agent identity */}
+      <div className="bg-card/60 border border-border/60 rounded-2xl p-5 flex gap-4">
+        <div className={`w-14 h-14 rounded-xl ${agent.color || 'bg-blue-500'} flex items-center justify-center text-white shrink-0 text-xl shadow-lg`}>
           {opt?.icon || '🤖'}
         </div>
         <div className="flex-1 min-w-0">
-          <h2 className="text-xl font-black text-foreground truncate">{agent.name}</h2>
-          <p className="text-sm text-muted-foreground mt-1 line-clamp-2">{agent.description || 'No description'}</p>
-          <div className="flex flex-wrap gap-2 mt-3">
+          <h2 className="text-base font-black text-foreground truncate">{agent.name}</h2>
+          <p className="text-sm text-muted-foreground mt-0.5 line-clamp-2">{agent.description || 'No description'}</p>
+          <div className="flex flex-wrap gap-1.5 mt-2.5">
             <span className="px-2.5 py-1 text-xs font-bold bg-primary/10 text-primary rounded-full border border-primary/20">{opt?.label || agent.model}</span>
             {Object.entries(caps).filter(([, v]) => v).map(([key]) => {
               const cfg = capLabels[key];
               if (!cfg) return null;
-              return (
-                <span key={key} className={`px-2.5 py-1 text-xs font-semibold rounded-full border ${cfg.color}`}>{cfg.label}</span>
-              );
+              return <span key={key} className={`px-2.5 py-1 text-xs font-semibold rounded-full border ${cfg.color}`}>{cfg.label}</span>;
             })}
-            {agent.files?.length > 0 && (
+            {(agent.files?.length ?? 0) > 0 && (
               <span className="px-2.5 py-1 text-xs font-semibold rounded-full border bg-indigo-500/10 text-indigo-400 border-indigo-500/20">
                 📚 {agent.files.length} Knowledge Files
               </span>
             )}
           </div>
         </div>
-        <div className="flex sm:flex-col gap-2 shrink-0">
-          <Button className="flex-1 sm:flex-none bg-primary text-primary-foreground hover:bg-primary/90 font-bold shadow-sm border-0 gap-2" onClick={() => onOpenChat(agent)}>
-            <MessageSquare size={15} /> Chat
-          </Button>
-          <Button variant="outline" className="flex-1 sm:flex-none gap-2 text-muted-foreground hover:text-foreground" onClick={() => onOpenBuilder(agent)}>
-            <Pencil size={15} /> Edit in Builder
-          </Button>
-        </div>
       </div>
 
       {/* Stats Row */}
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+      <div className="grid grid-cols-2 gap-3">
         {[
-          { label: 'Total Messages', value: '—', icon: <MessageSquare size={18} className="text-primary" /> },
-          { label: 'Share Links', value: '—', icon: <Share2 size={18} className="text-indigo-400" /> },
-          { label: 'Knowledge Files', value: String(agent.files?.length || 0), icon: <BarChart2 size={18} className="text-emerald-400" /> },
-          { label: 'Model', value: opt?.label?.split(' ')[0] || '—', icon: <Settings size={18} className="text-orange-400" /> },
+          { label: 'Model',           value: opt?.label?.split(' ')[0] || '—', icon: <Settings size={16} className="text-orange-400" /> },
+          { label: 'Knowledge Files', value: String(agent.files?.length || 0),  icon: <BarChart2 size={16} className="text-emerald-400" /> },
         ].map((stat) => (
-          <div key={stat.label} className="bg-card/40 border border-border/50 rounded-xl p-4 space-y-2">
-            <div className="flex items-center justify-between">
+          <div key={stat.label} className="bg-card/40 border border-border/50 rounded-xl p-4">
+            <div className="flex items-center gap-2 mb-1">
               {stat.icon}
               <span className="text-xs font-bold text-muted-foreground uppercase tracking-wider">{stat.label}</span>
             </div>
-            <p className="text-2xl font-black text-foreground">{stat.value}</p>
+            <p className="text-xl font-black text-foreground">{stat.value}</p>
           </div>
         ))}
       </div>
@@ -538,63 +526,101 @@ export const AgentManagePage: React.FC<AgentManagePageProps> = ({
   onOpenBuilder,
 }) => {
   const [activeTab, setActiveTab] = useState<ManageTab>('overview');
+  const opt = MODEL_OPTIONS.find(o => o.id === agent.model);
 
-  const tabs: { id: ManageTab; label: string; icon: React.ReactNode }[] = [
-    { id: 'overview', label: 'Overview', icon: <BarChart2 size={15} /> },
-    { id: 'share',    label: 'Share Links', icon: <Share2 size={15} /> },
-    { id: 'users',    label: 'Users', icon: <Users size={15} /> },
-    { id: 'settings', label: 'Settings', icon: <Settings size={15} /> },
+  const tabs: { id: ManageTab; label: string; icon: React.ReactNode; desc: string }[] = [
+    { id: 'overview', label: 'Overview',    icon: <BarChart2 size={16} />, desc: 'Agent summary' },
+    { id: 'share',    label: 'Share Links', icon: <Share2 size={16} />,    desc: 'Manage access links' },
+    { id: 'users',    label: 'Users',       icon: <Users size={16} />,     desc: 'Private access' },
+    { id: 'settings', label: 'Settings',    icon: <Settings size={16} />,  desc: 'Quick configuration' },
   ];
 
   return (
     <div className="min-h-screen flex flex-col bg-background">
-      {/* Header */}
-      <div className="border-b border-border bg-card/80 backdrop-blur-md sticky top-0 z-20">
-        <div className="max-w-4xl mx-auto px-4 sm:px-6">
-          <div className="h-14 flex items-center gap-4">
-            <button onClick={onBack} className="p-2 hover:bg-muted rounded-xl text-muted-foreground hover:text-foreground transition-colors">
-              <ArrowLeft size={18} />
-            </button>
-            <div className="h-6 w-px bg-border" />
-            <div className="flex-1 min-w-0">
-              <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest">Agent</p>
-              <p className="text-sm font-black text-foreground truncate">{agent.name}</p>
-            </div>
-            <Button
-              className="bg-primary text-primary-foreground hover:bg-primary/90 font-bold shadow-sm border-0 gap-2 h-9 text-xs px-4 shrink-0"
-              onClick={() => onOpenChat(agent)}
-            >
-              <MessageSquare size={14} /> Open Chat
-            </Button>
-          </div>
 
-          {/* Tabs */}
-          <div className="flex gap-1 -mb-px overflow-x-auto">
-            {tabs.map(tab => (
-              <button
-                key={tab.id}
-                onClick={() => setActiveTab(tab.id)}
-                className={`flex items-center gap-2 px-4 py-3 text-xs font-bold border-b-2 whitespace-nowrap transition-all ${
-                  activeTab === tab.id
-                    ? 'border-primary text-primary'
-                    : 'border-transparent text-muted-foreground hover:text-foreground'
-                }`}
-              >
-                {tab.icon} {tab.label}
-              </button>
-            ))}
-          </div>
+      {/* ── Top bar ── */}
+      <div className="h-14 flex items-center gap-4 px-6 border-b border-border bg-card/80 backdrop-blur-md sticky top-0 z-20">
+        <button onClick={onBack} className="p-2 hover:bg-muted rounded-xl text-muted-foreground hover:text-foreground transition-colors shrink-0">
+          <ArrowLeft size={17} />
+        </button>
+        <div className="h-5 w-px bg-border shrink-0" />
+        {/* Agent avatar + name */}
+        <div className={`w-7 h-7 rounded-lg ${agent.color || 'bg-blue-500'} flex items-center justify-center text-white text-xs font-bold shrink-0`}>
+          {opt?.icon || agent.name[0]}
         </div>
+        <div className="flex-1 min-w-0">
+          <p className="text-sm font-bold text-foreground truncate">{agent.name}</p>
+          <p className="text-[10px] text-muted-foreground truncate">{agent.description}</p>
+        </div>
+        <Button
+          className="bg-primary text-primary-foreground hover:bg-primary/90 font-bold border-0 gap-1.5 h-8 text-xs px-3 shrink-0 shadow-sm"
+          onClick={() => onOpenChat(agent)}
+        >
+          <MessageSquare size={13} /> Open Chat
+        </Button>
+        <Button
+          variant="outline"
+          className="font-bold border gap-1.5 h-8 text-xs px-3 shrink-0 text-muted-foreground hover:text-foreground"
+          onClick={() => onOpenBuilder(agent)}
+        >
+          <Pencil size={13} /> Edit Builder
+        </Button>
       </div>
 
-      {/* Content */}
-      <div className="flex-1 max-w-4xl mx-auto w-full px-4 sm:px-6 py-8">
-        {activeTab === 'overview' && <OverviewTab agent={agent} onOpenChat={onOpenChat} onOpenBuilder={onOpenBuilder} />}
-        {activeTab === 'share'    && <ShareTab agentId={agent.id} />}
-        {activeTab === 'users'    && <UsersTab agentId={agent.id} />}
-        {activeTab === 'settings' && (
-          <SettingsTab agent={agent} onSave={onSave} onOpenBuilder={onOpenBuilder} onDelete={onDelete} />
-        )}
+      {/* ── Body: sidebar + content ── */}
+      <div className="flex flex-1 min-h-0">
+
+        {/* Left sidebar nav */}
+        <aside className="w-52 shrink-0 border-r border-border bg-card/40 flex flex-col py-4 gap-1 px-2">
+          {tabs.map(tab => (
+            <button
+              key={tab.id}
+              onClick={() => setActiveTab(tab.id)}
+              className={`flex items-center gap-3 w-full px-3 py-2.5 rounded-xl text-left transition-all group ${
+                activeTab === tab.id
+                  ? 'bg-primary/10 text-primary'
+                  : 'text-muted-foreground hover:bg-muted hover:text-foreground'
+              }`}
+            >
+              <span className={`shrink-0 ${activeTab === tab.id ? 'text-primary' : 'text-muted-foreground group-hover:text-foreground'}`}>
+                {tab.icon}
+              </span>
+              <div className="min-w-0">
+                <p className="text-xs font-bold truncate">{tab.label}</p>
+                <p className="text-[10px] text-muted-foreground truncate leading-tight">{tab.desc}</p>
+              </div>
+            </button>
+          ))}
+
+          {/* Divider + Agent quick-stats */}
+          <div className="mt-auto pt-4 border-t border-border mx-1 space-y-2">
+            <div className="px-3 py-2">
+              <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider mb-2">Quick Info</p>
+              <div className="space-y-1.5">
+                <div className="flex justify-between text-xs">
+                  <span className="text-muted-foreground">Model</span>
+                  <span className="font-semibold text-foreground truncate max-w-[80px] text-right">{opt?.label?.split(' ')[0] || agent.model}</span>
+                </div>
+                <div className="flex justify-between text-xs">
+                  <span className="text-muted-foreground">Files</span>
+                  <span className="font-semibold text-foreground">{agent.files?.length || 0}</span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </aside>
+
+        {/* Main content */}
+        <main className="flex-1 overflow-y-auto">
+          <div className="max-w-2xl mx-auto px-6 py-8">
+            {activeTab === 'overview' && <OverviewTab agent={agent} />}
+            {activeTab === 'share'    && <ShareTab agentId={agent.id} />}
+            {activeTab === 'users'    && <UsersTab agentId={agent.id} />}
+            {activeTab === 'settings' && (
+              <SettingsTab agent={agent} onSave={onSave} onOpenBuilder={onOpenBuilder} onDelete={onDelete} />
+            )}
+          </div>
+        </main>
       </div>
     </div>
   );
