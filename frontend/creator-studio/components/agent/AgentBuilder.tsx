@@ -7,6 +7,7 @@ import { COLORS } from '../../constants';
 import { BuilderChat, Message } from './BuilderChat';
 import { PreviewChat } from './PreviewChat';
 import { AgentDebugger, DebugLog } from './AgentDebugger';
+import ShareLinksList from './ShareLinksList';
 
 export const AgentBuilder = ({
     onCancel,
@@ -24,9 +25,9 @@ export const AgentBuilder = ({
     const [color, setColor] = useState(initialData?.color || COLORS[0]);
     const [inputs] = useState<AgentInput[]>(initialData?.inputs || []);
     const [isPublic, setIsPublic] = useState(initialData?.isPublic ?? false);
-    const [creditsPerRun, setCreditsPerRun] = useState(initialData?.creditsPerRun ?? 1);
-    const [allowReviews, setAllowReviews] = useState(initialData?.allow_reviews || false);
-    const [reviewCost, setReviewCost] = useState(initialData?.review_cost || 5);
+    const [welcomeMessage, setWelcomeMessage] = useState(initialData?.welcomeMessage || '');
+    const [starterQuestions, setStarterQuestions] = useState<string[]>(initialData?.starterQuestions || []);
+    const [newQuestionInput, setNewQuestionInput] = useState('');
     const [enabledCapabilities, setEnabledCapabilities] = useState(initialData?.enabledCapabilities || {
         codeExecution: initialData?.capabilities?.includes('code_execution') || false,
         webBrowsing: initialData?.capabilities?.includes('web_search') || false,
@@ -110,7 +111,7 @@ export const AgentBuilder = ({
         },
         {
             title: 'Preview the experience',
-            description: 'Use the right panel to test the agent and confirm the behavior before publishing.'
+            description: 'Use the right panel to test the agent and confirm the behavior before saving.'
         }
     ];
 
@@ -121,9 +122,8 @@ export const AgentBuilder = ({
         model: 'auto',
         color,
         isPublic,
-        creditsPerRun: Math.max(1, Math.floor(creditsPerRun || 1)),
-        allow_reviews: allowReviews,
-        review_cost: Math.max(0, Math.floor(reviewCost || 0)),
+        welcomeMessage,
+        starterQuestions,
         enabledCapabilities,
         capabilities: [
             enabledCapabilities.codeExecution ? 'code_execution' : '',
@@ -141,7 +141,7 @@ export const AgentBuilder = ({
     };
 
     // Tabs for the main configuration area
-    const [configSection, setConfigSection] = useState<'identity' | 'behavior' | 'knowledge' | 'capabilities' | 'publish'>('identity');
+    const [configSection, setConfigSection] = useState<'identity' | 'behavior' | 'knowledge' | 'capabilities' | 'share'>('identity');
 
     return (
         <div className="flex flex-col h-full bg-background overflow-hidden font-sans">
@@ -189,7 +189,7 @@ export const AgentBuilder = ({
                         {initialData ? (
                             <span className="flex items-center gap-2"><Save size={16} /> Save Changes</span>
                         ) : (
-                            <span className="flex items-center gap-2"><Rocket size={16} /> Publish Agent</span>
+                            <span className="flex items-center gap-2"><Save size={16} /> Save Agent</span>
                         )}
                     </Button>
                 </div>
@@ -323,8 +323,8 @@ export const AgentBuilder = ({
                                         <Settings size={16} /> Capabilities
                                     </button>
                                     <div className="h-px bg-border my-3 mx-3" />
-                                    <button onClick={() => setConfigSection('publish')} className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-bold transition-all ${configSection === 'publish' ? 'bg-primary/10 text-primary shadow-sm' : 'text-muted-foreground hover:bg-muted hover:text-foreground'}`}>
-                                        <Upload size={16} /> Publish Settings
+                                    <button onClick={() => setConfigSection('share')} className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-bold transition-all ${configSection === 'share' ? 'bg-primary/10 text-primary shadow-sm' : 'text-muted-foreground hover:bg-muted hover:text-foreground'}`}>
+                                        <Upload size={16} /> Share Settings
                                     </button>
                                 </div>
                             </div>
@@ -427,53 +427,101 @@ export const AgentBuilder = ({
                                         </div>
                                     )}
 
-                                    {configSection === 'publish' && (
+                                    {configSection === 'share' && (
                                         <div className="space-y-6">
-                                            <h2 className="text-xl font-bold text-foreground">Publish Settings</h2>
+                                            <h2 className="text-xl font-bold text-foreground">Share Settings</h2>
 
-                                            <div className="p-6 bg-card rounded-2xl border border-border shadow-sm space-y-6">
-                                                <div className="flex items-center justify-between">
-                                                    <div>
-                                                        <h4 className="text-sm font-black text-foreground">Public Marketplace</h4>
-                                                        <p className="text-xs font-medium text-muted-foreground mt-1">Make this agent discoverable by other users.</p>
-                                                    </div>
-                                                    <label className="relative inline-flex items-center cursor-pointer">
-                                                        <input type="checkbox" checked={isPublic} onChange={(e) => setIsPublic(e.target.checked)} className="sr-only peer" />
-                                                        <div className="w-12 h-6.5 bg-muted/80 peer-focus:outline-none rounded-full peer peer-checked:bg-green-600 peer-checked:after:translate-x-full after:content-[''] after:absolute after:top-[4px] after:left-[4px] after:bg-gray-300 dark:after:bg-gray-100 peer-checked:after:bg-green-500 after:rounded-full after:h-5 after:w-5 after:transition-all shadow-inner"></div>
-                                                    </label>
+                                            {/* Share Links Management */}
+                                            {initialData?.id ? (
+                                                <div className="p-6 bg-card rounded-2xl border border-border shadow-sm space-y-6">
+                                                    <ShareLinksList agentId={initialData.id} />
                                                 </div>
-
-                                                {isPublic && (
-                                                    <div className="pt-6 border-t border-border animate-in slide-in-from-top-4 duration-300">
-                                                        <label className="text-xs font-black text-muted-foreground uppercase tracking-widest block mb-3">Cost per Run (Credits)</label>
-                                                        <div className="flex items-center gap-3">
-                                                            <Input type="number" min={1} value={creditsPerRun} onChange={(e: any) => setCreditsPerRun(parseInt(e.target.value) || 1)} className="w-32 bg-secondary border-border" />
-                                                            <span className="text-xs font-bold text-muted-foreground uppercase tracking-wider">Credits</span>
-                                                        </div>
+                                            ) : (
+                                                <div className="p-6 bg-card rounded-2xl border border-border shadow-sm">
+                                                    <div className="text-center py-8">
+                                                        <p className="text-sm text-muted-foreground">
+                                                            Save your agent first to create share links.
+                                                        </p>
                                                     </div>
-                                                )}
-                                            </div>
-
-                                            <div className="p-6 bg-card rounded-2xl border border-border shadow-sm space-y-6">
-                                                <div className="flex items-center justify-between">
-                                                    <div>
-                                                        <h4 className="text-sm font-black text-foreground">Expert Reviews</h4>
-                                                        <p className="text-xs font-medium text-muted-foreground mt-1">Allow users to request manual review of outputs.</p>
-                                                    </div>
-                                                    <label className="relative inline-flex items-center cursor-pointer">
-                                                        <input type="checkbox" checked={allowReviews} onChange={(e) => setAllowReviews(e.target.checked)} className="sr-only peer" />
-                                                        <div className="w-12 h-6.5 bg-muted/80 peer-focus:outline-none rounded-full peer peer-checked:bg-green-600 peer-checked:after:translate-x-full after:content-[''] after:absolute after:top-[4px] after:left-[4px] after:bg-gray-300 dark:after:bg-gray-100 peer-checked:after:bg-green-500 after:rounded-full after:h-5 after:w-5 after:transition-all shadow-inner"></div>
-                                                    </label>
                                                 </div>
-                                                {allowReviews && (
-                                                    <div className="pt-6 border-t border-border animate-in slide-in-from-top-4 duration-300">
-                                                        <label className="text-xs font-black text-muted-foreground uppercase tracking-widest block mb-3">Review Fee (Credits)</label>
-                                                        <div className="flex items-center gap-3">
-                                                            <Input type="number" min={0} value={reviewCost} onChange={(e: any) => setReviewCost(parseInt(e.target.value) || 0)} className="w-32 bg-secondary border-border" />
-                                                            <span className="text-xs font-bold text-muted-foreground uppercase tracking-wider">Credits</span>
-                                                        </div>
+                                            )}
+
+                                            {/* Conversation Starters */}
+                                            <div className="p-6 bg-card rounded-2xl border border-border shadow-sm space-y-6">
+                                                <h3 className="text-sm font-black text-foreground">Conversation Starters</h3>
+                                                <p className="text-xs font-medium text-muted-foreground mt-1">Customize the initial user experience.</p>
+
+                                                <TextArea
+                                                    label="Welcome Message (Optional)"
+                                                    value={welcomeMessage}
+                                                    onChange={(e: any) => setWelcomeMessage(e.target.value)}
+                                                    placeholder="Hello! How can I help you today?"
+                                                    rows={3}
+                                                    className="bg-background text-sm leading-relaxed"
+                                                    description="The first message the agent sends to users."
+                                                />
+
+                                                <div>
+                                                    <label className="block text-xs font-bold text-muted-foreground uppercase tracking-widest mb-1.5">
+                                                        Starter Questions
+                                                    </label>
+                                                    <p className="text-xs text-muted-foreground mb-3">Suggested prompts users can click to start the conversation.</p>
+
+                                                    <div className="flex gap-2.5 mb-3">
+                                                        <input
+                                                            title="New Starter Question"
+                                                            type="text"
+                                                            value={newQuestionInput}
+                                                            onChange={(e) => setNewQuestionInput(e.target.value)}
+                                                            onKeyDown={(e) => {
+                                                                if (e.key === 'Enter') {
+                                                                    e.preventDefault();
+                                                                    if (newQuestionInput.trim() && starterQuestions.length < 4) {
+                                                                        setStarterQuestions([...starterQuestions, newQuestionInput.trim()]);
+                                                                        setNewQuestionInput('');
+                                                                    }
+                                                                }
+                                                            }}
+                                                            placeholder="Add a starter question... (Press Enter)"
+                                                            disabled={starterQuestions.length >= 4}
+                                                            className="flex-1 rounded-xl border border-input bg-card px-3.5 h-[38px] text-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-primary focus-visible:border-primary disabled:cursor-not-allowed disabled:opacity-50 transition-all font-medium text-foreground placeholder:text-muted-foreground/50 shadow-sm"
+                                                        />
+                                                        <Button
+                                                            disabled={!newQuestionInput.trim() || starterQuestions.length >= 4}
+                                                            onClick={() => {
+                                                                if (newQuestionInput.trim() && starterQuestions.length < 4) {
+                                                                    setStarterQuestions([...starterQuestions, newQuestionInput.trim()]);
+                                                                    setNewQuestionInput('');
+                                                                }
+                                                            }}
+                                                            className="bg-primary text-primary-foreground h-[38px] px-4 font-semibold text-xs rounded-xl"
+                                                        >
+                                                            Add
+                                                        </Button>
                                                     </div>
-                                                )}
+
+                                                    <div className="space-y-2">
+                                                        {starterQuestions.map((q, idx) => (
+                                                            <div key={idx} className="flex items-center justify-between p-2.5 bg-background rounded-lg border border-border text-sm group">
+                                                                <span className="text-foreground text-xs font-medium truncate pr-4">{q}</span>
+                                                                <button
+                                                                    onClick={() => setStarterQuestions(qss => qss.filter((_, i) => i !== idx))}
+                                                                    className="text-muted-foreground hover:text-red-500 hover:bg-red-50 p-1.5 rounded-md transition-colors"
+                                                                >
+                                                                    <X size={14} />
+                                                                </button>
+                                                            </div>
+                                                        ))}
+                                                        {starterQuestions.length === 0 && (
+                                                            <div className="text-center py-4 bg-muted/30 rounded-lg border border-border border-dashed">
+                                                                <span className="text-xs text-muted-foreground font-medium">No starter questions added.</span>
+                                                            </div>
+                                                        )}
+                                                        {starterQuestions.length >= 4 && (
+                                                            <p className="text-[10px] text-muted-foreground text-right mt-1.5 font-medium">Maximum 4 starter questions allowed.</p>
+                                                        )}
+                                                    </div>
+                                                </div>
                                             </div>
                                         </div>
                                     )}
@@ -529,15 +577,6 @@ export const AgentBuilder = ({
                                     <p className="mt-2 text-sm text-muted-foreground">
                                         {existingFiles.length + newFiles.length} file(s) attached
                                     </p>
-                                </div>
-                                <div className="rounded-2xl border border-border bg-card/80 p-4">
-                                    <p className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">Pricing</p>
-                                    <p className="mt-2 text-sm text-muted-foreground">
-                                        {isPublic ? `${creditsPerRun} credits/run` : 'Private (not listed)'}
-                                    </p>
-                                    {allowReviews && (
-                                        <p className="mt-1 text-xs text-muted-foreground">Expert review fee: {reviewCost} credits</p>
-                                    )}
                                 </div>
                             </div>
                         </div>

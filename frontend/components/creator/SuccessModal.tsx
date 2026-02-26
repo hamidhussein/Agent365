@@ -28,11 +28,11 @@ const SuccessModal: React.FC<SuccessModalProps> = ({ isOpen, onClose, agentName,
                 </div>
                 <div className="mt-3 text-center sm:ml-4 sm:mt-0 sm:text-left">
                   <h3 className="text-base font-semibold leading-6 text-white" id="modal-title">
-                    Agent Published Successfully
+                    Agent Saved Successfully
                   </h3>
                   <div className="mt-2">
                     <p className="text-sm text-gray-400">
-                      Congratulations! Your agent, <span className="font-bold text-white">{agentName}</span>, is now live on the marketplace.
+                      Congratulations! Your agent, <span className="font-bold text-white">{agentName}</span>, has been saved. You can now create share links to give others access.
                     </p>
                   </div>
                 </div>

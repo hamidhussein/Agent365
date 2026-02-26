@@ -98,12 +98,8 @@ class AgentService:
         if max_price is not None:
             query = query.filter(Agent.price_per_run <= max_price)
         if tags:
-            if bind and bind.dialect.name == "sqlite":
-                for tag in tags:
-                    query = query.filter(Agent.tags.like(f'%{tag}%'))
-            else:
-                for tag in tags:
-                    query = query.filter(Agent.tags.contains([tag]))
+            for tag in tags:
+                query = query.filter(Agent.tags.contains([tag]))
         if creator_id:
             creator_uuid = _coerce_uuid(creator_id)
             query = query.filter(Agent.creator_id == creator_uuid)

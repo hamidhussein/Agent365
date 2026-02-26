@@ -1,30 +1,26 @@
 import uuid
 import os
-import json
+import uuid
 from datetime import datetime
 from typing import Any
 
 import copy
-from fastapi import APIRouter, Depends, File, HTTPException, UploadFile, BackgroundTasks, Request, Query
+from fastapi import APIRouter, Depends, File, HTTPException, UploadFile, BackgroundTasks
 from fastapi.responses import StreamingResponse, FileResponse
-from pydantic import ValidationError
 from sqlalchemy.orm import Session
 from sqlalchemy.orm.attributes import flag_modified
 
 from app.db.session import SessionLocal
 
 from app.core.deps import get_db, get_current_user, get_current_user_optional
-from app.core.security import create_access_token
 from app.models.agent import Agent
 from app.models.execution import AgentExecution
 from app.models.creator_studio import (
     CreatorStudioKnowledgeFile,
     CreatorStudioKnowledgeChunk,
     CreatorStudioLLMConfig,
-    AgentAction,
 )
-from app.models.transaction import CreditTransaction
-from app.models.enums import AgentCategory, AgentStatus, UserRole, ExecutionStatus, ReviewStatus, TransactionType
+from app.models.enums import AgentCategory, AgentStatus, UserRole, ExecutionStatus
 from app.models.user import User
 from app.schemas.creator_studio import (
     CreatorStudioAgentOut,
@@ -33,33 +29,22 @@ from app.schemas.creator_studio import (
     CreatorStudioAgentSuggestResponse,
     CreatorStudioAssistModelResponse,
     CreatorStudioAssistModelUpdate,
-    CreatorStudioAuthRequest,
-    CreatorStudioAuthResponse,
     CreatorStudioChatRequest,
-    CreatorStudioGuestCreditsRequest,
-    CreatorStudioGuestCreditsResponse,
+    CreatorStudioPreviewChatRequest,
     CreatorStudioKnowledgeFileOut,
     CreatorStudioLLMConfigOut,
     CreatorStudioLLMConfigUpdate,
     CreatorStudioPlatformSettings,
-    CreatorStudioPublicChatRequest,
-    CreatorStudioUserOut,
     CreatorStudioAgentBuildRequest,
     CreatorStudioAgentBuildResponse,
-    AgentActionCreate,
-    AgentActionUpdate,
-    AgentActionResponse,
 )
-from app.schemas.user import UserCreate
-from app.services.auth import authenticate_user, register_user
+from app.api.v1.endpoints import agent_sharing
 from app.services.creator_studio import (
     VECTOR_INDEX,
-    add_guest_credits,
     build_agent_suggest_prompt,
     build_context,
     build_system_instruction,
     chunk_text,
-    deduct_guest_credits,
     embed_texts,
     extract_text,
     format_size,
@@ -69,19 +54,19 @@ from app.services.creator_studio import (
     build_agent_chat,
     get_llm_config,
     get_provider_for_model,
-    get_or_create_guest_credits,
     parse_agent_suggest_response,
     resolve_llm_key,
     rewrite_query,
+    sanitize_user_input,
     set_app_setting,
     stream_response,
 )
-from app.services.workflow import workflow_service
-from app.services.notification import notification_service
 
 router = APIRouter(prefix="/creator-studio/api", tags=["creator-studio"])
 
-CREATOR_STUDIO_SOURCE = "creator_studio"
+# Include agent sharing endpoints
+router.include_router(agent_sharing.router, tags=["agent-sharing"])
+
 DEFAULT_MODEL = "gemini-1.5-flash-preview"
 DEFAULT_COLOR = "bg-slate-600"
 GENERATED_FILES_DIR = os.path.join(os.getcwd(), ".generated_files")
@@ -92,20 +77,6 @@ def _coerce_uuid(value: str) -> uuid.UUID:
         return uuid.UUID(str(value))
     except ValueError as exc:
         raise HTTPException(status_code=400, detail="Invalid identifier") from exc
-
-
-def _execution_guest_id(execution: AgentExecution) -> str | None:
-    inputs = execution.inputs if isinstance(execution.inputs, dict) else {}
-    return inputs.get("guestId") or inputs.get("guest_id")
-
-
-def _format_user(user: User) -> CreatorStudioUserOut:
-    return CreatorStudioUserOut(
-        id=user.id,
-        email=user.email,
-        name=user.full_name or user.username,
-        role=user.role.value if hasattr(user.role, "value") else str(user.role),
-    )
 
 
 def _format_files(db: Session, agent_id: uuid.UUID) -> list[CreatorStudioKnowledgeFileOut]:
@@ -145,13 +116,12 @@ def _creator_agent_out(db: Session, agent: Agent) -> CreatorStudioAgentOut:
         model=model,
         color=color,
         inputs=inputs,
-        isPublic=bool(agent.is_public),
-        creditsPerRun=int(agent.price_per_run),
         createdAt=created_at,
         files=_format_files(db, agent.id),
-        allow_reviews=bool(agent.allow_reviews),
-        review_cost=int(agent.review_cost),
         enabledCapabilities=creator_cfg.get("enabledCapabilities"),
+        isPublic=agent.is_public,
+        welcomeMessage=agent.welcome_message,
+        starterQuestions=agent.starter_questions,
     )
 
 
@@ -160,56 +130,9 @@ def _require_admin(user: User) -> None:
         raise HTTPException(status_code=403, detail="Admin access required.")
 
 
-def _build_username(db: Session, email: str) -> str:
-    base = email.split("@", 1)[0].strip() or "creator"
-    slug = "".join(ch for ch in base if ch.isalnum() or ch in ("-", "_"))
-    slug = slug or "creator"
-    slug = slug[:40]
-    candidate = slug
-    while db.query(User).filter(User.username == candidate).first():
-        suffix = uuid.uuid4().hex[:6]
-        trim = max(1, 40 - len(suffix) - 1)
-        candidate = f"{slug[:trim]}-{suffix}"
-    return candidate
-
-
 @router.get("/health")
 async def health_check() -> dict:
     return {"ok": True}
-
-
-@router.post("/auth/register", response_model=CreatorStudioAuthResponse)
-def register(payload: CreatorStudioAuthRequest, db: Session = Depends(get_db)) -> CreatorStudioAuthResponse:
-    email = payload.email.strip().lower()
-    username = _build_username(db, email)
-    try:
-        user_in = UserCreate(
-            email=email,
-            username=username,
-            password=payload.password,
-            role=UserRole.CREATOR,
-            credits=0,
-        )
-    except ValidationError as exc:
-        raise HTTPException(status_code=400, detail=str(exc)) from exc
-
-    user = register_user(db, user_in)
-    token = create_access_token({"sub": str(user.id), "role": user.role.value})
-    return CreatorStudioAuthResponse(token=token, user=_format_user(user))
-
-
-@router.post("/auth/login", response_model=CreatorStudioAuthResponse)
-def login(payload: CreatorStudioAuthRequest, db: Session = Depends(get_db)) -> CreatorStudioAuthResponse:
-    user = authenticate_user(db, payload.email, payload.password)
-    if not user:
-        raise HTTPException(status_code=401, detail="Invalid credentials")
-    token = create_access_token({"sub": str(user.id), "role": user.role.value})
-    return CreatorStudioAuthResponse(token=token, user=_format_user(user))
-
-
-@router.get("/me", response_model=CreatorStudioUserOut)
-def me(current_user: User = Depends(get_current_user)) -> CreatorStudioUserOut:
-    return _format_user(current_user)
 
 
 @router.get("/agents", response_model=list[CreatorStudioAgentOut])
@@ -221,7 +144,6 @@ def list_agents(
         db.query(Agent)
         .filter(
             Agent.creator_id == current_user.id,
-            Agent.source == CREATOR_STUDIO_SOURCE,
         )
         .order_by(Agent.created_at.desc())
         .all()
@@ -268,18 +190,16 @@ def create_agent(
         long_description=payload.description,
         category=AgentCategory.PRODUCTIVITY.value,
         tags=[],
-        price_per_run=max(1, payload.creditsPerRun),
         status=AgentStatus.ACTIVE,
         config=config,
         capabilities=caps_list,
         limitations=[],
         demo_available=False,
-        is_public=payload.isPublic,
-        source=CREATOR_STUDIO_SOURCE,
         creator_id=current_user.id,
         version="1.0.0",
-        allow_reviews=payload.allow_reviews,
-        review_cost=payload.review_cost,
+        is_public=payload.isPublic,
+        welcome_message=payload.welcomeMessage,
+        starter_questions=payload.starterQuestions,
     )
     db.add(agent)
     db.commit()
@@ -299,7 +219,6 @@ def update_agent(
         .filter(
             Agent.id == _coerce_uuid(agent_id),
             Agent.creator_id == current_user.id,
-            Agent.source == CREATOR_STUDIO_SOURCE,
         )
         .first()
     )
@@ -325,12 +244,11 @@ def update_agent(
     agent.name = payload.name
     agent.description = payload.description
     agent.long_description = payload.description
-    agent.price_per_run = max(1, payload.creditsPerRun)
     agent.is_public = payload.isPublic
+    agent.welcome_message = payload.welcomeMessage
+    agent.starter_questions = payload.starterQuestions
     agent.config = config
     flag_modified(agent, "config")
-    agent.allow_reviews = payload.allow_reviews
-    agent.review_cost = payload.review_cost
 
     # Map capabilities update
     if payload.enabledCapabilities:
@@ -362,7 +280,6 @@ def delete_agent(
         .filter(
             Agent.id == _coerce_uuid(agent_id),
             Agent.creator_id == current_user.id,
-            Agent.source == CREATOR_STUDIO_SOURCE,
         )
         .first()
     )
@@ -384,7 +301,6 @@ def delete_all_agents(
         db.query(Agent)
         .filter(
             Agent.creator_id == current_user.id,
-            Agent.source == CREATOR_STUDIO_SOURCE,
         )
         .all()
     )
@@ -455,7 +371,6 @@ def upload_files(
         .filter(
             Agent.id == _coerce_uuid(agent_id),
             Agent.creator_id == current_user.id,
-            Agent.source == CREATOR_STUDIO_SOURCE,
         )
         .first()
     )
@@ -501,7 +416,6 @@ def delete_file(
         .filter(
             Agent.id == _coerce_uuid(agent_id),
             Agent.creator_id == current_user.id,
-            Agent.source == CREATOR_STUDIO_SOURCE,
         )
         .first()
     )
@@ -599,470 +513,6 @@ def build_agent_architect(
     return CreatorStudioAgentBuildResponse(**result)
 
 
-@router.get("/public/agents", response_model=list[CreatorStudioAgentOut])
-def list_public_agents(db: Session = Depends(get_db)) -> list[CreatorStudioAgentOut]:
-    agents = (
-        db.query(Agent)
-        .filter(
-            Agent.source == CREATOR_STUDIO_SOURCE,
-            Agent.is_public.is_(True),
-            Agent.status == AgentStatus.ACTIVE,
-        )
-        .order_by(Agent.created_at.desc())
-        .all()
-    )
-    return [_creator_agent_out(db, agent) for agent in agents]
-
-
-@router.get("/public/credits", response_model=CreatorStudioGuestCreditsResponse)
-def get_public_credits(
-    guestId: str,
-    db: Session = Depends(get_db),
-) -> CreatorStudioGuestCreditsResponse:
-    credits = get_or_create_guest_credits(db, guestId)
-    return CreatorStudioGuestCreditsResponse(credits=credits)
-
-
-@router.post("/public/credits/purchase", response_model=CreatorStudioGuestCreditsResponse)
-def purchase_public_credits(
-    payload: CreatorStudioGuestCreditsRequest,
-    db: Session = Depends(get_db),
-) -> CreatorStudioGuestCreditsResponse:
-    credits = add_guest_credits(db, payload.guestId, payload.amount)
-    return CreatorStudioGuestCreditsResponse(credits=credits)
-
-
-@router.post("/public/executions/{execution_id}/review")
-async def request_guest_review(
-    request: Request,
-    execution_id: str,
-    payload: dict,
-    db: Session = Depends(get_db),
-    current_user: User | None = Depends(get_current_user_optional),
-) -> dict:
-    print(f"[DEBUG] Headers: {dict(request.headers)}", flush=True)
-    try:
-        exec_uuid = _coerce_uuid(execution_id)
-    except Exception:
-        raise HTTPException(status_code=400, detail="Invalid execution ID")
-
-    execution = db.get(AgentExecution, exec_uuid)
-    if not execution:
-        raise HTTPException(status_code=404, detail="Execution not found")
-
-    if not execution.agent.allow_reviews:
-        raise HTTPException(status_code=400, detail="This agent does not support reviews")
-    
-    if not execution.agent.is_public:
-         raise HTTPException(status_code=403, detail="Not authorized")
-
-    if execution.review_status not in (ReviewStatus.NONE, ReviewStatus.REJECTED):
-        raise HTTPException(status_code=400, detail="Review already requested or completed")
-
-    guest_id = payload.get("guestId")
-    note = payload.get("note")
-    if not note or not str(note).strip():
-        raise HTTPException(status_code=400, detail="Review note is required")
-    
-    execution_guest_id = _execution_guest_id(execution)
-    if current_user:
-        if execution.user_id and execution.user_id != current_user.id:
-            raise HTTPException(status_code=403, detail="Not authorized")
-        if not execution.user_id:
-            if not guest_id:
-                raise HTTPException(status_code=401, detail="Authentication required or guestId missing")
-            if execution_guest_id and guest_id != execution_guest_id:
-                raise HTTPException(status_code=403, detail="Guest session mismatch")
-            if not execution_guest_id:
-                raise HTTPException(status_code=403, detail="Guest session mismatch")
-    else:
-        if not guest_id:
-            raise HTTPException(status_code=401, detail="Authentication required or guestId missing")
-        if execution_guest_id and guest_id != execution_guest_id:
-            raise HTTPException(status_code=403, detail="Guest session mismatch")
-        if not execution_guest_id:
-            raise HTTPException(status_code=403, detail="Guest session mismatch")
-    
-    print(f"[DEBUG] request_guest_review: execution_id={execution_id}, guest_id={guest_id}, current_user={current_user.username if current_user else 'None'}", flush=True)
-    
-    requested_priority = payload.get("priority")
-    if isinstance(requested_priority, str):
-        requested_priority = requested_priority.strip().lower()
-    if requested_priority == "standard":
-        requested_priority = None
-
-    cost = int(execution.agent.review_cost or 0)
-    if requested_priority == "high":
-        cost *= 2
-
-    if cost > 0:
-        if current_user:
-            if current_user.credits < cost:
-                raise HTTPException(status_code=402, detail=f"User {current_user.username} has only {current_user.credits} credits. Review costs {cost} credits.")
-            current_user.credits -= cost
-            db.add(current_user)
-            # Add transaction record
-            transaction = CreditTransaction(
-                user_id=current_user.id,
-                amount=-cost,
-                transaction_type=TransactionType.USAGE,
-                description=f"Review Request for execution {execution_id}",
-            )
-            db.add(transaction)
-        elif guest_id:
-            credits = get_or_create_guest_credits(db, guest_id)
-            if credits < cost:
-                 raise HTTPException(status_code=402, detail=f"Guest session has only {credits} credits. Review costs {cost} credits.")
-            deduct_guest_credits(db, guest_id, cost)
-        else:
-            raise HTTPException(status_code=401, detail="Authentication required or guestId missing")
-    
-    execution.review_status = ReviewStatus.PENDING
-    execution.review_request_note = note
-    db.commit()
-    db.refresh(execution)
-
-    await workflow_service.process_review_request(db, execution, requested_priority)
-
-    creator = db.get(User, execution.agent.creator_id)
-    if creator:
-        await notification_service.notify_creator_new_review(execution, creator)
-    
-    return {"status": "success", "execution_id": str(execution.id)}
-
-
-@router.get("/public/executions/{execution_id}")
-def get_public_execution(
-    execution_id: str,
-    guestId: str | None = Query(None),
-    db: Session = Depends(get_db),
-    current_user: User | None = Depends(get_current_user_optional),
-) -> dict:
-    try:
-        exec_uuid = _coerce_uuid(execution_id)
-    except Exception:
-        raise HTTPException(status_code=400, detail="Invalid execution ID")
-
-    execution = db.get(AgentExecution, exec_uuid)
-    if not execution:
-        raise HTTPException(status_code=404, detail="Execution not found")
-
-    if not execution.agent.is_public:
-        raise HTTPException(status_code=403, detail="Not authorized")
-
-    execution_guest_id = _execution_guest_id(execution)
-    if current_user:
-        if execution.agent.creator_id != current_user.id:
-            if execution.user_id and execution.user_id != current_user.id:
-                raise HTTPException(status_code=403, detail="Not authorized")
-            if not execution.user_id:
-                if not guestId:
-                    raise HTTPException(status_code=401, detail="Authentication required or guestId missing")
-                if execution_guest_id and guestId != execution_guest_id:
-                    raise HTTPException(status_code=403, detail="Guest session mismatch")
-                if not execution_guest_id:
-                    raise HTTPException(status_code=403, detail="Guest session mismatch")
-    else:
-        if not guestId:
-            raise HTTPException(status_code=401, detail="Authentication required or guestId missing")
-        if execution_guest_id and guestId != execution_guest_id:
-            raise HTTPException(status_code=403, detail="Guest session mismatch")
-        if not execution_guest_id:
-            raise HTTPException(status_code=403, detail="Guest session mismatch")
-
-    # We return the data in a format similar to AgentExecutionRead
-    return {
-        "id": str(execution.id),
-        "status": execution.status,
-        "review_status": execution.review_status,
-        "review_request_note": execution.review_request_note,
-        "review_response_note": execution.review_response_note,
-        "outputs": execution.outputs,
-        "refined_outputs": execution.refined_outputs,
-        "reviewed_at": execution.reviewed_at.isoformat() if execution.reviewed_at else None
-    }
-
-
-@router.post("/public/chat")
-def public_chat(
-    payload: CreatorStudioPublicChatRequest,
-    db: Session = Depends(get_db),
-    current_user: User | None = Depends(get_current_user_optional),
-) -> dict:
-    # Handle Preview Case
-    if payload.agentId == 'preview' and payload.draftConfig:
-        draft = payload.draftConfig
-        instruction = draft.get("instruction", "")
-        model = draft.get("model")
-        if not model or model == "auto":
-            model = get_default_enabled_model(db)
-        capabilities = draft.get("enabledCapabilities")
-        
-        # For preview, we skip context (RAG) unless we want to simulate it.
-        # Let's just use the instruction and capabilities for now.
-        system_instruction = build_system_instruction(instruction, [], payload.inputsContext, capabilities)
-        
-        provider = get_provider_for_model(db, model)
-        config = get_llm_config(db, provider)
-        api_key = resolve_llm_key(provider, config)
-        
-        # Convert history
-        history = []
-        if payload.messages:
-            for m in payload.messages:
-                history.append({"role": m.role, "content": m.content})
-                
-        text = generate_response(
-            provider,
-            model,
-            system_instruction,
-            payload.message,
-            api_key,
-            db=db,
-            history=history,
-            user_id=str(current_user.id) if current_user else None,
-        )
-        return {"text": text, "execution_id": "preview"}
-
-    agent = (
-        db.query(Agent)
-        .filter(
-            Agent.id == _coerce_uuid(payload.agentId),
-            Agent.source == CREATOR_STUDIO_SOURCE,
-            Agent.is_public.is_(True),
-        )
-        .first()
-    )
-    if agent is None:
-        raise HTTPException(status_code=404, detail="Agent not found.")
-    cost = max(1, int(agent.price_per_run))
-    if current_user:
-        if current_user.credits < cost:
-            raise HTTPException(status_code=402, detail=f"Not enough credits. Run costs {cost} credits.")
-        current_user.credits -= cost
-        db.add(current_user)
-        transaction = CreditTransaction(
-            user_id=current_user.id,
-            amount=-cost,
-            transaction_type=TransactionType.USAGE,
-            description=f"Run Agent: {agent.name}",
-        )
-        db.add(transaction)
-    else:
-        deduct_guest_credits(db, payload.guestId, cost)
-    creator_cfg = _creator_config(agent)
-    instruction = creator_cfg.get("instruction") or ""
-    model = creator_cfg.get("model") or DEFAULT_MODEL
-    capabilities = creator_cfg.get("enabledCapabilities") or agent.capabilities
-    # Convert history
-    history_dicts = []
-    if payload.messages:
-        for m in payload.messages:
-            history_dicts.append({"role": m.role, "content": m.content})
-
-    search_query = rewrite_query(db, payload.message, history=history_dicts)
-    context_chunks = build_context(db, str(agent.id), search_query)
-    system_instruction = build_system_instruction(instruction, context_chunks, payload.inputsContext, capabilities)
-    provider = get_provider_for_model(db, model)
-    config = get_llm_config(db, provider)
-    api_key = resolve_llm_key(provider, config)
-    text = generate_response(
-        provider,
-        model,
-        system_instruction,
-        payload.message,
-        api_key,
-        db=db,
-        user_id=str(current_user.id) if current_user else None,
-    )
-    
-    # Create execution record for Human-in-Loop
-    # Note: guestId is not a real user, so we cannot set user_id if it's FK to users table and not nullable.
-    # Assuming user_id can be nullable or we skip execution creation if strict.
-    # Let's check AgentExecution model. If user_id is required, we effectively cannot use AgentExecution for guests without a dummy user.
-    # For now, we will TRY to insert None. If it fails, we catch it.
-    execution_id = None
-    try:
-        execution = AgentExecution(
-            id=uuid.uuid4(),
-            agent_id=agent.id,
-            user_id=current_user.id if current_user else None, # Authenticated user or Guest
-            status=ExecutionStatus.COMPLETED,
-            inputs={"message": payload.message, "inputsContext": payload.inputsContext, "guestId": payload.guestId},
-            outputs={"text": text},
-            credits_used=cost,
-            error_message=None,
-        )
-        db.add(execution)
-        db.commit()
-        execution_id = str(execution.id)
-    except Exception as e:
-        print(f"Failed to create execution for guest: {e}")
-        # If user_id is non-nullable, this will fail.
-        # Fallback: maybe don't create execution for guest, but then Review feature won't work for guests.
-        # Proceeding without execution ID.
-        pass
-
-    return {"text": text, "execution_id": execution_id}
-
-
-@router.post("/public/chat/stream")
-def public_chat_stream(
-    payload: CreatorStudioPublicChatRequest,
-    db: Session = Depends(get_db),
-    current_user: User | None = Depends(get_current_user_optional),
-) -> StreamingResponse:
-    # Convert history
-    history_dicts = []
-    if payload.messages:
-        for m in payload.messages:
-            history_dicts.append({"role": m.role, "content": m.content})
-
-    # Handle Preview vs Real Agent
-    if payload.agentId == 'preview':
-        if not payload.draftConfig:
-             raise HTTPException(status_code=400, detail="Draft config required for preview mode")
-        
-        try:
-            draft = payload.draftConfig
-            instruction = draft.get("instruction", "")
-            model = draft.get("model")
-            if not model or model == "auto":
-                model = get_default_enabled_model(db)
-            capabilities = draft.get("enabledCapabilities")
-            
-            print(f"[PREVIEW] Using model: {model}", flush=True)
-            
-            # In preview we skip context chunks for now
-            system_instruction = build_system_instruction(instruction, [], payload.inputsContext, capabilities)
-            
-            provider = get_provider_for_model(db, model)
-            config = get_llm_config(db, provider)
-            api_key = resolve_llm_key(provider, config)
-            
-            print(f"[PREVIEW] Provider: {provider}, has_key: {bool(api_key)}", flush=True)
-            
-            agent_id = None
-            execution = None
-            execution_id = None
-        except Exception as e:
-            print(f"[PREVIEW ERROR] {e}", flush=True)
-            import traceback
-            traceback.print_exc()
-            raise
-    else:
-        agent = (
-            db.query(Agent)
-            .filter(
-                Agent.id == _coerce_uuid(payload.agentId),
-                Agent.source == CREATOR_STUDIO_SOURCE,
-                Agent.is_public.is_(True),
-            )
-            .first()
-        )
-        if agent is None:
-            raise HTTPException(status_code=404, detail="Agent not found.")
-        
-        cost = max(1, int(agent.price_per_run))
-        if current_user:
-            if current_user.credits < cost:
-                raise HTTPException(status_code=402, detail=f"Not enough credits. Run costs {cost} credits.")
-            current_user.credits -= cost
-            db.add(current_user)
-            transaction = CreditTransaction(
-                user_id=current_user.id,
-                amount=-cost,
-                transaction_type=TransactionType.USAGE,
-                description=f"Run Agent: {agent.name}",
-            )
-            db.add(transaction)
-        else:
-            deduct_guest_credits(db, payload.guestId, cost)
-
-        creator_cfg = _creator_config(agent)
-        instruction = creator_cfg.get("instruction") or ""
-        model = creator_cfg.get("model") or DEFAULT_MODEL
-        capabilities = creator_cfg.get("enabledCapabilities") or agent.capabilities
-        
-        search_query = rewrite_query(db, payload.message, history=history_dicts)
-        context_chunks = build_context(db, str(agent.id), search_query)
-        system_instruction = build_system_instruction(instruction, context_chunks, payload.inputsContext, capabilities)
-        
-        provider = get_provider_for_model(db, model)
-        config = get_llm_config(db, provider)
-        api_key = resolve_llm_key(provider, config)
-        agent_id = str(agent.id)
-        
-        # Create execution record
-        execution = AgentExecution(
-            id=uuid.uuid4(),
-            agent_id=agent.id,
-            user_id=current_user.id if current_user else None, # Authenticated user or Guest
-            status=ExecutionStatus.RUNNING,
-            inputs={"message": payload.message, "inputsContext": payload.inputsContext, "guestId": payload.guestId},
-            outputs={},
-            credits_used=cost,
-            error_message=None,
-        )
-        try:
-            db.add(execution)
-            db.commit()
-            db.refresh(execution)
-            execution_id = str(execution.id)
-        except Exception as e:
-            print(f"Failed to create execution start for guest: {e}")
-            db.rollback()
-            execution = None
-            execution_id = None
-
-    def stream() -> Any:
-        full_text = ""
-        try:
-            for chunk in stream_response(
-                provider,
-                model,
-                system_instruction,
-                payload.message,
-                api_key,
-                execution_id,
-                db=db,
-                history=history_dicts,
-                agent_id=agent_id,
-                user_id=str(current_user.id) if current_user else None,
-            ):
-                if isinstance(chunk, bytes):
-                    full_text += chunk.decode("utf-8")
-                else:
-                    full_text += chunk
-                yield chunk
-            
-            # Update execution on completion
-            if execution:
-                # Refresh to avoid session issues
-                db.refresh(execution)
-                execution.status = ExecutionStatus.COMPLETED
-                execution.outputs = {"text": full_text, "streamed": True}
-                db.commit()
-
-        except Exception as exc:
-            error_payload = f"\n[Error] {exc}"
-            if execution:
-                try:
-                    db.refresh(execution)
-                    execution.status = ExecutionStatus.FAILED
-                    execution.error_message = str(exc)
-                    db.commit()
-                except:
-                    db.rollback()
-            yield error_payload.encode("utf-8")
-
-    headers = {}
-    if execution:
-        headers["X-Execution-Id"] = str(execution.id)
-    
-    return StreamingResponse(stream(), media_type="text/plain", headers=headers)
-
-
 @router.post("/chat")
 def chat(
     payload: CreatorStudioChatRequest,
@@ -1080,7 +530,6 @@ def chat(
         .filter(
             Agent.id == _coerce_uuid(payload.agentId),
             Agent.creator_id == current_user.id,
-            Agent.source == CREATOR_STUDIO_SOURCE,
         )
         .first()
     )
@@ -1090,7 +539,8 @@ def chat(
     instruction = creator_cfg.get("instruction") or ""
     model = creator_cfg.get("model") or DEFAULT_MODEL
     capabilities = creator_cfg.get("enabledCapabilities") or agent.capabilities
-    search_query = rewrite_query(db, payload.message, history=history_dicts)
+    safe_message = sanitize_user_input(payload.message)
+    search_query = rewrite_query(db, safe_message, history=history_dicts)
     context_chunks = build_context(db, str(agent.id), search_query)
     system_instruction = build_system_instruction(instruction, context_chunks, payload.inputsContext, capabilities)
     provider = get_provider_for_model(db, model)
@@ -1138,6 +588,76 @@ def chat(
     return {"text": text, "execution_id": execution_id}
 
 
+@router.post("/chat/preview/stream")
+def chat_preview_stream(
+    payload: CreatorStudioPreviewChatRequest,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> StreamingResponse:
+    history_dicts: list[dict[str, str]] = []
+    if payload.messages:
+        for m in payload.messages:
+            history_dicts.append({"role": m.role, "content": m.content})
+
+    draft = payload.draftConfig
+    instruction = (draft.instruction or "").strip()
+    # Keep preview aligned with saved behavior (admin-controlled default model).
+    model = get_default_enabled_model(db)
+    capabilities = (
+        draft.enabledCapabilities.model_dump()
+        if draft.enabledCapabilities is not None
+        else None
+    )
+    system_instruction = build_system_instruction(
+        instruction,
+        [],
+        payload.inputsContext,
+        capabilities,
+    )
+
+    provider = get_provider_for_model(db, model)
+    config = get_llm_config(db, provider)
+    api_key = resolve_llm_key(provider, config)
+    if not api_key:
+        raise HTTPException(status_code=500, detail=f"{provider} API key is not configured.")
+
+    preview_execution_id = f"preview-{uuid.uuid4()}"
+
+    def stream() -> Any:
+        try:
+            yield from stream_response(
+                provider,
+                model,
+                system_instruction,
+                payload.message,
+                api_key,
+                execution_id=preview_execution_id,
+                db=db,
+                history=history_dicts,
+                agent_id=None,
+                user_id=str(current_user.id),
+            )
+        except Exception as exc:
+            import json
+            error_payload = json.dumps(
+                {
+                    "type": "error",
+                    "content": str(exc),
+                    "preview": True,
+                }
+            ) + "\n"
+            yield error_payload.encode("utf-8")
+
+    headers = {
+        "X-Preview-Mode": "live",
+        "X-Preview-Execution-Id": preview_execution_id,
+        "Access-Control-Allow-Origin": "*",
+        "Access-Control-Allow-Credentials": "true",
+        "Access-Control-Expose-Headers": "X-Preview-Mode,X-Preview-Execution-Id",
+    }
+    return StreamingResponse(stream(), media_type="text/plain", headers=headers)
+
+
 @router.post("/chat/stream")
 def chat_stream(
     payload: CreatorStudioChatRequest,
@@ -1155,7 +675,6 @@ def chat_stream(
             .filter(
                 Agent.id == _coerce_uuid(payload.agentId),
                 Agent.creator_id == current_user.id,
-                Agent.source == CREATOR_STUDIO_SOURCE,
             )
             .first()
         )
@@ -1169,7 +688,8 @@ def chat_stream(
         
         print(f"[chat_stream] Agent: {agent.id}, Model: {model}", flush=True)
         
-        search_query = rewrite_query(db, payload.message, history=history_dicts)
+        safe_message = sanitize_user_input(payload.message)
+        search_query = rewrite_query(db, safe_message, history=history_dicts)
         context_chunks = build_context(db, str(agent.id), search_query)
         system_instruction = build_system_instruction(instruction, context_chunks, payload.inputsContext, capabilities)
         
@@ -1394,130 +914,3 @@ def get_generated_file(
     )
 
 
-@router.get("/agents/{agent_id}/actions", response_model=list[AgentActionResponse])
-def get_agent_actions(
-    agent_id: str,
-    current_user: User = Depends(get_current_user),
-    db: Session = Depends(get_db),
-):
-    agent = db.query(Agent).filter(Agent.id == _coerce_uuid(agent_id), Agent.creator_id == current_user.id).first()
-    if not agent:
-        raise HTTPException(status_code=404, detail="Agent not found")
-    
-    return agent.creator_studio_actions
-
-
-@router.post("/agents/{agent_id}/actions", response_model=AgentActionResponse)
-def create_agent_action(
-    agent_id: str,
-    payload: AgentActionCreate,
-    current_user: User = Depends(get_current_user),
-    db: Session = Depends(get_db),
-):
-    agent = db.query(Agent).filter(Agent.id == _coerce_uuid(agent_id), Agent.creator_id == current_user.id).first()
-    if not agent:
-        raise HTTPException(status_code=404, detail="Agent not found")
-
-    action = AgentAction(
-        id=uuid.uuid4(),
-        agent_id=agent.id,
-        name=payload.name,
-        description=payload.description,
-        url=payload.url,
-        method=payload.method,
-        headers=payload.headers,
-        openapi_spec=payload.openapi_spec,
-    )
-    db.add(action)
-    db.commit()
-    db.refresh(action)
-    return action
-
-
-@router.put("/agents/{agent_id}/actions/{action_id}", response_model=AgentActionResponse)
-def update_agent_action(
-    agent_id: str,
-    action_id: str,
-    payload: AgentActionUpdate,
-    current_user: User = Depends(get_current_user),
-    db: Session = Depends(get_db),
-):
-    agent = db.query(Agent).filter(Agent.id == _coerce_uuid(agent_id), Agent.creator_id == current_user.id).first()
-    if not agent:
-        raise HTTPException(status_code=404, detail="Agent not found")
-    
-    action = db.query(AgentAction).filter(AgentAction.id == _coerce_uuid(action_id), AgentAction.agent_id == agent.id).first()
-    if not action:
-        raise HTTPException(status_code=404, detail="Action not found")
-
-    if payload.name is not None:
-        action.name = payload.name
-    if payload.description is not None:
-        action.description = payload.description
-    if payload.url is not None:
-        action.url = payload.url
-    if payload.method is not None:
-        action.method = payload.method
-    if payload.headers is not None:
-        action.headers = payload.headers
-    if payload.openapi_spec is not None:
-        action.openapi_spec = payload.openapi_spec
-
-    flag_modified(action, "headers")
-    flag_modified(action, "openapi_spec")
-    
-    db.commit()
-    db.refresh(action)
-    return action
-
-
-@router.delete("/agents/{agent_id}/actions/{action_id}")
-def delete_agent_action(
-    agent_id: str,
-    action_id: str,
-    current_user: User = Depends(get_current_user),
-    db: Session = Depends(get_db),
-):
-    agent = db.query(Agent).filter(Agent.id == _coerce_uuid(agent_id), Agent.creator_id == current_user.id).first()
-    if not agent:
-        raise HTTPException(status_code=404, detail="Agent not found")
-    
-    action = db.query(AgentAction).filter(AgentAction.id == _coerce_uuid(action_id), AgentAction.agent_id == agent.id).first()
-    if not action:
-        raise HTTPException(status_code=404, detail="Action not found")
-
-    db.delete(action)
-    db.commit()
-    return {"ok": True}
-
-
-@router.post("/agents/{agent_id}/actions/{action_id}/test")
-def test_agent_action(
-    agent_id: str,
-    action_id: str,
-    params: dict,
-    current_user: User = Depends(get_current_user),
-    db: Session = Depends(get_db),
-):
-    agent = db.query(Agent).filter(Agent.id == _coerce_uuid(agent_id), Agent.creator_id == current_user.id).first()
-    if not agent:
-        raise HTTPException(status_code=404, detail="Agent not found")
-    
-    action = db.query(AgentAction).filter(AgentAction.id == _coerce_uuid(action_id), AgentAction.agent_id == agent.id).first()
-    if not action:
-        raise HTTPException(status_code=404, detail="Action not found")
-        
-    try:
-        from app.services.creator_studio import execute_agent_action
-        result = execute_agent_action(db, str(action.id), params)
-        # Parse result if it looks like JSON for better display
-        try:
-
-            return json.loads(result)
-        except:
-            return result
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
-
-
- 

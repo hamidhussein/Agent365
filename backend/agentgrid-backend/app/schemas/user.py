@@ -2,16 +2,12 @@ from datetime import datetime
 from uuid import UUID
 
 from pydantic import BaseModel, EmailStr, Field, ConfigDict, field_validator
-
 from app.models.enums import UserRole
-
 
 class UserBase(BaseModel):
     email: EmailStr
     username: str = Field(max_length=50)
     full_name: str | None = None
-    role: UserRole = UserRole.USER
-    credits: int = 0
 
 
 class UserCreate(UserBase):
@@ -31,9 +27,9 @@ class UserCreate(UserBase):
 
 class UserRead(UserBase):
     id: UUID
+    role: UserRole
     created_at: datetime
     updated_at: datetime
-    favoriteAgentIds: list[UUID] = []
 
     model_config = ConfigDict(from_attributes=True, populate_by_name=True)
 

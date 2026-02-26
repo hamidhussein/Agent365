@@ -1,6 +1,6 @@
 import React from 'react';
 
-export type ViewState = 'auth' | 'dashboard' | 'admin-dashboard' | 'create-agent' | 'edit-agent' | 'chat' | 'marketplace' | 'public-chat' | 'reviews';
+export type ViewState = 'dashboard' | 'admin-dashboard' | 'create-agent' | 'edit-agent' | 'chat';
 export type UserRole = 'creator' | 'admin';
 
 export interface KnowledgeFile {
@@ -25,12 +25,11 @@ export interface Agent {
   model?: string;
   files: KnowledgeFile[];
   inputs: AgentInput[];
-  isPublic: boolean;
-  creditsPerRun: number;
   createdAt: string;
   color: string;
-  allow_reviews?: boolean;
-  review_cost?: number;
+  isPublic?: boolean;
+  welcomeMessage?: string;
+  starterQuestions?: string[];
   capabilities?: string[];
   enabledCapabilities?: {
     codeExecution: boolean;
@@ -38,7 +37,6 @@ export interface Agent {
     apiIntegrations: boolean;
     fileHandling: boolean;
   };
-  creator_studio_actions?: AgentActionResponse[];
 }
 
 export interface AgentPayload {
@@ -48,10 +46,9 @@ export interface AgentPayload {
   model?: string;
   color: string;
   inputs: AgentInput[];
-  isPublic: boolean;
-  creditsPerRun: number;
-  allow_reviews?: boolean;
-  review_cost?: number;
+  isPublic?: boolean;
+  welcomeMessage?: string;
+  starterQuestions?: string[];
   enabledCapabilities?: {
     codeExecution: boolean;
     webBrowsing: boolean;
@@ -139,26 +136,4 @@ export interface AgentBuildPayload {
 export interface AgentBuildResponse {
   architect_message: string;
   suggested_changes?: Partial<AgentPayload>;
-}
-
-export interface AgentActionResponse {
-  id: string;
-  agent_id: string;
-  name: string;
-  description: string;
-  url: string;
-  method: 'GET' | 'POST' | 'PUT' | 'DELETE';
-  headers?: Record<string, string>;
-  openapi_spec?: Record<string, any>;
-  created_at: string;
-  updated_at: string;
-}
-
-export interface AgentActionPayload {
-  name: string;
-  description: string;
-  url: string;
-  method: 'GET' | 'POST' | 'PUT' | 'DELETE';
-  headers?: Record<string, string>;
-  openapi_spec?: Record<string, any>;
 }

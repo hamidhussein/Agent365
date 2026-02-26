@@ -284,8 +284,6 @@ export const DEFAULT_AGENTS: Agent[] = [
       model: 'gemini-3-flash-preview',
       files: [],
       inputs: [],
-      isPublic: false,
-      creditsPerRun: 1,
       createdAt: new Date().toISOString(),
       color: 'bg-indigo-500'
   },
@@ -297,8 +295,6 @@ export const DEFAULT_AGENTS: Agent[] = [
       model: 'gemini-3-pro-preview',
       files: [],
       inputs: [],
-      isPublic: false,
-      creditsPerRun: 1,
       createdAt: new Date().toISOString(),
       color: 'bg-emerald-500'
   },
@@ -310,8 +306,6 @@ export const DEFAULT_AGENTS: Agent[] = [
       model: 'claude-3-5-sonnet',
       files: [],
       inputs: [],
-      isPublic: false,
-      creditsPerRun: 1,
       createdAt: new Date().toISOString(),
       color: 'bg-orange-500'
   }

@@ -90,5 +90,5 @@ def require_roles(*roles: UserRole) -> Callable[[User], User]:
     return role_checker
 
 
-def require_creator(current_user: User = Depends(require_roles(UserRole.CREATOR, UserRole.ADMIN, UserRole.USER))) -> User:
+def require_creator(current_user: User = Depends(require_roles(UserRole.CREATOR, UserRole.ADMIN))) -> User:
     return current_user

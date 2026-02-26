@@ -1,7 +1,7 @@
 import uuid
 from typing import List, TYPE_CHECKING
 
-from sqlalchemy import Integer, String
+from sqlalchemy import String
 from sqlalchemy.types import Uuid
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -13,8 +13,6 @@ from app.models.mixins import TimestampMixin
 if TYPE_CHECKING:
     from app.models.agent import Agent
     from app.models.execution import AgentExecution
-    from app.models.transaction import CreditTransaction
-    from app.models.review import Review
 
 
 class User(TimestampMixin, Base):
@@ -29,10 +27,9 @@ class User(TimestampMixin, Base):
     hashed_password: Mapped[str] = mapped_column(String(255), nullable=False)
     role: Mapped[UserRole] = mapped_column(
         LowercaseEnum(UserRole, name="userrole"),
-        default=UserRole.USER,
+        default=UserRole.CREATOR,
         nullable=False,
     )
-    credits: Mapped[int] = mapped_column(Integer, default=0)
 
     agents: Mapped[List["Agent"]] = relationship(back_populates="creator", cascade="all, delete")
     executions: Mapped[List["AgentExecution"]] = relationship(
@@ -40,19 +37,3 @@ class User(TimestampMixin, Base):
         cascade="all, delete",
         foreign_keys="AgentExecution.user_id",
     )
-    transactions: Mapped[List["CreditTransaction"]] = relationship(
-        back_populates="user", cascade="all, delete"
-    )
-    reviews: Mapped[List["Review"]] = relationship(
-        back_populates="user", cascade="all, delete"
-    )
-
-    favorite_agents: Mapped[List["Agent"]] = relationship(
-        secondary="user_favorites",
-        back_populates="favorited_by_users",
-        lazy="selectin"
-    )
-
-    @property
-    def favoriteAgentIds(self) -> List[uuid.UUID]:
-        return [agent.id for agent in self.favorite_agents]

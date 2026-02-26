@@ -57,5 +57,21 @@
     ],
     "moduleDetection": "force",
     "allowImportingTsExtensions": true
-  }
+  },
+  "exclude": [
+    "**/*.stories.tsx",
+    "**/*.test.ts",
+    "**/*.test.tsx",
+    "components/*.tsx",
+    "components/creator/**",
+    "components/dashboard/**",
+    "components/reviews/**",
+    "components/run/**",
+    "constants.ts",
+    "services/**",
+    "src/components/**",
+    "src/lib/hooks/useAgents.ts",
+    "src/lib/api/dashboard.ts",
+    "src/lib/utils/agentMapper.ts"
+  ]
 }

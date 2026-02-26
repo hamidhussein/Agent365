@@ -2,7 +2,6 @@ import enum
 
 
 class UserRole(str, enum.Enum):
-    USER = "user"
     CREATOR = "creator"
     ADMIN = "admin"
 

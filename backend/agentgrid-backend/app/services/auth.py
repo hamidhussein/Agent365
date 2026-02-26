@@ -14,42 +14,36 @@ from app.core.security import (
     is_token_type,
     verify_password,
 )
-from app.models.enums import UserRole
 from app.models.user import User
 from app.schemas.user import UserCreate
+from app.models.enums import UserRole
 
 
 def register_user(db: Session, user_in: UserCreate) -> User:
-    existing = (
-        db.query(User)
-        .filter((User.email == user_in.email) | (User.username == user_in.username))
-        .first()
-    )
-    if existing:
-        print(f"[DEBUG] Registration failed: User already exists (email={user_in.email} or username={user_in.username})")
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST, 
-            detail=f"Account with this email or username already exists"
-        )
-
-    # Robust role handling
-    role_enum = UserRole.USER
-    if user_in.role:
-        if isinstance(user_in.role, UserRole):
-            role_enum = user_in.role
+    email_exists = db.query(User.id).filter(User.email == user_in.email).first() is not None
+    username_exists = db.query(User.id).filter(User.username == user_in.username).first() is not None
+    if email_exists or username_exists:
+        if email_exists and username_exists:
+            detail = "Email already registered and username already taken"
+        elif email_exists:
+            detail = "Email already registered"
         else:
-            try:
-                role_enum = UserRole(str(user_in.role).lower())
-            except ValueError:
-                print(f"[WARNING] Invalid role provided: {user_in.role}, defaulting to USER")
-                role_enum = UserRole.USER
+            detail = "Username already taken"
+        print(
+            "[DEBUG] Registration failed: "
+            f"email_exists={email_exists}, username_exists={username_exists}, "
+            f"email={user_in.email}, username={user_in.username}"
+        )
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=detail,
+        )
 
     user = User(
         email=user_in.email,
         username=user_in.username,
         full_name=user_in.full_name,
-        role=role_enum,
-        credits=user_in.credits,
+        role=UserRole.CREATOR,
         hashed_password=get_password_hash(user_in.password),
     )
     db.add(user)

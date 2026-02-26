@@ -1,6 +1,7 @@
 import { useCallback } from 'react';
 import { useAuthStore } from '@/lib/store';
 import { api } from '@/lib/api/client';
+import { clearAuthToken, setAuthToken } from '@/lib/auth/tokenStore';
 import type {
   LoginFormData,
   SignupFormData,
@@ -28,14 +29,10 @@ export function useAuth() {
         const frontendUser: any = {
           ...payload.user,
           name: payload.user.full_name || payload.user.username || 'User',
-          creditBalance: payload.user.credits || 0,
-          favoriteAgentIds: Array.isArray(payload.user.favoriteAgentIds)
-            ? payload.user.favoriteAgentIds
-            : [],
         };
         login(frontendUser);
         if (payload.access_token) {
-          localStorage.setItem('auth_token', payload.access_token);
+          setAuthToken(payload.access_token);
         }
         // Auth state will trigger App.tsx useEffect to redirect
         return { success: true };
@@ -65,14 +62,10 @@ export function useAuth() {
         const frontendUser: any = {
           ...payload.user,
           name: payload.user.full_name || payload.user.username || 'User',
-          creditBalance: payload.user.credits || 0,
-          favoriteAgentIds: Array.isArray(payload.user.favoriteAgentIds)
-            ? payload.user.favoriteAgentIds
-            : [],
         };
         login(frontendUser);
         if (payload.access_token) {
-          localStorage.setItem('auth_token', payload.access_token);
+          setAuthToken(payload.access_token);
         }
         // Auth state will trigger App.tsx useEffect to redirect
         return { success: true };
@@ -87,15 +80,9 @@ export function useAuth() {
   );
 
   const signOut = useCallback(async () => {
-    try {
-      await api.auth.logout();
-    } catch (error) {
-      console.warn('Logout failed, clearing local session anyway.', error);
-    } finally {
-      logout();
-      localStorage.removeItem('auth_token');
-      redirectTo('/');
-    }
+    clearAuthToken();
+    logout();
+    redirectTo('/login');
   }, [logout]);
 
   const requireAuth = useCallback(
@@ -120,14 +107,19 @@ export function useAuth() {
       const frontendUser: any = {
         ...payload,
         name: payload.full_name || payload.username || payload.email || 'User',
-        credits: payload.credits || 0,
-        favoriteAgentIds: (payload as any).favoriteAgentIds || [],
       };
       login(frontendUser);
+      return { success: true } as AuthActionResult;
     } catch (error) {
       console.error('Failed to fetch user profile:', error);
+      clearAuthToken();
+      logout();
+      return {
+        success: false,
+        error: 'Session expired. Please sign in again.',
+      } as AuthActionResult;
     }
-  }, [login]);
+  }, [login, logout]);
 
   return {
     user,

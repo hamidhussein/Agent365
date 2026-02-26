@@ -1,7 +1,5 @@
-from datetime import datetime
-from uuid import UUID
 from typing import Literal, Optional
-from pydantic import BaseModel, EmailStr, Field, ConfigDict
+from pydantic import BaseModel, Field
 
 
 class CreatorStudioAgentCapabilities(BaseModel):
@@ -9,23 +7,6 @@ class CreatorStudioAgentCapabilities(BaseModel):
     webBrowsing: bool = False
     apiIntegrations: bool = False
     fileHandling: bool = False
-
-
-class CreatorStudioAuthRequest(BaseModel):
-    email: EmailStr
-    password: str
-
-
-class CreatorStudioUserOut(BaseModel):
-    id: UUID
-    email: EmailStr
-    name: str
-    role: str
-
-
-class CreatorStudioAuthResponse(BaseModel):
-    token: str
-    user: CreatorStudioUserOut
 
 
 class CreatorStudioAgentInput(BaseModel):
@@ -43,11 +24,10 @@ class CreatorStudioAgentPayload(BaseModel):
     model: Optional[str] = None
     color: str
     inputs: list[CreatorStudioAgentInput] = Field(default_factory=list)
-    isPublic: bool = False
-    creditsPerRun: int = 1
-    allow_reviews: bool = False
-    review_cost: int = 5
     enabledCapabilities: Optional[CreatorStudioAgentCapabilities] = None
+    isPublic: Optional[bool] = False
+    welcomeMessage: Optional[str] = None
+    starterQuestions: list[str] = Field(default_factory=list)
 
 
 class CreatorStudioKnowledgeFileOut(BaseModel):
@@ -64,13 +44,12 @@ class CreatorStudioAgentOut(BaseModel):
     model: str
     color: str
     inputs: list[CreatorStudioAgentInput]
-    isPublic: bool
-    creditsPerRun: int
     createdAt: str
     files: list[CreatorStudioKnowledgeFileOut]
-    allow_reviews: bool
-    review_cost: int
     enabledCapabilities: Optional[CreatorStudioAgentCapabilities] = None
+    isPublic: Optional[bool] = False
+    welcomeMessage: Optional[str] = None
+    starterQuestions: list[str] = Field(default_factory=list)
 
 
 class CreatorStudioAgentSuggestRequest(BaseModel):
@@ -125,22 +104,25 @@ class CreatorStudioChatRequest(BaseModel):
     messages: Optional[list[CreatorStudioChatMessage]] = None
 
 
-class CreatorStudioPublicChatRequest(BaseModel):
-    guestId: str
-    agentId: str
-    message: str
+class CreatorStudioAgentPreviewPayload(BaseModel):
+    # Relaxed validation for unsaved draft previews.
+    name: str = Field(default="", max_length=100)
+    description: str = Field(default="", max_length=500)
+    instruction: str = Field(default="", max_length=10000)
+    model: Optional[str] = None
+    color: str = "bg-slate-600"
+    inputs: list[CreatorStudioAgentInput] = Field(default_factory=list)
+    enabledCapabilities: Optional[CreatorStudioAgentCapabilities] = None
+    isPublic: Optional[bool] = False
+    welcomeMessage: Optional[str] = None
+    starterQuestions: list[str] = Field(default_factory=list)
+
+
+class CreatorStudioPreviewChatRequest(BaseModel):
+    message: str = Field(..., min_length=1, max_length=10000)
+    draftConfig: CreatorStudioAgentPreviewPayload
     inputsContext: Optional[str] = None
     messages: Optional[list[CreatorStudioChatMessage]] = None
-    draftConfig: Optional[dict] = None
-
-
-class CreatorStudioGuestCreditsRequest(BaseModel):
-    guestId: str
-    amount: int = 10
-
-
-class CreatorStudioGuestCreditsResponse(BaseModel):
-    credits: int
 
 
 class CreatorStudioPlatformSettings(BaseModel):
@@ -162,29 +144,7 @@ class CreatorStudioAgentBuildResponse(BaseModel):
     suggested_changes: Optional[dict] = None
 
 
-class AgentActionBase(BaseModel):
-    name: str = Field(..., min_length=3, max_length=50) # Technical name (snake_case)
-    description: str = Field(..., min_length=10, max_length=500) # LLM instruction
-    url: str = Field(..., min_length=10, max_length=512)
-    method: Literal["GET", "POST", "PUT", "DELETE"] = "POST"
-    headers: Optional[dict] = Field(default_factory=dict) # Auth keys
-    openapi_spec: Optional[dict] = Field(default_factory=dict) # Schema
-
-class AgentActionCreate(AgentActionBase):
-    pass
-
-class AgentActionUpdate(BaseModel):
-    name: Optional[str] = None
-    description: Optional[str] = None
-    url: Optional[str] = None
-    method: Optional[Literal["GET", "POST", "PUT", "DELETE"]] = None
-    headers: Optional[dict] = None
-    openapi_spec: Optional[dict] = None
-
-class AgentActionResponse(AgentActionBase):
-    id: UUID
-    agent_id: UUID
-    created_at: datetime
-    updated_at: datetime
-
-    model_config = ConfigDict(from_attributes=True)
+class AgentActionResponse(BaseModel):
+    id: str
+    label: str
+    type: str

@@ -1,429 +1,216 @@
-
-
 import React, { Suspense, useEffect, useMemo, useState } from 'react';
-import { useQuery } from '@tanstack/react-query';
-import Header from './components/Header';
-import Footer from './components/Footer';
-import { lazyWithRetry, sanitizeInput } from '@/lib/utils';
-import PageLoadingOverlay from './components/common/LoadingSpinner';
-import { LoadingSpinner as SharedLoadingSpinner } from '@/components/shared/LoadingSpinner';
-import { SkipToContent } from '@/components/shared/SkipToContent';
-import axiosInstance from '@/lib/api/client';
 import { ToastProvider } from '@/contexts/ToastContext';
 import { ThemeProvider } from '@/contexts/ThemeContext';
-
-const HomePage = lazyWithRetry(() => import('./components/pages/HomePage'));
-const AgentsPage = lazyWithRetry(() => import('./components/pages/AgentsPage'));
-const AgentDetailPage = lazyWithRetry(() => import('./components/pages/AgentDetailPage'));
-const CreatorDashboardPage = lazyWithRetry(() => import('./components/pages/CreatorDashboardPage'));
-const CreatorStudioPage = lazyWithRetry(() => import('./components/pages/CreatorStudioPage'));
-const CreateAgentPage = lazyWithRetry(() => import('./components/pages/CreateAgentPage'));
-const RunAgentPage = lazyWithRetry(() => import('./components/pages/RunAgentPage'));
-const CreatorProfilePage = lazyWithRetry(() => import('./components/pages/CreatorProfilePage'));
-const PricingPage = lazyWithRetry(() => import('./components/pages/PricingPage'));
-const UserDashboardPage = lazyWithRetry(() => import('./components/pages/UserDashboardPage'));
-const SearchPage = lazyWithRetry(() => import('./components/pages/SearchPage'));
-const LoginPage = lazyWithRetry(() => import('./components/pages/LoginPage'));
-const SignupPage = lazyWithRetry(() => import('./components/pages/SignupPage'));
-const NotFoundPage = lazyWithRetry(() => import('./components/pages/NotFoundPage'));
-
-export type Page =
-  'home' |
-  'marketplace' |
-  'agentDetail' |
-  'creatorDashboard' |
-  'creatorStudio' |
-  'createAgent' |
-  'runAgent' |
-  'creatorProfile' |
-  'pricing' |
-  'dashboard' |
-  'search' |
-  'login' |
-  'signup' |
-  'adminSettings' |
-  'notFound';
-
-export type DashboardPage = 'overview' | 'runs' | 'favorites' | 'transactions' | 'settings' | 'reviews';
-
-import { mapBackendAgent, BackendAgent } from '@/lib/utils/agentMapper';
-
-interface AgentsListResponse {
-  data: BackendAgent[];
-  total: number;
-  page: number;
-  per_page: number;
-  total_pages: number;
-}
-
-const fetchAgents = async (): Promise<AgentsListResponse> => {
-  const response = await axiosInstance.get<AgentsListResponse>('/agents/', {
-    params: { limit: 50, include_creator_studio_public: true },
-  });
-  return response.data;
-};
-
-
-
+import { LoadingSpinner } from '@/components/shared/LoadingSpinner';
 import { useAuth } from '@/lib/hooks/useAuth';
 import { useAuthStore } from '@/lib/store';
-import { useWebSocketConnection, useWebSocketEvent } from '@/lib/websocket/hooks';
-import { useExecutionStore } from '@/lib/store';
+import { getAuthToken } from '@/lib/auth/tokenStore';
 
-// ... imports
+const LoginPage = React.lazy(() => import('./components/pages/LoginPage'));
+const SignupPage = React.lazy(() => import('./components/pages/SignupPage'));
+const CreatorStudioPage = React.lazy(() => import('./creator-studio'));
+const NotFoundPage = React.lazy(() => import('./components/pages/NotFoundPage'));
+const SharedAgentChatPage = React.lazy(() => import('./components/pages/SharedAgentChatPage'));
+
+export type Page =
+  | 'login'
+  | 'signup'
+  | 'creatorStudio'
+  | 'studioAdmin'
+  | 'sharedAgent'
+  | 'notFound';
+
+type RouteState = {
+  page: Page;
+  next?: string;
+  agentId?: string;
+  shareToken?: string;
+};
+
+const getRouteFromLocation = (): RouteState => {
+  const path = window.location.pathname.replace(/\/+$/, '') || '/';
+  const params = new URLSearchParams(window.location.search);
+  const next = params.get('next') || undefined;
+
+  if (path === '/') return { page: 'login', next };
+  if (path === '/login') return { page: 'login', next };
+  if (path === '/signup') return { page: 'signup', next };
+  if (path === '/studio/admin') return { page: 'studioAdmin', next };
+  if (path.startsWith('/studio')) return { page: 'creatorStudio', next };
+  
+  // Shared agent route
+  if (path.startsWith('/share/')) {
+    const parts = path.split('/');
+    if (parts.length >= 3 && parts[2]) {
+      return { page: 'sharedAgent', shareToken: parts[2], next };
+    }
+  }
+
+  return { page: 'notFound' };
+};
+
+const pathForPage = (page: Page): string => {
+  switch (page) {
+    case 'login':
+      return '/login';
+    case 'signup':
+      return '/signup';
+    case 'creatorStudio':
+      return '/studio';
+    case 'studioAdmin':
+      return '/studio/admin';
+    case 'sharedAgent':
+      return '/share';
+    case 'notFound':
+      return '/404';
+    default:
+      return '/login';
+  }
+};
 
 const App: React.FC = () => {
-  const [currentPage, setCurrentPage] = useState<Page>('home');
-  const [currentDashboardPage, setCurrentDashboardPage] = useState<DashboardPage>('overview');
-  const [selectedAgentId, setSelectedAgentId] = useState<string | null>(null);
-  const [selectedCreatorUsername, setSelectedCreatorUsername] = useState<string | null>(null);
-  const user = useAuthStore((state) => state.user);
+  const [route, setRoute] = useState<RouteState>({ page: 'login' });
+  const [authReady, setAuthReady] = useState(false);
   const isAuthenticated = useAuthStore((state) => state.isAuthenticated);
+  const authUser = useAuthStore((state) => state.user);
   const { fetchUserProfile } = useAuth();
-  const [searchQuery, setSearchQuery] = useState('');
-  const [isLoading, setIsLoading] = useState(false);
-  const { data: agentsResponse, isLoading: isAgentsLoading, error: agentsError } = useQuery({
-    queryKey: ['agents'],
-    queryFn: fetchAgents,
-    staleTime: 60 * 1000,
-    retry: 1,
-  });
 
-  // Initialize WebSocket connection
-  useWebSocketConnection();
+  const safeNextPath = useMemo(() => {
+    if (!route.next) return null;
+    if (!route.next.startsWith('/')) return null;
+    if (route.next.startsWith('//')) return null;
+    return route.next;
+  }, [route.next]);
 
-  // Listen for real-time review updates
-  useWebSocketEvent('review_completed', (message) => {
-    console.log('[WebSocket] Review completed:', message);
-    // Update execution store if needed
-    const { execution_id, review_response_note, has_refined_outputs } = message.data;
-    useExecutionStore.getState().updateExecution(execution_id, {
-      review_status: 'completed',
-      review_response_note,
-      refined_outputs: has_refined_outputs ? message.data.refined_outputs : undefined
-    });
-  });
-
-  useWebSocketEvent('review_requested', (message) => {
-    console.log('[WebSocket] New review requested:', message);
-    // Could trigger a notification or update UI here
-  });
-
-  const fetchedAgents = useMemo(
-    () => (agentsResponse?.data ?? []).map(mapBackendAgent),
-    [agentsResponse]
-  );
-  const agents = fetchedAgents;
-
-  useEffect(() => {
-    if (agentsError) {
-      console.error('Unable to load agents from API:', agentsError);
+  const navigateToPath = (path: string, replace = false) => {
+    if (replace) {
+      window.history.replaceState({}, '', path);
+    } else {
+      window.history.pushState({}, '', path);
     }
-  }, [agentsError]);
-
-  useEffect(() => {
-    if (isAuthenticated) {
-      fetchUserProfile();
-    }
-  }, [isAuthenticated, fetchUserProfile]);
-
-  // Removed aggressive redirect from home to dashboard to allow users to visit landing page
-  // useEffect(() => {
-  //   if (isAuthenticated && user && (currentPage === 'home' || currentPage === 'login' || currentPage === 'signup')) {
-  //     setCurrentPage('dashboard');
-  //   }
-  // }, [isAuthenticated, user, currentPage]);
-
-  // Protected routes - redirect to login if not authenticated
-  useEffect(() => {
-    const protectedPages: Page[] = ['dashboard', 'creatorDashboard', 'createAgent', 'creatorStudio'];
-    if (!isAuthenticated && protectedPages.includes(currentPage)) {
-      setCurrentPage('login');
-    }
-  }, [isAuthenticated, currentPage]);
-
-  useEffect(() => {
-    if (isAgentsLoading) return;
-
-    const agentExists = selectedAgentId
-      ? agents.some((a) => a.id === selectedAgentId)
-      : true;
-    const creatorExists = selectedCreatorUsername
-      ? agents.some((a) => a.creator.username === selectedCreatorUsername)
-      : true;
-
-    if ((currentPage === 'agentDetail' && selectedAgentId && !agentExists) ||
-      (currentPage === 'runAgent' && selectedAgentId && !agentExists) ||
-      (currentPage === 'creatorProfile' && selectedCreatorUsername && !creatorExists)) {
-      navigateTo('notFound');
-    }
-  }, [currentPage, selectedAgentId, selectedCreatorUsername, agents, isAgentsLoading]);
-
-
-  const handleSelectAgent = (agentId: string) => {
-    setSelectedAgentId(agentId);
-    navigateTo('agentDetail', undefined, agentId);
+    setRoute(getRouteFromLocation());
+    window.scrollTo(0, 0);
   };
 
-  const handleRunAgent = (agentId: string) => {
-    const targetAgent = agents.find((a) => a.id === agentId);
-    const isCreatorStudio = targetAgent?.source === 'creator_studio';
-    const isOwner = isCreatorStudio && user?.id && targetAgent?.creator?.id === user.id;
-
-    if (isCreatorStudio && isOwner) {
-      navigateTo('creatorStudio');
-      return;
-    }
-
-    setSelectedAgentId(agentId);
-    navigateTo('runAgent', undefined, agentId);
+  const navigateTo = (page: Page) => {
+    navigateToPath(pathForPage(page));
   };
 
-  const handleSelectCreator = (username: string) => {
-    setSelectedCreatorUsername(username);
-    navigateTo('creatorProfile', undefined, undefined, username);
-  }
-
-  // URL Mapping
-  const getPathFromPage = (page: Page, agentId?: string | null, username?: string | null, dashboardPage?: DashboardPage): string => {
-    switch (page) {
-      case 'home': return '/';
-      case 'marketplace': return '/agents';
-      case 'agentDetail': return agentId ? `/agents/${agentId}` : '/agents';
-      case 'creatorDashboard': return '/creator/dashboard';
-      case 'creatorStudio': return '/studio';
-      case 'createAgent': return '/creator/new';
-      case 'runAgent': return agentId ? `/agents/${agentId}/run` : '/agents';
-      case 'creatorProfile': return username ? `/creator/${username}` : '/agents';
-      case 'pricing': return '/pricing';
-      case 'dashboard': return dashboardPage ? `/dashboard/${dashboardPage}` : '/dashboard';
-      case 'search': return '/search';
-      case 'login': return '/login';
-      case 'signup': return '/signup';
-      case 'adminSettings': return '/admin-settings';
-      case 'notFound': return '/404';
-      default: return '/';
-    }
-  };
-
-  const getPageFromPath = (rawPath: string): { page: Page; agentId?: string; username?: string; dashboardPage?: DashboardPage } => {
-    const path = rawPath.endsWith('/') && rawPath.length > 1 ? rawPath.slice(0, -1) : rawPath;
-    if (path === '/' || path === '') return { page: 'home' };
-    if (path === '/agents') return { page: 'marketplace' };
-    if (path.startsWith('/agents/') && path.endsWith('/run')) {
-      const parts = path.split('/');
-      return { page: 'runAgent', agentId: parts[2] };
-    }
-    if (path.startsWith('/agents/')) {
-      const parts = path.split('/');
-      return { page: 'agentDetail', agentId: parts[2] };
-    }
-    if (path === '/creator/dashboard') return { page: 'creatorDashboard' };
-    if (path === '/studio') return { page: 'creatorStudio' };
-    if (path === '/creator/new') return { page: 'createAgent' };
-    if (path.startsWith('/creator/')) {
-      const parts = path.split('/');
-      return { page: 'creatorProfile', username: parts[2] };
-    }
-    if (path === '/pricing') return { page: 'pricing' };
-    if (path.startsWith('/dashboard')) {
-      const parts = path.split('/');
-      const dashboardPage = (parts[2] as DashboardPage) || 'overview';
-      return { page: 'dashboard', dashboardPage };
-    }
-    if (path === '/search') return { page: 'search' };
-    if (path === '/login') return { page: 'login' };
-    if (path === '/signup') return { page: 'signup' };
-    if (path === '/admin-settings') return { page: 'adminSettings' };
-    return { page: 'notFound' };
-  };
-
-  // Initialize state from URL
   useEffect(() => {
-    const handlePopState = () => {
-      const { page, agentId, username, dashboardPage } = getPageFromPath(window.location.pathname);
-      setCurrentPage(page);
-      if (agentId) setSelectedAgentId(agentId);
-      if (username) setSelectedCreatorUsername(username);
-      if (dashboardPage) setCurrentDashboardPage(dashboardPage);
-    };
-
-    // Initial load
-    handlePopState();
-
-    window.addEventListener('popstate', handlePopState);
-    return () => window.removeEventListener('popstate', handlePopState);
+    const onPopState = () => setRoute(getRouteFromLocation());
+    setRoute(getRouteFromLocation());
+    window.addEventListener('popstate', onPopState);
+    return () => window.removeEventListener('popstate', onPopState);
   }, []);
 
-  const navigateTo = (page: Page, dashboardPage?: DashboardPage, agentId?: string, username?: string) => {
-    setIsLoading(true);
-    window.scrollTo(0, 0);
+  useEffect(() => {
+    let cancelled = false;
 
-    // Update URL using overrides if provided, otherwise fall back to state (though state might be stale)
-    // Best practice: Always pass the ID if we are navigating to a detail page.
-    const path = getPathFromPage(page, agentId || selectedAgentId, username || selectedCreatorUsername, dashboardPage);
-    window.history.pushState({}, '', path);
-
-    setTimeout(() => {
-      if (page !== 'agentDetail' && page !== 'runAgent' && page !== 'creatorProfile') {
-        setSelectedAgentId(null);
-        setSelectedCreatorUsername(null);
+    const restoreAuth = async () => {
+      const token = getAuthToken();
+      if (!token) {
+        if (!cancelled) setAuthReady(true);
+        return;
       }
-      if (page !== 'search') {
-        setSearchQuery('');
+
+      try {
+        await fetchUserProfile();
+      } finally {
+        if (!cancelled) setAuthReady(true);
       }
-      if (page === 'dashboard' && dashboardPage) {
-        setCurrentDashboardPage(dashboardPage);
-      } else if (page === 'dashboard') {
-        setCurrentDashboardPage('overview');
+    };
+
+    void restoreAuth();
+    return () => {
+      cancelled = true;
+    };
+  }, [fetchUserProfile]);
+
+  useEffect(() => {
+    if (isAuthenticated && !authUser) {
+      fetchUserProfile();
+    }
+  }, [isAuthenticated, authUser, fetchUserProfile]);
+
+  useEffect(() => {
+    if (!authReady) return;
+    const path = window.location.pathname;
+    const requiresAuth = path.startsWith('/studio');
+    if (!requiresAuth || isAuthenticated) return;
+    navigateToPath(`/login?next=${encodeURIComponent(path)}`, true);
+  }, [authReady, isAuthenticated]);
+
+  useEffect(() => {
+    if (!authReady) return;
+    if (!isAuthenticated) return;
+    if (route.page === 'login' || route.page === 'signup') {
+      if (safeNextPath) {
+        navigateToPath(safeNextPath, true);
+      } else {
+        navigateToPath('/studio', true);
       }
-      setCurrentPage(page);
-      setIsLoading(false);
-    }, 300); // Simulate network latency for page load
-  }
+    }
+  }, [authReady, isAuthenticated, route.page, safeNextPath]);
 
-  const handleSearch = (query: string) => {
-    setSearchQuery(sanitizeInput(query));
-    navigateTo('search');
-  };
+  useEffect(() => {
+    if (route.page !== 'studioAdmin') return;
+    if (!isAuthenticated) return;
+    if (authUser && authUser.role !== 'admin') {
+      navigateToPath('/studio', true);
+    }
+  }, [route.page, isAuthenticated, authUser]);
 
-  const handleBackToDetail = (agentId: string) => {
-    setSelectedAgentId(agentId);
-    navigateTo('agentDetail', undefined, agentId);
-  };
-
-  const toggleFavorite = async (agentId: string) => {
-    if (!isAuthenticated) {
-      navigateTo('login');
+  const handleAuthSuccess = () => {
+    if (safeNextPath) {
+      navigateToPath(safeNextPath, true);
       return;
     }
-
-    try {
-      const response = await axiosInstance.post(`/users/me/favorites/${agentId}`);
-      // The backend returns the updated user object directly (UserRead schema)
-      // But axiosInstance interceptor might wrap it or return it as is.
-      // Let's check client.ts. It returns axiosInstance.post<ApiResponse<User>>...
-      // But the backend returns UserRead directly.
-      // If the backend returns UserRead directly, it might not be wrapped in 'data' and 'success'.
-      // However, FastAPI usually returns JSON.
-      // Let's assume standard response for now.
-
-      // Wait, I defined the endpoint to return UserRead.
-      // So response.data will be the UserRead object.
-
-      const updatedUser = response.data;
-
-      // We need to map it to frontend User type
-      const frontendUser: any = {
-        ...updatedUser,
-        name: updatedUser.full_name || updatedUser.username || 'User',
-        credits: updatedUser.credits || 0,
-        favoriteAgentIds: updatedUser.favoriteAgentIds || [],
-      };
-
-      useAuthStore.getState().updateUser(frontendUser);
-
-      // Also update the local user variable if needed, but useAuthStore hook should handle it.
-      // But 'user' here is from useAuthStore((state) => state.user), so it will update.
-
-    } catch (error) {
-      console.error('Failed to toggle favorite:', error);
-      // Optionally show toast error
-    }
+    navigateTo('creatorStudio');
   };
-
 
   const renderPage = () => {
-    const agent = agents.find((a) => a.id === selectedAgentId);
-    const creator = agents.find((a) => a.creator.username === selectedCreatorUsername)?.creator;
-    const creatorAgents = agents.filter((a) => a.creator.username === selectedCreatorUsername);
-    const sharedAgentProps = {
-      onSelectAgent: handleSelectAgent,
-      onSelectCreator: handleSelectCreator,
-      favoriteAgentIds: new Set(user?.favoriteAgentIds || []),
-      onToggleFavorite: toggleFavorite,
-    };
-    const homePageProps = {
-      agents,
-      ...sharedAgentProps,
-    };
+    const routeNeedsAuth = route.page === 'creatorStudio' || route.page === 'studioAdmin';
+    if (!authReady && routeNeedsAuth) {
+      return (
+        <div className="flex min-h-screen items-center justify-center">
+          <LoadingSpinner size="lg" />
+        </div>
+      );
+    }
 
-    switch (currentPage) {
-      case 'home':
-        return <HomePage {...homePageProps} />;
-      case 'marketplace':
-        return <AgentsPage agents={agents} {...sharedAgentProps} />;
-      case 'agentDetail':
-        return agent ? <AgentDetailPage agent={agent} onRunAgent={handleRunAgent} onSelectCreator={handleSelectCreator} onSelectAgent={handleSelectAgent} isFavorited={user?.favoriteAgentIds?.includes(agent.id) || false} onToggleFavorite={toggleFavorite} /> : null;
-      case 'creatorDashboard':
-        return <CreatorDashboardPage setCurrentPage={navigateTo} onSelectAgent={handleSelectAgent} />;
+    switch (route.page) {
+      case 'login':
+        return <LoginPage setCurrentPage={() => handleAuthSuccess()} />;
+      case 'signup':
+        return <SignupPage setCurrentPage={() => handleAuthSuccess()} />;
       case 'creatorStudio':
         return <CreatorStudioPage />;
-      case 'adminSettings':
+      case 'studioAdmin':
         return <CreatorStudioPage initialView="admin-dashboard" />;
-      case 'createAgent':
-        return <CreateAgentPage setCurrentPage={navigateTo} />;
-      case 'runAgent':
-        return agent ? <RunAgentPage agent={agent} onBackToDetail={handleBackToDetail} onSelectAgent={handleSelectAgent} /> : null;
-      case 'creatorProfile':
-        return (creator && creatorAgents.length > 0) ? <CreatorProfilePage creator={creator} agents={creatorAgents} onSelectAgent={handleSelectAgent} favoriteAgentIds={new Set(user?.favoriteAgentIds || [])} onToggleFavorite={toggleFavorite} /> : null;
-      case 'pricing':
-        return <PricingPage />;
-      case 'dashboard':
-        if (!user) return <LoginPage setCurrentPage={navigateTo} />;
-        return <UserDashboardPage
-          user={user}
-          activePage={currentDashboardPage}
-          setActivePage={(page: DashboardPage) => navigateTo('dashboard', page)}
-          onSelectAgent={handleSelectAgent}
-          onToggleFavorite={toggleFavorite}
-          agents={agents}
-          onAddCredits={() => navigateTo('pricing')}
-        />;
-      case 'search':
-        return (
-          <SearchPage
-            query={searchQuery}
-            allAgents={agents}
-            {...sharedAgentProps}
-          />
-        );
-      case 'login':
-        return <LoginPage setCurrentPage={navigateTo} />;
-      case 'signup':
-        return <SignupPage setCurrentPage={navigateTo} />;
+      case 'sharedAgent':
+        if (route.shareToken) {
+          return <SharedAgentChatPage shareToken={route.shareToken} />;
+        }
+        return <NotFoundPage onGoHome={() => navigateTo('login')} />;
       case 'notFound':
-        return <NotFoundPage onGoHome={() => navigateTo('home')} />;
       default:
-        return <HomePage {...homePageProps} />;
+        return <NotFoundPage onGoHome={() => navigateTo('login')} />;
     }
   };
-
 
   return (
     <ToastProvider>
       <ThemeProvider defaultTheme="light" storageKey="vite-ui-theme">
-        <div className="min-h-screen flex flex-col relative bg-background font-sans text-foreground">
-          {(isLoading || isAgentsLoading) && <PageLoadingOverlay />}
-          <SkipToContent />
-          <Header
-            setCurrentPage={navigateTo}
-            currentPage={currentPage}
-            creditBalance={user?.credits || 0}
-            onSearch={handleSearch}
-          />
-          <main id="main-content" className="flex-grow">
-            <Suspense
-              fallback={
-                <div className="flex justify-center py-16">
-                  <SharedLoadingSpinner size="lg" />
-                </div>
-              }
-            >
-              {renderPage()}
-            </Suspense>
-          </main>
-          <Footer />
+        <div className="min-h-screen bg-background text-foreground">
+          <Suspense
+            fallback={
+              <div className="flex min-h-screen items-center justify-center">
+                <LoadingSpinner size="lg" />
+              </div>
+            }
+          >
+            {renderPage()}
+          </Suspense>
         </div>
       </ThemeProvider>
     </ToastProvider>

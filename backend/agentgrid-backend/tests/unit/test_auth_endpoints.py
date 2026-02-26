@@ -5,16 +5,17 @@ from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 from sqlalchemy.pool import StaticPool
 
+from app.core.config import get_settings
 from app.core.deps import get_db
 from app.db.base import Base
 from app.main import app
 
+settings = get_settings()
 
-SQLALCHEMY_DATABASE_URL = "sqlite://"
+SQLALCHEMY_DATABASE_URL = settings.TEST_DATABASE_URL
 
 engine = create_engine(
     SQLALCHEMY_DATABASE_URL,
-    connect_args={"check_same_thread": False},
     poolclass=StaticPool,
 )
 TestingSessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
@@ -41,6 +42,7 @@ def _unique_email() -> str:
 def _register_user(payload: dict) -> None:
     response = client.post("/api/v1/auth/register", json=payload)
     assert response.status_code == 201, response.text
+    assert response.json()["user"]["role"] == "creator"
 
 
 def test_register_login_and_me_flow():
@@ -66,6 +68,7 @@ def test_register_login_and_me_flow():
     me_response = client.get("/api/v1/auth/me", headers=auth_headers)
     assert me_response.status_code == 200, me_response.text
     assert me_response.json()["email"] == payload["email"]
+    assert me_response.json()["role"] == "creator"
 
 
 def test_refresh_endpoint_returns_new_token():
@@ -93,3 +96,4 @@ def test_refresh_endpoint_returns_new_token():
     assert refreshed["access_token"]
     assert refreshed["refresh_token"]
     assert refreshed["user"]["email"] == payload["email"]
+    assert refreshed["user"]["role"] == "creator"

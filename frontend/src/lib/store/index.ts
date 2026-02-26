@@ -21,53 +21,39 @@ interface AuthState {
 
 export const useAuthStore = create<AuthState>()(
   devtools(
-    persist(
-      immer<AuthState>((set) => ({
-        user: null,
-        isAuthenticated: false,
-        isLoading: true,
+    immer<AuthState>((set) => ({
+      user: null,
+      isAuthenticated: false,
+      isLoading: false,
 
-        login: (user) =>
-          set((state) => {
-            state.user = user;
-            state.isAuthenticated = true;
-            state.isLoading = false;
-          }),
+      login: (user) =>
+        set((state) => {
+          state.user = user;
+          state.isAuthenticated = true;
+          state.isLoading = false;
+        }),
 
-        logout: () =>
-          set((state) => {
-            state.user = null;
-            state.isAuthenticated = false;
-          }),
+      logout: () =>
+        set((state) => {
+          state.user = null;
+          state.isAuthenticated = false;
+          state.isLoading = false;
+        }),
 
-        updateUser: (updates) =>
-          set((state) => {
-            if (state.user) {
-              state.user = { ...state.user, ...updates };
-            }
-          }),
-
-        updateCredits: (amount) =>
-          set((state) => {
-            if (state.user) {
-              state.user.credits += amount;
-            }
-          }),
-      })),
-      {
-        name: 'auth-storage',
-        onRehydrateStorage: () => (state) => {
-          // After hydration completes, set isLoading to false
-          if (state) {
-            state.isLoading = false;
-            // Ensure favoriteAgentIds is always an array
-            if (state.user && !Array.isArray(state.user.favoriteAgentIds)) {
-              state.user.favoriteAgentIds = [];
-            }
+      updateUser: (updates) =>
+        set((state) => {
+          if (state.user) {
+            state.user = { ...state.user, ...updates };
           }
-        },
-      }
-    )
+        }),
+
+      updateCredits: (amount) =>
+        set((state) => {
+          if (state.user) {
+            state.user.credits += amount;
+          }
+        }),
+    }))
   )
 );
 

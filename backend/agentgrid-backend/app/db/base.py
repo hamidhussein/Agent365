@@ -13,9 +13,8 @@ class Base(DeclarativeBase):
 engine = create_engine(
     settings.DATABASE_URL,
     pool_pre_ping=True,
-    connect_args={"check_same_thread": False} if "sqlite" in settings.DATABASE_URL else {},
 )
 
 
 # Import models so Alembic can discover metadata
-from app.models import agent, execution, review, transaction, user, associations, creator_studio, code_execution_log  # noqa: F401
+from app.models import agent, execution, user, creator_studio, code_execution_log  # noqa: F401

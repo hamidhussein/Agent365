@@ -3,7 +3,6 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from app.api.api_v1 import api_router
 from app.core.config import get_settings
-import app.agents # Register agents
 
 from app.api.creator_studio import router as creator_studio_router
 from app.db.session import SessionLocal
@@ -12,7 +11,7 @@ from app.services.creator_studio import build_vector_index, seed_llm_configs
 
 def create_app() -> FastAPI:
     settings = get_settings()
-    app = FastAPI(title=settings.PROJECT_NAME, version=settings.VERSION, debug=True)
+    app = FastAPI(title=settings.PROJECT_NAME, version=settings.VERSION, debug=False)
     
     # Configure CORS
     app.add_middleware(
@@ -49,13 +48,6 @@ def create_app() -> FastAPI:
             print("[STARTUP] Building vector index...", flush=True)
             build_vector_index(db)
             print("[STARTUP] Vector index build check complete.", flush=True)
-            
-            # Initialize WebSocket notification integration
-            print("[STARTUP] Initializing WebSocket notification service...", flush=True)
-            from app.websocket.connection_manager import connection_manager
-            from app.services.notification import notification_service
-            notification_service.set_websocket_manager(connection_manager)
-            print("[STARTUP] WebSocket services initialized.", flush=True)
             
             print("[STARTUP] init_creator_studio finished successfully", flush=True)
         except Exception as e:

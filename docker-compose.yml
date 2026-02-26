@@ -1,53 +1,48 @@
+name: agent365
+
 services:
-  # Backend Service
   backend:
     build:
       context: ./backend/agentgrid-backend
       dockerfile: Dockerfile
+    container_name: agent365-backend
     ports:
       - "8001:8001"
     environment:
-      - DATABASE_URL=postgresql://postgres:postgres@db:5432/agentgrid
-      - OPENAI_API_KEY=${OPENAI_API_KEY}
-      - RELOAD=true
+      DATABASE_URL: postgresql://postgres:postgres@db:5432/agent365
+      OPENAI_API_KEY: ${OPENAI_API_KEY}
+      RELOAD: "true"
     volumes:
       - ./backend/agentgrid-backend:/code
     depends_on:
-      - redis
       - db
 
-  # Frontend Service
   frontend:
     build:
       context: ./frontend
       dockerfile: Dockerfile.dev
+    container_name: agent365-frontend
     ports:
       - "3000:3000"
     environment:
-      - VITE_API_URL=http://localhost:8001/api/v1
+      VITE_API_URL: http://localhost:8001/api/v1
     volumes:
       - ./frontend:/app
       - /app/node_modules
     depends_on:
       - backend
 
-  # Redis (Optional, if used)
-  redis:
-    image: redis:7-alpine
-    ports:
-      - "6379:6379"
-
-  # Postgres (Switching to Postgres)
   db:
     image: postgres:15-alpine
-    volumes:
-      - postgres_data:/var/lib/postgresql/data
+    container_name: agent365-db
     environment:
-      - POSTGRES_USER=postgres
-      - POSTGRES_PASSWORD=postgres
-      - POSTGRES_DB=agentgrid
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: agent365
     ports:
       - "5435:5432"
+    volumes:
+      - agent365_postgres_data:/var/lib/postgresql/data
 
 volumes:
-  postgres_data:
+  agent365_postgres_data:

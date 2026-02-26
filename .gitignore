@@ -13,3 +13,12 @@ __pycache__/
 last_agent_code.py
 last_agent_error.log
 test_manual.pdf
+
+# Log files
+*.log
+backend-uvicorn.log
+frontend-vite.log
+vite-*.log
+
+# Temporary files
+tmp_*.py

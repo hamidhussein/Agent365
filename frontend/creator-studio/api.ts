@@ -1,27 +1,23 @@
-﻿import { Agent, AgentActionPayload, AgentActionResponse, AgentBuildPayload, AgentBuildResponse, AgentPayload, AgentSuggestPayload, AgentSuggestResponse, AssistModelResponse, AssistModelUpdate, LLMProviderConfig, PlatformSettings, UserProfile } from './types';
+﻿import { Agent, AgentBuildPayload, AgentBuildResponse, AgentPayload, AgentSuggestPayload, AgentSuggestResponse, AssistModelResponse, AssistModelUpdate, LLMProviderConfig, PlatformSettings, UserProfile } from './types';
+import { clearAuthToken, getAuthToken, setAuthToken } from '@/lib/auth/tokenStore';
 
-const defaultBase = import.meta.env.VITE_API_URL
-  ? import.meta.env.VITE_API_URL.replace(/\/api\/v1\/?$/, '') + '/creator-studio'
+const viteApiBase = typeof import.meta.env.VITE_API_URL === 'string'
+  ? import.meta.env.VITE_API_URL.trim()
+  : '';
+
+const defaultBase = viteApiBase
+  ? viteApiBase.replace(/\/api\/v1\/?$/, '') + '/creator-studio'
   : '/creator-studio';
-export const API_BASE = import.meta.env.VITE_CREATOR_STUDIO_API_BASE_URL || defaultBase;
-const TOKEN_KEY = 'auth_token';
-
-const getStoredToken = () => localStorage.getItem(TOKEN_KEY);
-
-const setStoredToken = (token: string, _remember: boolean) => {
-  localStorage.setItem(TOKEN_KEY, token);
-};
-
-const clearStoredToken = () => {
-  localStorage.removeItem(TOKEN_KEY);
-};
+export const API_BASE = (
+  import.meta.env.VITE_CREATOR_STUDIO_API_BASE_URL || defaultBase
+).trim();
 
 const apiFetch = async (path: string, options: RequestInit = {}) => {
   const headers = new Headers(options.headers || {});
   if (!(options.body instanceof FormData)) {
     headers.set('Content-Type', 'application/json');
   }
-  const token = getStoredToken();
+  const token = getAuthToken();
   if (token) {
     headers.set('Authorization', `Bearer ${token}`);
   }
@@ -49,9 +45,9 @@ export const authApi = {
   async me() {
     return apiFetch('/api/me') as Promise<UserProfile>;
   },
-  setToken: setStoredToken,
-  clearToken: clearStoredToken,
-  getToken: getStoredToken
+  setToken: (token: string, _remember?: boolean) => setAuthToken(token),
+  clearToken: clearAuthToken,
+  getToken: getAuthToken
 };
 
 export const agentsApi = {
@@ -105,32 +101,6 @@ export const agentsApi = {
       body: JSON.stringify(payload)
     }) as Promise<AgentBuildResponse>;
   },
-  async getActions(agentId: string) {
-    return apiFetch(`/api/agents/${agentId}/actions`) as Promise<AgentActionResponse[]>;
-  },
-  async createAction(agentId: string, payload: AgentActionPayload) {
-    return apiFetch(`/api/agents/${agentId}/actions`, {
-      method: 'POST',
-      body: JSON.stringify(payload)
-    }) as Promise<AgentActionResponse>;
-  },
-  async updateAction(agentId: string, actionId: string, payload: Partial<AgentActionPayload>) {
-    return apiFetch(`/api/agents/${agentId}/actions/${actionId}`, {
-      method: 'PUT',
-      body: JSON.stringify(payload)
-    }) as Promise<AgentActionResponse>;
-  },
-  async deleteAction(agentId: string, actionId: string) {
-    return apiFetch(`/api/agents/${agentId}/actions/${actionId}`, {
-      method: 'DELETE'
-    }) as Promise<{ ok: boolean }>;
-  },
-  async testAction(agentId: string, actionId: string, params: any) {
-    return apiFetch(`/api/agents/${agentId}/actions/${actionId}/test`, {
-      method: 'POST',
-      body: JSON.stringify(params)
-    });
-  }
 };
 
 
@@ -164,20 +134,7 @@ export const adminApi = {
   }
 };
 
-export const publicApi = {
-  async listPublicAgents() {
-    return apiFetch('/api/public/agents') as Promise<Agent[]>;
-  },
-  async getCredits(guestId: string) {
-    const encoded = encodeURIComponent(guestId);
-    return apiFetch(`/api/public/credits?guestId=${encoded}`) as Promise<{ credits: number }>;
-  },
-  async purchaseCredits(guestId: string, amount: number) {
-    return apiFetch('/api/public/credits/purchase', {
-      method: 'POST',
-      body: JSON.stringify({ guestId, amount })
-    }) as Promise<{ credits: number }>;
-  },
+export const filesApi = {
   async extractFileText(file: File) {
     const form = new FormData();
     form.append('file', file);
@@ -185,11 +142,5 @@ export const publicApi = {
       method: 'POST',
       body: form
     }) as Promise<{ text: string }>;
-  },
-  async publicChat(payload: { guestId: string, agentId: string, message: string, messages?: any[], draftConfig?: any }) {
-    return apiFetch('/api/public/chat', {
-      method: 'POST',
-      body: JSON.stringify(payload)
-    }) as Promise<{ text: string, execution_id?: string }>;
   }
 };

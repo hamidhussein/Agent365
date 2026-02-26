@@ -33,6 +33,9 @@ class AgentBase(BaseModel):
     demo_available: bool = False
     allow_reviews: bool = False
     review_cost: int = Field(default=5, ge=0)
+    is_public: bool = False
+    welcome_message: Optional[str] = None
+    starter_questions: List[str] = Field(default_factory=list)
 
     @field_validator("tags", mode="after")
     @classmethod
@@ -68,6 +71,9 @@ class AgentUpdate(BaseModel):
     thumbnail_url: Optional[str] = Field(None, max_length=512)
     allow_reviews: Optional[bool] = None
     review_cost: Optional[int] = Field(None, ge=0)
+    is_public: Optional[bool] = None
+    welcome_message: Optional[str] = None
+    starter_questions: Optional[List[str]] = None
 
     @field_validator("tags", mode="after")
     @classmethod
